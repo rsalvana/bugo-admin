@@ -1,0 +1,171 @@
+/* ====== Mobile-safe baseline (no backend changes) ====== */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { margin: 0; max-width: 100%; overflow-x: hidden; }
+
+img, svg, video, canvas, iframe { max-width: 100%; height: auto; }
+button, .btn, input[type="submit"], a.button { min-height: 44px; min-width: 44px; }
+
+/* Let text wrap… but NOT table cells (they get their own rules below) */
+h1, h2, h3, h4, h5, h6, p, a, span { overflow-wrap: anywhere; word-break: break-word; }
+
+/* Containers */
+.container, .container-fluid, .page, .content, .wrapper, .inner {
+  width: min(100% - 2rem, 1200px);
+  margin-inline: auto;
+}
+
+/* Tables */
+.table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-responsive table { width: 100%; border-collapse: collapse; }
+
+/* By default, DON’T break words inside table cells; allow horizontal scroll */
+table td, table th { word-break: normal; overflow-wrap: normal; white-space: normal; vertical-align: middle; }
+
+/* Grid helpers */
+.grid { display: grid; gap: 1rem; grid-template-columns: repeat(12, minmax(0,1fr)); }
+.col-12 { grid-column: span 12; } .col-6 { grid-column: span 6; }
+.col-4  { grid-column: span 4; }  .col-3 { grid-column: span 3; }
+
+/* Breakpoints */
+@media (max-width: 1024px){ .hide-lg { display: none !important; } }
+@media (max-width: 768px){
+  .col-md-12 { grid-column: span 12; }
+  .col-md-6  { grid-column: span 6; }
+  .stack-md > * { display:block; width:100% !important; }
+  nav .menu { display:none; } nav .menu-toggle { display:inline-flex; }
+}
+@media (max-width: 480px){
+  .col-sm-12, .col-6, .col-4, .col-3 { grid-column: span 12; }
+  .text-sm { font-size: clamp(14px, 3.8vw, 16px); }
+}
+
+/* ====== SB Admin–style layout guards (Captain) ====== */
+.sb-topnav { position: sticky; top: 0; z-index: 1030; }
+body.sb-nav-fixed #layoutSidenav_content { padding-top: 56px; } /* avoid topbar overlap on phones */
+
+@media (max-width: 992px){
+  #layoutSidenav { display:block; }
+  #layoutSidenav_nav {
+    position: fixed; top: 56px; bottom: 0; left: 0;
+    width: 260px; transform: translateX(-100%); transition: transform .25s ease; z-index: 1029;
+  }
+  #layoutSidenav_nav[data-open="true"] { transform: translateX(0); }
+  #layoutSidenav_content { margin-left: 0 !important; } /* content full width on mobile */
+  .sb-sidenav .nav-link { white-space: normal; }        /* allow wrapping */
+}
+
+/* Keep “fixed” bars safe on mobile; switch back to fixed if you truly need */
+.fixed-top, .fixed-bottom, [data-fixed] { position: sticky; top: 0; z-index: 1000; }
+
+/* Prevent iOS zoom on inputs */
+input, select, textarea { font-size: 16px; }
+
+/* Cards/sections */
+.card, .panel {
+  background: #fff; border-radius: 10px;
+  padding: clamp(12px, 2.5vw, 20px);
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.section { padding: clamp(16px, 5vw, 40px) 0; }
+
+/* Captain dashboard cards (auto-wrap) */
+.captain-cards { display: grid; gap: 1rem; grid-template-columns: repeat(12, minmax(0,1fr)); }
+.captain-card  { grid-column: span 3; }
+@media (max-width: 1024px){ .captain-card { grid-column: span 4; } }
+@media (max-width: 768px) { .captain-card { grid-column: span 6; } }
+@media (max-width: 480px){ .captain-card { grid-column: span 12; } }
+
+/* Login page background: stop the “fixed” jank on iOS */
+@media (max-width: 768px){
+  body.is-login { background-attachment: scroll !important; }
+}
+
+/* Legacy fixed-width shells: allow shrinking */
+.page-shell, .layout, .main-wrap { max-width: 1200px; width: 100%; margin-inline: auto; }
+
+/* ===== MODULE LIST PAGES: universal mobile fixes ===== */
+@media (max-width: 992px) {
+  /* Full-width content */
+  #layoutSidenav_content > main,
+  #layoutSidenav_content .container-fluid,
+  #layoutSidenav_content .container {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Toolbars/filters stack */
+  .feedback-controls,
+  .filter-bar, .filters, .toolbar, .search-bar, .actions,
+  .form-inline, .filter-toolbar, [data-filters], [data-toolbar] {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: .5rem !important;
+  }
+
+  .feedback-controls .left, .feedback-controls .right,
+  .filter-bar .form-control, .filter-bar .form-select, .filter-bar .btn,
+  .filters .form-control, .filters .form-select, .filters .btn,
+  .toolbar .form-control, .toolbar .form-select, .toolbar .btn,
+  .form-inline .form-control, .form-inline .form-select, .form-inline .btn,
+  [data-filters] .form-control, [data-filters] .form-select, [data-filters] .btn {
+    width: 100% !important;
+  }
+
+  /* Input groups wrap */
+  .input-group { flex-wrap: wrap; }
+  .input-group > * { flex: 1 1 100%; }
+
+  /* Button groups wrap nicely */
+  .btn-group, .btn-toolbar { flex-wrap: wrap; gap: .5rem; width: 100%; }
+}
+
+/* Tables: scroll on mobile always */
+.table-panel, .dt-container, .dataTable-container, .datatable-wrapper { width: 100% !important; overflow-x: auto; }
+.dt-container table, .dataTable-container table, .datatable-wrapper table { width: 100% !important; }
+
+/* Sidebar/filters that were fixed → normal on phones */
+@media (max-width: 992px) {
+  .filter-panel, .side-panel, .sidebar-filters, [data-filter-panel] {
+    position: static !important; width: auto !important; max-width: 100% !important;
+  }
+}
+
+/* SweetAlert fit small screens */
+.swal2-popup { width: min(90vw, 500px) !important; }
+
+/* ===== Per-module table tuning ===== */
+
+/* Feedbacks: wrap long feedback text, but keep table readable */
+.feedbacks-table td:first-child { white-space: normal; word-break: break-word; overflow-wrap: anywhere; }
+
+/* Case list + Resident list: NO wrapping; rely on horizontal scroll */
+.case-table th, .case-table td,
+.resident-table th, .resident-table td {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+/* On very small screens, make the case list container flexible in height */
+@media (max-width: 768px){
+  .case-table-wrap, .resident-table-wrap { height: auto !important; max-height: 70vh; }
+}
+
+/* ===== Reports page: enable sideways pan for wide tables on phones ===== */
+@media (max-width: 768px) {
+  #reportResult {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;   /* smooth iOS/Android swipe */
+  }
+  #reportResult table {
+    width: max-content !important;       /* allow table to be wider than viewport */
+    min-width: 780px;                    /* tweak this if your columns need more/less */
+    table-layout: auto !important;
+  }
+  #reportResult thead th,
+  #reportResult tbody td {
+    white-space: nowrap;                 /* keep columns on a single line */
+  }
+}
+/* ===== End Reports fix ===== */

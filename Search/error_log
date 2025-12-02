@@ -1,0 +1,50 @@
+[24-Oct-2025 15:05:32 Asia/Manila] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/Search/approve_captain.php:155
+Stack trace:
+#0 /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/Search/approve_captain.php(155): mysqli_stmt->bind_param()
+#1 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/Search/approve_captain.php on line 155
+[24-Oct-2025 15:06:52 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 15:06:52 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 15:06:52 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 15:06:52 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 15:06:52 Asia/Manila] ❌ Email failed to send: Invalid address:  (to): 
+[24-Oct-2025 15:26:21 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 15:26:21 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 15:26:21 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 15:26:21 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 15:26:21 Asia/Manila] ❌ Email failed to send: Invalid address:  (to): 
+[24-Oct-2025 15:27:02 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 15:27:02 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 15:27:02 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 15:27:02 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 15:27:02 Asia/Manila] ❌ Email failed to send: Invalid address:  (to): 
+[24-Oct-2025 17:12:23 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:12:23 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 17:12:23 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:12:23 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 17:30:36 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:30:36 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 17:30:36 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:30:36 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 17:33:20 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:33:20 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 17:33:20 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:33:20 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 17:38:30 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:38:30 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[24-Oct-2025 17:38:30 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: issis, Values: 5, Expected: 5
+[24-Oct-2025 17:38:30 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[25-Oct-2025 00:39:07 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: isis, Values: 4, Expected: 4
+[25-Oct-2025 00:39:07 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[25-Oct-2025 00:39:07 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: isis, Values: 4, Expected: 4
+[25-Oct-2025 00:39:07 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[25-Oct-2025 21:18:47 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: isis, Values: 4, Expected: 4
+[25-Oct-2025 21:18:47 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[25-Oct-2025 21:18:47 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: isis, Values: 4, Expected: 4
+[25-Oct-2025 21:18:47 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[28-Oct-2025 06:05:17 Asia/Manila] FATAL BIND ERROR (Check Logic): Table schedules - Types: isis, Values: 4, Expected: 4
+[28-Oct-2025 06:05:17 Asia/Manila] FATAL BIND ERROR (Check Logic): Table cedula - Types: iis, Values: 3, Expected: 3
+[28-Oct-2025 06:05:17 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_request - Types: isis, Values: 4, Expected: 4
+[28-Oct-2025 06:05:17 Asia/Manila] FATAL BIND ERROR (Check Logic): Table urgent_cedula_request - Types: iis, Values: 3, Expected: 3
+[01-Nov-2025 22:23:21 Asia/Manila] ❌ Email failed to send: Invalid address:  (to): 
+[01-Nov-2025 22:23:27 Asia/Manila] ❌ Email failed to send: Invalid address:  (to): 

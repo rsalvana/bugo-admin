@@ -1,0 +1,129 @@
+ /* ========= OATH PAGE (scoped) ========= */
+
+  /* Always start the oath on a new printed page */
+  @media print { .oath-page { break-before: page; page-break-before: always; } }
+
+  /* Neutralize any global print scaling that might shrink content */
+  .oath-page {
+    transform: none !important;
+    zoom: 1 !important;
+  }
+
+  /* Reset typography inside the oath only */
+  .oath-page, .oath-page * {
+    font-family: Arial, Helvetica, sans-serif !important;
+    font-size: 12pt !important;          /* exact body size as required */
+    line-height: 1.6 !important;         /* comfortable line spacing */
+    box-sizing: border-box;
+  }
+    .oath-page .oath-top-gap{ height: 10mm; }
+
+  /* Full-width container independent of your .container rules */
+  .oath-page .oath-inner {
+    width: 100% !important;
+    padding-top: 60mm;
+    max-width: none !important;
+    padding: 0 18mm;                      /* body side margins similar to reference */
+  }
+
+  /* ----- Header (logos + titles) ----- */
+  .oath-page .oath-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .oath-page .oath-header .logo { width: 95px; height: auto; }
+  .oath-page .oath-header .header-text { text-align: center; line-height: 1.2 !important; }
+  .oath-page .oath-header h2,
+  .oath-page .oath-header h3,
+  .oath-page .oath-header h4 { margin: 0 !important; font-weight: 700 !important; }
+
+  .oath-page .oath-rule { border: 0; border-top: 2px solid #000; margin: 10pt 0 12pt !important; }
+
+  /* ----- Title ----- */
+  .oath-page .oath-title {
+    text-align: center;
+    font-weight: 700 !important;
+    text-transform: uppercase;
+    letter-spacing: .25px;
+    margin: 12pt 0 8pt !important;
+    font-size: 13.5pt !important;
+  }
+
+  /* ----- Paragraph body (no lists) ----- */
+  .oath-page .oath-wrap p {
+    margin: 0 0 6pt !important;
+    text-align: justify !important;
+    text-indent: 0 !important;         /* first-line indent per reference */
+  }
+.oath-page .oath-wrap p.no-indent{ text-indent: 0 !important; }
+.oath-page .oath-wrap p.clause{
+  margin: 2pt 0 !important;
+  padding-left: 24pt !important;       /* ← uniform left indent for ALL lines */
+  text-indent: 0 !important;           /* keep first line aligned with rest */
+}
+
+  /* Hide any legacy single-column signature blocks, if present in markup */
+  .oath-page .oath-signature,
+  .oath-page .witnessed { display: none !important; }
+
+  /* ========= Signatures (ROW) =========
+     LEFT  = Witnessed By
+     RIGHT = First Time Jobseekers
+     Labels/captions appear BELOW their lines
+  ====================================== */
+
+  .oath-page .sig-row {
+    margin-top: 16pt;                     /* initial spacing (overridden below) */
+    display: flex;
+    justify-content: space-between;
+    gap: 24pt;
+  }
+  .oath-page .sig-box { width: 48%; }
+
+  /* The signature line itself */
+  .oath-page .sig-line {
+    border-top: 1px solid #000;
+    height: 0;
+    width: 100%;
+    margin: 0 0 5pt 0;
+  }
+
+  /* Captions under lines */
+  .oath-page .sig-caption {
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 4pt;
+  }
+
+  /* LEFT column (Witnessed By + name/role) */
+  .oath-page .sig-left .sig-caption { text-align: left; }  /* "Witnessed By:" left-aligned */
+  .oath-page .sig-left .sig-name   { font-weight: 700; text-align: left; }
+  .oath-page .sig-left .sig-sub    { font-weight: 400; text-align: left; margin-top: 1pt; }
+  .oath-page .sig-left { margin-top: 60mm; }   
+
+  /* RIGHT column (Applicant caption centered) */
+  .oath-page .sig-right .sig-caption { text-align: center; }  /* "First Time Jobseekers" */
+  .oath-page .sig-row { align-items: flex-start; }
+.oath-page .sig-right { margin-top: 35mm; }   /* try 8–14mm */
+
+  /* ====== Bottom pin rules (make signatures sit at the bottom) ====== */
+
+  /* Make the oath body fill the page height and stack vertically */
+  .oath-page .oath-wrap{
+    display: flex;
+     min-height: calc(240mm - 6mm);
+    flex-direction: column;
+    /* A4 is ~297mm tall. Subtract header + spacing to target your layout. */
+    min-height: 240mm;             /* ← adjust this value as needed */
+    padding-bottom: 10mm;          /* breathing room above page edge */
+  }
+
+  /* Keep the signature block at the bottom of the page */
+  .oath-page .sig-row{
+    align-items: flex-start;
+    margin-top: auto;              /* pushes row to the bottom */
+    padding-top: 12pt;
+    page-break-inside: avoid;      /* don't split signatures across pages */
+  }

@@ -1,0 +1,468 @@
+[29-Aug-2025 07:14:16 UTC] PHP Fatal error:  Uncaught ArgumentCountError: The number of elements in the type definition string must match the number of bind variables in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/class/update_resident.php:258
+Stack trace:
+#0 /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/class/update_resident.php(258): mysqli_stmt->bind_param()
+#1 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/class/update_resident.php on line 258
+[16-Sep-2025 02:50:25 Asia/Manila] PHP Warning:  Undefined variable $telephoneNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 398
+[16-Sep-2025 02:50:25 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 398
+[16-Sep-2025 02:50:25 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[16-Sep-2025 02:50:25 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[16-Sep-2025 02:50:25 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:428
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 428
+[17-Sep-2025 23:34:42 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:34:42 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:34:42 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:38:19 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:38:19 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:38:19 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:49:45 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:49:45 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:49:45 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:03 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:03 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:03 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:05 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:05 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:05 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:11 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:11 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:11 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:13 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:13 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:13 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:16 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:16 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:16 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:18 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:18 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:27 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:27 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:27 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:47 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:47 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:47 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:54 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:54 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:54 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:50:57 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:57 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:50:57 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:51:03 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:03 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:03 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:51:04 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:04 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:04 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:51:13 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:13 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:13 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:51:14 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:14 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:14 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:51:18 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:18 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:51:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:55:06 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:06 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:06 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:55:10 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:10 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:10 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:55:12 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:12 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:12 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:55:15 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:15 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:15 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:55:45 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:45 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:45 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:55:47 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:47 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:55:47 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:58:22 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:22 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:22 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:58:36 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:36 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:36 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:58:40 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:40 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:40 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:58:44 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:44 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:44 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:58:48 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:48 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:48 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:58:51 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:51 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:58:51 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:59:09 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:09 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:09 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:59:18 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:18 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:59:21 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:21 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:21 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:59:22 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:22 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:22 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:59:37 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:37 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:37 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:59:41 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:41 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:41 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[17-Sep-2025 23:59:43 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:43 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[17-Sep-2025 23:59:43 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:01:22 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:01:22 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:01:22 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:02:28 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:02:28 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:02:28 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:02:36 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:02:36 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:02:36 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:02:46 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:02:46 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:02:46 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:16:07 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:16:07 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:16:07 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:26:44 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:26:44 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:26:44 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:29:25 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:29:25 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:29:25 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:29:37 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:29:37 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:29:37 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:32:10 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:32:10 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:32:10 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:39:49 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:39:49 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:39:49 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:52:34 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:52:34 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:52:34 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:55:53 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:55:53 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:55:53 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 00:56:18 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:56:18 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 00:56:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 01:01:07 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:01:07 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:01:07 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 01:06:38 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:06:38 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:06:38 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 01:07:12 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:12 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:12 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 01:07:18 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:18 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 01:07:18 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:18 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:18 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 01:07:20 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:20 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:20 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 01:07:20 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:20 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 01:07:20 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 03:00:48 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 378
+[18-Sep-2025 03:00:48 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 378
+[18-Sep-2025 03:00:48 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:398
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 398
+[18-Sep-2025 03:01:45 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 378
+[18-Sep-2025 03:01:45 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 378
+[18-Sep-2025 03:01:45 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:398
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 398
+[18-Sep-2025 03:10:17 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:10:17 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:10:17 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 03:20:19 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:20:19 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:20:19 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 03:22:03 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:22:03 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:22:03 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 03:24:43 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:24:43 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:24:43 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 03:27:29 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:27:29 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 03:27:29 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 04:56:24 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:56:24 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:56:24 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 04:58:43 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:58:43 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:58:43 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 04:58:55 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:58:55 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:58:55 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[18-Sep-2025 04:58:57 Asia/Manila] PHP Warning:  Undefined variable $mobileNumber in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:58:57 Asia/Manila] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 379
+[18-Sep-2025 04:58:57 Asia/Manila] PHP Fatal error:  Uncaught Error: Undefined constant "APP_VERSION" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:399
+Stack trace:
+#0 {main}
+  thrown in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php on line 399
+[24-Oct-2025 19:54:27 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 19:54:27 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 19:54:27 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 19:55:15 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 19:55:15 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 19:55:15 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 19:56:01 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 19:56:01 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 19:56:01 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 19:56:41 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 19:56:41 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 19:56:41 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 19:57:43 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 19:57:43 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 19:57:43 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 20:09:50 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 20:09:50 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 20:09:50 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 20:18:01 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 20:18:01 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 20:18:01 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 20:26:03 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 20:26:03 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 20:26:03 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 20:26:50 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 20:26:50 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 20:26:50 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[24-Oct-2025 20:27:28 Asia/Manila] PHP Warning:  Undefined array key "child_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 13
+[24-Oct-2025 20:27:28 Asia/Manila] PHP Warning:  Undefined array key "parent_id" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 14
+[24-Oct-2025 20:27:28 Asia/Manila] PHP Warning:  Undefined array key "relationship_type" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/components/resident_modal/link_modal.php on line 15
+[27-Oct-2025 21:57:44 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:120) in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 332
+[27-Oct-2025 21:59:34 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:120) in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 332
+[27-Oct-2025 22:01:30 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:120) in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 332
+[27-Oct-2025 22:02:24 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:120) in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 332
+[27-Oct-2025 22:05:31 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:120) in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 332
+[27-Oct-2025 22:07:22 Asia/Manila] PHP Warning:  Cannot modify header information - headers already sent by (output started at /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/index_Admin.php:120) in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 333
+[02-Nov-2025 14:17:54 Asia/Manila] PHP Warning:  Undefined array key "gender" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 416
+[02-Nov-2025 14:17:54 Asia/Manila] PHP Warning:  Undefined array key "civilStatus" in /home/hzvl0mk3xdsn/public_html/office.bugoportal.site/api/resident_info.php on line 418
+[02-Nov-2025 15:32:41 Asia/Manila] update_resident logic failed: New password and confirm password do not match.
+[02-Nov-2025 15:33:03 Asia/Manila] update_resident logic failed: New password and confirm password do not match.
+[02-Nov-2025 15:36:32 Asia/Manila] update_resident logic failed: New password and confirm password do not match.
+[02-Nov-2025 15:37:18 Asia/Manila] update_resident logic failed: New password and confirm password do not match.
+[02-Nov-2025 16:07:41 Asia/Manila] update_resident logic failed: New password and confirm password do not match.
+[02-Nov-2025 16:08:26 Asia/Manila] update_resident logic failed: New password and confirm password do not match.
+[02-Nov-2025 16:13:28 Asia/Manila] PWD DEBUG KEYS: {"allow":1,"has_new":1,"has_new_legacy":0,"has_conf":0,"has_conf_legacy":0,"len_new":12,"len_conf":0}
+[02-Nov-2025 16:13:28 Asia/Manila] update_resident logic failed: New password and confirm password do not match.
+[02-Nov-2025 16:17:31 Asia/Manila] PWD DEBUG KEYS: {"allow":1,"has_new":1,"has_new_legacy":0,"has_conf":1,"has_conf_legacy":0,"len_new":13,"len_conf":13}

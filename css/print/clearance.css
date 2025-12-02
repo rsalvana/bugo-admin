@@ -1,0 +1,80 @@
+
+      /* Layout helpers */
+      .two-col{display:flex;justify-content:space-between;gap:24px;}
+      .col-48{width:48%;}
+
+      /* Resident photo (2x2in) */
+      .photo-2x2{
+        width:2in; height:2in; object-fit:cover;
+        border-radius:0; border:1px solid #000; display:block;
+      }
+
+      /* ===== Signatory styles (overlay) ===== */
+      .signatory-wrap{width:48%; text-align:center; position:relative;}
+      .pb-name,.pb-title{position:relative; z-index:1; margin:0;}
+      .pb-name{font-size:30px;}
+      .pb-title{font-size:20px; margin-bottom:6px;}
+      /* PB signature sits ON TOP of the PB name */
+      .pb-signature{
+        position:absolute; top:-70px; left:50%; transform:translateX(-50%);
+        width:150px; height:auto; z-index:3; pointer-events:none;
+      }
+
+      .authority-note{font-size:14px; margin-top:6px;}
+      .auth{position:relative; margin-top:10px;}
+      .auth-name,.auth-title{position:relative; z-index:1; margin:0;}
+      .auth-name{font-size:30px;}
+      .auth-title{font-size:20px; margin-bottom:8px;}
+      /* Delegate signature sits ON TOP of the delegate name */
+      .auth-signature{
+        position:absolute; top:-50px; left:50%; transform:translateX(-50%);
+        width:140px; height:auto; z-index:3; pointer-events:none;
+      }
+        .signatory-wrap{
+  width:48%;
+  text-align:center;
+  position:relative;
+}
+
+.pb-name,.pb-title{
+  position:relative;
+  z-index:1;
+  margin:0;
+}
+.pb-name{font-size:15px;}
+.pb-title{font-size:10px; margin-bottom:10px;}
+.pb-signature{
+  position:absolute; top:-70px; left:50%;
+  transform:translateX(-50%);
+  width:150px; height:auto;
+  z-index:3; pointer-events:none;
+}
+
+/* Authority + delegate */
+.authority-note{
+  font-size:13px;  /* slightly bigger for emphasis */
+  font-weight:600;
+  margin-top:25px; /* spacing above */
+  margin-bottom:25px; /* spacing before name */
+}
+
+.auth{
+  position:relative;
+  margin-top:10px;
+}
+
+.auth-name,.auth-title{
+  position:relative;
+  z-index:1;
+  margin:0;
+}
+.auth-name{font-size:15px; margin-top:12px;}
+.auth-title{font-size:10px; margin-bottom:10px;}
+
+.auth-signature{
+  position:absolute;
+  top:-55px; left:50%;
+  transform:translateX(-50%);
+  width:140px; height:auto;
+  z-index:3; pointer-events:none;
+}
