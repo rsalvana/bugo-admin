@@ -7,8 +7,6 @@ session_start();
 $user_role = strtolower($_SESSION['Role_Name'] ?? '');
 if (!in_array($user_role, ['lupon','punong barangay','barangay secretary','admin'], true)) {
     http_response_code(403);
-    header('Content-Type: text/html; charset=UTF-8');
-    require_once __DIR__ . '/../security/403.html';
     exit;
 }
 
@@ -26,50 +24,81 @@ $offset = ($page - 1) * $limit;
 
 $searchTerm = '%' . $search . '%';
 
-/** Build full names from the cases table itself */
-$complainantExpr = "TRIM(CONCAT_WS(' ', Comp_First_Name, NULLIF(Comp_Middle_Name,''), Comp_Last_Name, NULLIF(Comp_Suffix_Name,'')))";
-$respondentExpr  = "TRIM(CONCAT_WS(' ', Resp_First_Name, NULLIF(Resp_Middle_Name,''), Resp_Last_Name, NULLIF(Resp_Suffix_Name,'')))";
+// Helper to format names
+$participantNameExpr = "TRIM(CONCAT_WS(' ', cp.first_name, NULLIF(cp.middle_name,''), cp.last_name, NULLIF(cp.suffix_name,'')))";
 
-/** ---- Count ---- */
+// ---------------------------------------------------------
+// 1. COUNT TOTAL
+// ---------------------------------------------------------
+// logic: join tables, but use TRIM() on case_number to avoid mismatch due to spaces
 $count_sql = "
-    SELECT COUNT(*) AS total
-    FROM cases
-    WHERE $complainantExpr LIKE ?
-       OR $respondentExpr  LIKE ?
-       OR CAST(case_number AS CHAR) LIKE ?
+    SELECT COUNT(DISTINCT c.case_number) AS total
+    FROM cases c
+    LEFT JOIN case_participants cp ON TRIM(c.case_number) = TRIM(cp.case_number)
+    WHERE c.case_number LIKE ? 
+       OR $participantNameExpr LIKE ?
 ";
+
 if (!$stmt = $mysqli->prepare($count_sql)) {
     echo json_encode(['error' => 'Prepare failed (count): '.$mysqli->error]); exit;
 }
-$stmt->bind_param('sss', $searchTerm, $searchTerm, $searchTerm);
+$stmt->bind_param('ss', $searchTerm, $searchTerm);
 $stmt->execute();
 $res = $stmt->get_result();
 $total_rows  = (int)($res->fetch_assoc()['total'] ?? 0);
 $total_pages = (int)ceil($total_rows / $limit);
 $stmt->close();
 
-/** ---- Page data ---- */
+// ---------------------------------------------------------
+// 2. FETCH DATA
+// ---------------------------------------------------------
+// We use TRIM() in the subqueries to ensure we match the participants even if there are accidental spaces.
 $data_sql = "
-    SELECT
-        cases.*,
-        $respondentExpr  AS respondent_full_name,
-        $complainantExpr AS complainant_full_name
-    FROM cases
-    WHERE $complainantExpr LIKE ?
-       OR $respondentExpr  LIKE ?
-       OR CAST(case_number AS CHAR) LIKE ?
-    ORDER BY date_filed DESC, case_number DESC
+    SELECT 
+        c.*,
+        (
+            SELECT GROUP_CONCAT(
+                TRIM(CONCAT_WS(' ', first_name, NULLIF(middle_name,''), last_name, NULLIF(suffix_name,'')))
+                SEPARATOR '<br>'
+            )
+            FROM case_participants cp 
+            WHERE TRIM(cp.case_number) = TRIM(c.case_number) AND cp.role = 'Complainant'
+        ) AS complainant_list,
+        (
+            SELECT GROUP_CONCAT(
+                TRIM(CONCAT_WS(' ', first_name, NULLIF(middle_name,''), last_name, NULLIF(suffix_name,'')))
+                SEPARATOR '<br>'
+            )
+            FROM case_participants cp 
+            WHERE TRIM(cp.case_number) = TRIM(c.case_number) AND cp.role = 'Respondent'
+        ) AS respondent_list
+    FROM cases c
+    WHERE c.case_number LIKE ?
+       OR EXISTS (
+           SELECT 1 FROM case_participants cp 
+           WHERE TRIM(cp.case_number) = TRIM(c.case_number)
+           AND TRIM(CONCAT_WS(' ', first_name, NULLIF(middle_name,''), last_name, NULLIF(suffix_name,''))) LIKE ?
+       )
+    ORDER BY c.date_filed DESC, c.case_number DESC
     LIMIT ? OFFSET ?
 ";
+
 if (!$stmt = $mysqli->prepare($data_sql)) {
     echo json_encode(['error' => 'Prepare failed (data): '.$mysqli->error]); exit;
 }
-$stmt->bind_param('sssii', $searchTerm, $searchTerm, $searchTerm, $limit, $offset);
+$stmt->bind_param('ssii', $searchTerm, $searchTerm, $limit, $offset);
 $stmt->execute();
 $result = $stmt->get_result();
 
 $rows = [];
 while ($row = $result->fetch_assoc()) {
+    // If the list is empty (NULL), fill it with the old single column data as a fallback
+    if (empty($row['complainant_list'])) {
+        $row['complainant_list'] = trim(($row['Comp_First_Name'] ?? '') . ' ' . ($row['Comp_Last_Name'] ?? ''));
+    }
+    if (empty($row['respondent_list'])) {
+        $row['respondent_list'] = trim(($row['Resp_First_Name'] ?? '') . ' ' . ($row['Resp_Last_Name'] ?? ''));
+    }
     $rows[] = $row;
 }
 $stmt->close();
@@ -80,3 +109,4 @@ echo json_encode([
     'current_page' => $page,
     'total_rows'   => $total_rows
 ]);
+?>

@@ -134,7 +134,7 @@ if (!isset($_SESSION['employee_id']) && isset($_COOKIE['remember_token'])) {
 if (isset($_SESSION['employee_id'])) {
     // If still forced to change password, don't go to dashboard
     if (!empty($_SESSION['force_change_password'])) {
-        header("Location: /change_password.php");
+        header("Location: /bugo-admin/change_password.php");
         exit();
     }
     $redirect_page = role_redirect($_SESSION['Role_Name'] ?? 'Staff');
@@ -204,7 +204,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         // Do not "remember me" until password is changed
                         $_POST['remember'] = 0;
 
-                        header("Location: /change_password.php"); // same level as index.php
+                        header("Location: /bugo-admin/change_password.php"); // same level as index.php
                         exit();
                     }
 
@@ -227,7 +227,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         case strpos($role_name, 'beso') !== false:
                             $redirect_page = enc_beso('admin_dashboard'); break;
                         case strpos($role_name, 'tanod') !== false:
-                            $redirect_page = enc_tanod('admin_dashboard'); break;    
+                            $redirect_page = enc_tanod('admin_dashboard'); break;  
+                        case strpos($role_name, 'bhw') !== false:
+                            $redirect_page = enc_bhw('admin_dashboard'); break;                                
                         default:
                             $redirect_page = enc_page('admin_dashboard');
                     }

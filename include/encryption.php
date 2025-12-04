@@ -1,6 +1,6 @@
 <?php
 define('ENCRYPTION_KEY', 'thisIsA32ByteLongSecretKey123456'); // exactly 32 chars!
-define('OFFICE_BASE_URL', (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) ? 'http://localhost/BUGO-Admin' : 'https://office.bugoportal.site'); // no trailing slash
+define('OFFICE_BASE_URL', (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) ? 'http://localhost/bugo-admin' : 'https://office.bugoportal.site'); // no trailing slash
 // define('OFFICE_BASE_URL', 'https://office.bugoportal.site'); // no trailing slash
 /* =========
    Crypto
@@ -38,7 +38,7 @@ function enc_multimedia(string $pageName): string  { return build_office_url('in
 function enc_brgysec(string $pageName): string     { return build_office_url('index_barangay_secretary.php', $pageName); }
 function enc_beso(string $pageName): string        { return build_office_url('index_beso_staff.php',         $pageName); }
 function enc_tanod(string $pageName): string        { return build_office_url('index_tanod.php',         $pageName); }
-
+function enc_bhw(string $pageName): string        { return build_office_url('index_bhw.php',         $pageName); }
 /* =========
    Redirects
    ========= */
@@ -67,7 +67,9 @@ function role_redirect(string $roleName): string {
         case strpos($role, 'beso') !== false:
             return enc_beso('admin_dashboard');
         case strpos($role, 'tanod') !== false:
-            return enc_tanod('admin_dashboard');            
+            return enc_tanod('admin_dashboard');      
+        case strpos($role, 'bhw') !== false:
+            return enc_bhw('admin_dashboard');                   
         default:
             return enc_admin('admin_dashboard');
     }

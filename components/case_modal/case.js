@@ -39,6 +39,7 @@ $(document).ready(function () {
           );
         } else {
           res.cases.forEach((row) => {
+            // 1. View Button
             const viewBtn = `
               <button class="btn btn-sm btn-outline-primary view-details-btn" 
                 data-bs-toggle="modal" 
@@ -48,38 +49,56 @@ $(document).ready(function () {
                 <i class="bi bi-eye"></i>
               </button>`;
 
+            // 2. Status Update Button (Green)
+            const statusBtn = `
+              <button class="btn btn-sm btn-outline-success update-status-btn" 
+                data-bs-toggle="modal" 
+                data-bs-target="#statusModal"
+                data-case-number="${row.case_number}" 
+                data-current-action="${row.action_taken}"
+                title="Update Status">
+                <i class="bi bi-pencil-square"></i>
+              </button>`;
+
+            // 3. NEW: Appearance Update Button (Orange)
+            const appearanceBtn = `
+              <button class="btn btn-sm btn-outline-warning update-appearance-btn" 
+                data-bs-toggle="modal" 
+                data-bs-target="#appearanceModal"
+                data-case-number="${row.case_number}" 
+                title="Update Appearance / Non-Appearance">
+                <i class="bi bi-journal-check"></i>
+              </button>`;
+
             let actionColumn = "";
             if ((userRole || "").toLowerCase() === "punong barangay") {
+              // PB only sees View
               actionColumn = `<div class="d-flex gap-1">${viewBtn}</div>`;
             } else {
+              // Others see View, Status, and Appearance
               actionColumn = `
                 <div class="d-flex gap-1">
                   ${viewBtn}
-                  <button class="btn btn-sm btn-outline-success update-status-btn" 
-                    data-bs-toggle="modal" 
-                    data-bs-target="#statusModal"
-                    data-case-number="${row.case_number}" 
-                    data-current-action="${row.action_taken}"
-                    title="Update Status">
-                    <i class="bi bi-pencil-square"></i>
-                  </button>
+                  ${statusBtn}
+                  ${appearanceBtn}
                 </div>`;
             }
 
-            const compFull = `${row.Comp_First_Name || ""} ${row.Comp_Middle_Name || ""} ${row.Comp_Last_Name || ""} ${row.Comp_Suffix_Name || ""}`.replace(/\s+/g, " ").trim();
-            const respFull = `${row.Resp_First_Name || ""} ${row.Resp_Middle_Name || ""} ${row.Resp_Last_Name || ""} ${row.Resp_Suffix_Name || ""}`.replace(/\s+/g, " ").trim();
+            // Use the pre-formatted lists from PHP (handles multiple people)
+            const compDisplay = row.complainant_list || "N/A";
+            const respDisplay = row.respondent_list || "N/A";
 
             tableBody.append(`
               <tr>
-                <td>${row.case_number}</td>
-                <td>${compFull}</td>
-                <td>${respFull}</td>
-                <td>${row.nature_offense}</td>
-                <td>${row.date_filed}</td>
-                <td>${row.time_filed}</td>
-                <td>${row.date_hearing}</td>
-                <td><span>${row.action_taken || "No status"}</span></td>
-                <td>${actionColumn}</td>
+                <td style="vertical-align: middle;">${row.case_number}</td>
+                <td style="vertical-align: middle;">${compDisplay}</td>
+                <td style="vertical-align: middle;">${respDisplay}</td>
+                <td style="vertical-align: middle;">${row.nature_offense}</td>
+                <td style="vertical-align: middle;">${row.date_filed}</td>
+                <td style="vertical-align: middle;">${row.time_filed}</td>
+                <td style="vertical-align: middle;">${row.date_hearing}</td>
+                <td style="vertical-align: middle;"><span>${row.action_taken || "No status"}</span></td>
+                <td style="vertical-align: middle;">${actionColumn}</td>
               </tr>
             `);
           });
@@ -168,15 +187,21 @@ $(document).ready(function () {
 // --------------------------
 $(document).on("click", ".view-details-btn", function () {
   const row = $(this).data("case");
+
+  $("#modal_complainant_list").html(row.complainant_list || "<span class='text-muted'>No Data</span>");
+  $("#modal_respondent_list").html(row.respondent_list || "<span class='text-muted'>No Data</span>");
   $("#modal_case_number").val(row.case_number);
+  
   $("#Comp_First_Name").val(row.Comp_First_Name || "");
   $("#Comp_Middle_Name").val(row.Comp_Middle_Name || "");
   $("#Comp_Last_Name").val(row.Comp_Last_Name || "");
   $("#Comp_Suffix_Name").val(row.Comp_Suffix_Name || "");
+  
   $("#Resp_First_Name").val(row.Resp_First_Name || "");
   $("#Resp_Middle_Name").val(row.Resp_Middle_Name || "");
   $("#Resp_Last_Name").val(row.Resp_Last_Name || "");
   $("#Resp_Suffix_Name").val(row.Resp_Suffix_Name || "");
+  
   $("#modal_nature_offense").val(row.nature_offense);
   $("#modal_date_filed").val(row.date_filed);
   $("#modal_time_filed").val(row.time_filed);
@@ -191,6 +216,16 @@ $(document).on("click", ".view-details-btn", function () {
 $(document).on("click", ".update-status-btn", function () {
   $("#status_case_number").val($(this).data("case-number"));
   $("#status_action_taken").val($(this).data("current-action"));
+});
+
+// --------------------------
+// NEW: Update Appearance modal populate
+// --------------------------
+$(document).on("click", ".update-appearance-btn", function () {
+  $("#appearance_case_number").val($(this).data("case-number"));
+  // Reset the form inside the modal if needed
+  $("#appearanceModal form")[0].reset();
+  $("#appearance_case_number").val($(this).data("case-number"));
 });
 
 // --------------------------
