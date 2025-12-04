@@ -52,15 +52,13 @@ $date   = $main['appt_date'];
 $status = $main['current_status'];
 
 /* ------- Collect all same-day appointments across tables ------- */
-/* Include cedula_number and income (as cedula_income) where available */
 $appointments = [];
 
 $tables = [
-    // table,          certificate expr, time col,          date col,           cedula_number expr,         income expr (aliased)
-    ['schedules',      'certificate',    'selected_time',   'selected_date',    'NULL AS cedula_number',    'NULL AS cedula_income'],
+    // table,          certificate expr, time col,           date col,           cedula_number expr,         income expr (aliased)
+    ['schedules',      'certificate',    'selected_time',    'selected_date',    'NULL AS cedula_number',    'NULL AS cedula_income'],
     ['cedula',         "'Cedula'",       'appointment_time','appointment_date', 'cedula_number',            'income AS cedula_income'],
-    ['urgent_request', 'certificate',    'selected_time',   'selected_date',    'NULL AS cedula_number',    'NULL AS cedula_income'],
-    // show as 'Cedula' for consistency so UI rules apply
+    ['urgent_request', 'certificate',    'selected_time',    'selected_date',    'NULL AS cedula_number',    'NULL AS cedula_income'],
     ['urgent_cedula_request', "'Cedula'",'appointment_time','appointment_date', 'cedula_number',            'income AS cedula_income'],
 ];
 
@@ -93,7 +91,7 @@ foreach ($tables as [$table, $certCol, $timeCol, $dateCol, $cedCol, $incCol]) {
             'certificate'     => $r['certificate'],
             'time_slot'       => $r['time_slot'] ?? '',
             'cedula_number'   => $r['cedula_number'] ?? '',
-            'cedula_income'   => $r['cedula_income'] ?? null, // <-- now present for Cedula rows
+            'cedula_income'   => $r['cedula_income'] ?? null, 
         ];
     }
     $st->close();
@@ -126,7 +124,7 @@ $middle = $residentRow['middle_name'] ?? '';
 $last   = $residentRow['last_name']   ?? '';
 $suffix = $residentRow['suffix_name'] ?? '';
 
-/* 2) Cases query */
+/* 2) Cases query WITH Participants Sub-query */
 $cases = [];
 $case_sql = "
     SELECT case_number, nature_offense, date_filed, date_hearing, action_taken
@@ -150,7 +148,34 @@ if ($cStmt) {
     $cStmt->bind_param('sssss', $first, $last, $middle, $middle, $suffix);
     $cStmt->execute();
     $res = $cStmt->get_result();
+    
+    // Loop through cases
     while ($row = $res->fetch_assoc()) {
+        $currentCaseNumber = $row['case_number'];
+        $participants = [];
+
+        // --- SUB-QUERY for Participants ---
+        // Updated to fetch 'action_taken' and 'remarks' as requested
+        $partSql = "SELECT role, first_name, middle_name, last_name, suffix_name, action_taken, remarks 
+                    FROM case_participants 
+                    WHERE case_number = ?";
+        
+        $pStmt = $mysqli->prepare($partSql);
+        if ($pStmt) {
+            $pStmt->bind_param('s', $currentCaseNumber);
+            $pStmt->execute();
+            $pResult = $pStmt->get_result();
+            
+            while ($pRow = $pResult->fetch_assoc()) {
+                $participants[] = $pRow;
+            }
+            $pStmt->close();
+        }
+        // ----------------------------------
+
+        // Add participants to the row data
+        $row['participants'] = $participants;
+        
         $cases[] = $row;
     }
     $cStmt->close();
@@ -166,3 +191,4 @@ echo json_encode([
     'appointments' => $appointments
 ]);
 exit;
+?>

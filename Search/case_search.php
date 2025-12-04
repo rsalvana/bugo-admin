@@ -56,6 +56,9 @@ $stmt->close();
 $data_sql = "
     SELECT 
         c.*,
+        /* --- ADDED THIS LINE TO FIX 'PENDING' BADGES --- */
+        (SELECT action_taken FROM case_participants WHERE case_number = c.case_number AND action_taken IN ('Appearance', 'Non-Appearance') LIMIT 1) as attendance_status,
+        /* ----------------------------------------------- */
         (
             SELECT GROUP_CONCAT(
                 TRIM(CONCAT_WS(' ', first_name, NULLIF(middle_name,''), last_name, NULLIF(suffix_name,'')))

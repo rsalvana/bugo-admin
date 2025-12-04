@@ -2044,38 +2044,114 @@ document.addEventListener('DOMContentLoaded', () => {
           statusSelect.dispatchEvent(new Event('change'));
 
           // ----- Render Case History -----
+          // ----- Render Case History (Updated with Participants, Action & Remarks) -----
           const container = document.getElementById('caseHistoryContainer');
-          if (data.cases && data.cases.length) {
-            container.innerHTML = '<ul class="list-group">' + data.cases.map(cs => `
-              <li class="list-group-item">
-                <strong>Case #${cs.case_number}</strong> - ${cs.nature_offense}<br>
-                <small>Filed: ${cs.date_filed} | Hearing: ${cs.date_hearing} | Action: ${cs.action_taken}</small>
-              </li>
-            `).join('') + '</ul>';
-          } else {
-            container.innerHTML = '<p class="text-muted px-3 py-2 mb-0">No case records for this resident.</p>';
+          if (container) {
+            if (data.cases && data.cases.length) {
+              container.innerHTML = '<ul class="list-group list-group-flush">' + data.cases.map(cs => {
+                
+                // Helper to format participant name
+                const formatName = (p) => {
+                   return [p.first_name, p.middle_name, p.last_name, p.suffix_name]
+                     .filter(Boolean)
+                     .join(' ');
+                };
+
+                // Generate Participants HTML
+                let participantsHtml = '';
+                if (cs.participants && cs.participants.length > 0) {
+                    const listItems = cs.participants.map(p => {
+                        
+                        // 1. Action Taken Line (Hidden if empty)
+                        const actionLine = p.action_taken 
+                            ? `<div class="text-muted mt-1" style="font-size:0.85em;">
+                                 <i class="bi bi-check2-circle me-1 text-success"></i><strong>Action:</strong> ${p.action_taken}
+                               </div>` 
+                            : '';
+
+                        // 2. Remarks Line (Hidden if empty)
+                        const remarksLine = p.remarks 
+                            ? `<div class="text-muted mt-1" style="font-size:0.85em;">
+                                 <i class="bi bi-chat-left-text me-1 text-info"></i><strong>Remarks:</strong> ${p.remarks}
+                               </div>` 
+                            : '';
+                        
+                        // Only show the border/block if there is actually data to show
+                        const detailsBlock = (actionLine || remarksLine) 
+                            ? `<div class="ms-1 ps-3 border-start border-2 border-light mb-2">
+                                 ${actionLine}
+                                 ${remarksLine}
+                               </div>` 
+                            : '';
+
+                        return `
+                        <li class="mb-1">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-secondary-subtle text-dark border me-2" style="font-size:0.75em; min-width:85px;">${p.role}</span> 
+                                <span class="fw-bold text-dark small">${formatName(p)}</span>
+                            </div>
+                            ${detailsBlock}
+                        </li>`;
+                    }).join('');
+                    
+                    participantsHtml = `
+                        <div class="mt-3 pt-2 border-top border-light-subtle">
+                            <small class="fw-bold text-secondary d-block mb-2">
+                                <i class="bi bi-people-fill me-1"></i>Participants
+                            </small>
+                            <ul class="list-unstyled ms-1 mb-0 small">
+                                ${listItems}
+                            </ul>
+                        </div>
+                    `;
+                }
+
+                return `
+                  <li class="list-group-item p-3">
+                    <div class="mb-2">
+                        <strong class="text-primary"><i class="bi bi-folder2-open me-1"></i>Case #${cs.case_number}</strong> 
+                        <span class="ms-1 badge bg-danger-subtle text-danger border border-danger-subtle">${cs.nature_offense}</span>
+                    </div>
+                    
+                    <div class="small text-muted bg-light p-2 rounded border border-light-subtle d-flex flex-wrap gap-3">
+                        <span><strong>Filed:</strong> ${cs.date_filed}</span> 
+                        <span class="border-start mx-1"></span>
+                        <span><strong>Hearing:</strong> ${cs.date_hearing || 'TBD'}</span>
+                        <span class="border-start mx-1"></span>
+                        <span><strong>Status:</strong> ${cs.action_taken || 'Pending'}</span>
+                    </div>
+
+                    ${participantsHtml}
+                  </li>
+                `;
+              }).join('') + '</ul>';
+            } else {
+              container.innerHTML = '<p class="text-muted px-3 py-2 mb-0 text-center"><i class="bi bi-clipboard-x me-1"></i>No case records for this resident.</p>';
+            }
           }
 
-          // ----- Render Same-day Appointments (with Cedula income if any) -----
+          // ----- Render Same-day Appointments (Preserved) -----
           const ul   = document.getElementById('sameDayAppointments');
           const peso = v => '₱' + Number(v).toLocaleString('en-PH');
-          if (data.appointments && data.appointments.length) {
-            ul.innerHTML = data.appointments.map(app => {
-              const incomeHtml =
-                (String(app.certificate || '').toLowerCase() === 'cedula' && app.cedula_income)
-                  ? `<div class="text-muted">Income: ${peso(app.cedula_income)}</div>`
-                  : '';
-              return `
-                <li class="list-group-item">
-                  <strong>${app.certificate}</strong><br>
-                  Tracking #: <code>${app.tracking_number}</code><br>
-                  Time: ${app.time_slot}
-                  ${incomeHtml}
-                </li>
-              `;
-            }).join('');
-          } else {
-            ul.innerHTML = '<li class="list-group-item text-muted">No appointments for this resident on this day.</li>';
+          if (ul) {
+            if (data.appointments && data.appointments.length) {
+              ul.innerHTML = data.appointments.map(app => {
+                const incomeHtml =
+                  (String(app.certificate || '').toLowerCase() === 'cedula' && app.cedula_income)
+                    ? `<div class="text-muted small mt-1"><i class="bi bi-cash-coin me-1"></i>Income: ${peso(app.cedula_income)}</div>`
+                    : '';
+                return `
+                  <li class="list-group-item">
+                    <strong class="text-dark">${app.certificate}</strong><br>
+                    <small class="text-muted">Tracking #: <code class="text-primary">${app.tracking_number}</code></small><br>
+                    <small class="text-muted">Time: ${app.time_slot}</small>
+                    ${incomeHtml}
+                  </li>
+                `;
+              }).join('');
+            } else {
+              ul.innerHTML = '<li class="list-group-item text-muted small fst-italic">No appointments for this resident on this day.</li>';
+            }
           }
         });
     });

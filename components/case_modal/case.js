@@ -34,8 +34,9 @@ $(document).ready(function () {
         tableBody.empty();
 
         if (!res.cases || res.cases.length === 0) {
+          // NOTE: Updated colspan to 10 for new column
           tableBody.append(
-            '<tr><td colspan="9" class="text-center">No cases found.</td></tr>'
+            '<tr><td colspan="10" class="text-center">No cases found.</td></tr>'
           );
         } else {
           res.cases.forEach((row) => {
@@ -49,7 +50,7 @@ $(document).ready(function () {
                 <i class="bi bi-eye"></i>
               </button>`;
 
-            // 2. Status Update Button (Green)
+            // 2. Status Update Button
             const statusBtn = `
               <button class="btn btn-sm btn-outline-success update-status-btn" 
                 data-bs-toggle="modal" 
@@ -60,7 +61,7 @@ $(document).ready(function () {
                 <i class="bi bi-pencil-square"></i>
               </button>`;
 
-            // 3. NEW: Appearance Update Button (Orange)
+            // 3. Appearance Update Button
             const appearanceBtn = `
               <button class="btn btn-sm btn-outline-warning update-appearance-btn" 
                 data-bs-toggle="modal" 
@@ -72,10 +73,8 @@ $(document).ready(function () {
 
             let actionColumn = "";
             if ((userRole || "").toLowerCase() === "punong barangay") {
-              // PB only sees View
               actionColumn = `<div class="d-flex gap-1">${viewBtn}</div>`;
             } else {
-              // Others see View, Status, and Appearance
               actionColumn = `
                 <div class="d-flex gap-1">
                   ${viewBtn}
@@ -84,7 +83,15 @@ $(document).ready(function () {
                 </div>`;
             }
 
-            // Use the pre-formatted lists from PHP (handles multiple people)
+            // --- BADGE LOGIC ---
+            let attBadge = '<span class="badge bg-secondary">Pending</span>';
+            if (row.attendance_status === 'Appearance') {
+                attBadge = '<span class="badge bg-success">Appeared</span>';
+            } else if (row.attendance_status === 'Non-Appearance') {
+                attBadge = '<span class="badge bg-danger">Absent</span>';
+            }
+            // -------------------
+
             const compDisplay = row.complainant_list || "N/A";
             const respDisplay = row.respondent_list || "N/A";
 
@@ -97,6 +104,9 @@ $(document).ready(function () {
                 <td style="vertical-align: middle;">${row.date_filed}</td>
                 <td style="vertical-align: middle;">${row.time_filed}</td>
                 <td style="vertical-align: middle;">${row.date_hearing}</td>
+                
+                <td style="vertical-align: middle;">${attBadge}</td>
+                
                 <td style="vertical-align: middle;"><span>${row.action_taken || "No status"}</span></td>
                 <td style="vertical-align: middle;">${actionColumn}</td>
               </tr>
@@ -219,11 +229,10 @@ $(document).on("click", ".update-status-btn", function () {
 });
 
 // --------------------------
-// NEW: Update Appearance modal populate
+// Update Appearance modal populate
 // --------------------------
 $(document).on("click", ".update-appearance-btn", function () {
   $("#appearance_case_number").val($(this).data("case-number"));
-  // Reset the form inside the modal if needed
   $("#appearanceModal form")[0].reset();
   $("#appearance_case_number").val($(this).data("case-number"));
 });
