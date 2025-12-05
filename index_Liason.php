@@ -59,7 +59,7 @@ if ($stmt) {
     $_SESSION['Role_Name'] = $roleName;
 
     $roleNameLower = strtolower($roleName);
-    if (strpos($roleNameLower, 'bhw') === false) {
+    if (strpos($roleNameLower, 'liason') === false) {
         header("Location: index.php");
         exit();
     }
@@ -196,18 +196,18 @@ $mysqli->close();
                     <div class="sb-sidenav-menu">
                         <div class="nav">
                             <div class="sb-sidenav-menu-heading">Core</div>
-                            <a class="nav-link <?php echo ($page === 'bhw_dashboard') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('admin_dashboard')); ?>">
+                            <a class="nav-link <?php echo ($page === 'bhw_dashboard') ? '' : 'collapsed'; ?>" href="index_Liason.php?page=<?php echo urlencode(encrypt('admin_dashboard')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div> Dashboard
                                 </a>
-                             <a class="nav-link <?php echo ($page === 'med_request') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_request')); ?>">
+                             <a class="nav-link <?php echo ($page === 'med_request') ? '' : 'collapsed'; ?>" href="index_Liason.php?page=<?php echo urlencode(encrypt('med_request')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-users"></i></div> Request List
                                 </a>
-                           <a class="nav-link <?php echo ($page === 'med_inventory') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_inventory')); ?>">
+                           <!-- <a class="nav-link <?php echo ($page === 'med_inventory') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('case_list')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-gavel"></i></div> Medicine Inventory
                                 </a>
                                  <a class="nav-link <?php echo ($page === 'bhw_report') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('reports')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-chart-line"></i></div> Report
-                                </a>                        
+                                </a>                         -->
                            
                         </div>
                     </div>
@@ -230,7 +230,7 @@ $mysqli->close();
 require_once __DIR__ . '/include/connection.php';
 $mysqli = db_connection();
   
-$decryptedPage = 'bhw_dashboard'; // fallback/default
+$decryptedPage = 'liason_dashboard'; // fallback/default
 
 if (isset($_GET['page'])) {
     $decrypted = decrypt($_GET['page']);
@@ -239,18 +239,18 @@ if (isset($_GET['page'])) {
     }
 }
 switch ($decryptedPage) {
-            case 'bhw_dashboard':
-                include 'Modules/bhw_module/bhw_dashboard.php';
+            case 'liason_dashboard':
+                include 'Modules/liason_modules/liason_dashboard.php';
               break;
               case 'med_request':
-                include 'Modules/bhw_modules/med_request.php'; // or 'api/med_request.php' if you put it there
+                include 'Modules/liason_modules/med_request.php'; // or 'api/med_request.php' if you put it there
                 break;
-            case 'bhw_report':
-                include 'Modules/bhw_module/bhw_report.php';
-              break;
-              case 'med_inventory':
-                include 'Modules/bhw_modules/med_inventory.php';
-              break;
+            // case 'bhw_report':
+            //     include 'Modules/bhw_module/bhw_report.php';
+            //   break;
+            //   case 'med_inventory':
+            //     include 'Modules/bhw_modules/med_inventory.php';
+            //   break;
     case 'profile':
     include 'Pages/profile.php';
     break;
