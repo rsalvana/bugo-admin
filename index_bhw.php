@@ -205,13 +205,16 @@ $mysqli->close();
                            <a class="nav-link <?php echo ($page === 'med_inventory') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_inventory')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-gavel"></i></div> Medicine Inventory
                                 </a>
+                           <a class="nav-link <?php echo ($page === 'message') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('message')); ?>">
+                                <div class="sb-nav-link-icon"><i class="fas fa-gavel"></i></div> Online Consulation
+                                </a>                                
                                  <a class="nav-link <?php echo ($page === 'bhw_report') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('reports')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-chart-line"></i></div> Report
                                 </a>                        
                            
                         </div>
                     </div>
-                    <div class="sb-sidenav-footer">q
+                    <div class="sb-sidenav-footer">
                         <div class="small">Logged in as:</div>
                         <h5 class="mt-4">Welcome, <?php echo htmlspecialchars($userName); ?> (<?php echo htmlspecialchars($roleName); ?>)</h5>
 
@@ -247,6 +250,9 @@ switch ($decryptedPage) {
                 break;
             case 'bhw_report':
                 include 'Modules/bhw_module/bhw_report.php';
+              break;
+                          case 'message':
+                include 'api/message.php';
               break;
               case 'med_inventory':
                 include 'Modules/bhw_modules/med_inventory.php';
