@@ -196,7 +196,7 @@ $mysqli->close();
                     <div class="sb-sidenav-menu">
                         <div class="nav">
                             <div class="sb-sidenav-menu-heading">Core</div>
-                            <a class="nav-link <?php echo ($page === 'bhw_dashboard') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('admin_dashboard')); ?>">
+                            <a class="nav-link <?php echo ($page === 'bhw_dashboard') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('bhw_dashboard')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div> Dashboard
                                 </a>
                              <a class="nav-link <?php echo ($page === 'med_request') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_request')); ?>">
@@ -243,7 +243,7 @@ if (isset($_GET['page'])) {
 }
 switch ($decryptedPage) {
             case 'bhw_dashboard':
-                include 'Modules/bhw_module/bhw_dashboard.php';
+                include 'Modules/bhw_modules/bhw_dashboard.php';
               break;
               case 'med_request':
                 include 'Modules/bhw_modules/med_request.php'; // or 'api/med_request.php' if you put it there
@@ -290,7 +290,7 @@ case 'settings':
         </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
         <script src="js/scripts.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js" crossorigin="anonymous"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <!-- <script src="assets/demo/chart-area-demo.js"></script> -->
         <!-- <script src="assets/demo/chart-bar-demo.js"></script> -->
         <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>

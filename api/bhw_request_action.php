@@ -2,7 +2,7 @@
 // api/bhw_request_action.php
 declare(strict_types=1);
 
-// Ensure '0' is a string for strict types
+// Standard error handling
 ini_set('display_errors', '0'); 
 ini_set('display_startup_errors', '0');
 error_reporting(E_ALL);
@@ -19,6 +19,7 @@ function json_response($success, $message) {
     exit;
 }
 
+// Security Check
 if (!isset($_SESSION['employee_id'])) {
     json_response(false, 'Unauthorized access.');
 }
@@ -29,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- 1. APPROVE REQUEST (Deduct Stock) ---
     if ($action === 'process') {
         $req_id = (int)$_POST['request_id'];
-        $status = $_POST['status']; // 'Approved' or 'Rejected'
+        $status = $_POST['status']; 
         $remarks = trim($_POST['remarks']);
         $items = isset($_POST['items']) ? json_decode($_POST['items'], true) : [];
 
@@ -94,8 +95,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_response(false, 'Invalid status update.');
         }
 
-        $stmt = $mysqli->prepare("UPDATE medicine_requests SET status = ? WHERE id = ?");
-        $stmt->bind_param("si", $new_status, $req_id);
+        // *** FIX: Use employee_id instead of id ***
+        if ($new_status === 'On Delivery') {
+            $liaison_id = $_SESSION['employee_id']; 
+
+            $stmt = $mysqli->prepare("UPDATE medicine_requests SET status = ?, liaison_id = ? WHERE id = ?");
+            $stmt->bind_param("sii", $new_status, $liaison_id, $req_id);
+        } else {
+            $stmt = $mysqli->prepare("UPDATE medicine_requests SET status = ? WHERE id = ?");
+            $stmt->bind_param("si", $new_status, $req_id);
+        }
         
         if ($stmt->execute()) {
             json_response(true, "Status updated to $new_status.");
@@ -115,9 +124,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $fileTmp = $_FILES['proof_img']['tmp_name'];
         $fileContent = file_get_contents($fileTmp);
 
-        $stmt = $mysqli->prepare("UPDATE medicine_requests SET status = 'Delivered', delivery_proof = ? WHERE id = ?");
+        // *** FIX: Use employee_id here too ***
+        $liaison_id = $_SESSION['employee_id'];
+
+        $stmt = $mysqli->prepare("UPDATE medicine_requests SET status = 'Delivered', delivery_proof = ?, liaison_id = ? WHERE id = ?");
         $null = null;
-        $stmt->bind_param("bi", $null, $req_id);
+        $stmt->bind_param("bii", $null, $liaison_id, $req_id);
         $stmt->send_long_data(0, $fileContent);
         
         if ($stmt->execute()) {

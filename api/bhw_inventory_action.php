@@ -101,5 +101,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             json_response(false, 'Database error.');
         }
     }
-}
+}   
 ?>
