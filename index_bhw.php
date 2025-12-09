@@ -208,7 +208,7 @@ $mysqli->close();
                            <a class="nav-link <?php echo ($page === 'message') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('message')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-gavel"></i></div> Online Consulation
                                 </a>                                
-                                 <a class="nav-link <?php echo ($page === 'bhw_report') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('reports')); ?>">
+                                 <a class="nav-link <?php echo ($page === 'bhw_report') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('bhw_report')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-chart-line"></i></div> Report
                                 </a>                        
                            
@@ -249,7 +249,7 @@ switch ($decryptedPage) {
                 include 'Modules/bhw_modules/med_request.php'; // or 'api/med_request.php' if you put it there
                 break;
             case 'bhw_report':
-                include 'Modules/bhw_module/bhw_report.php';
+                include 'Modules/bhw_modules/bhw_report.php';
               break;
                           case 'message':
                 include 'api/message.php';
