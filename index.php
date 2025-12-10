@@ -229,9 +229,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         case strpos($role_name, 'tanod') !== false:
                             $redirect_page = enc_tanod('admin_dashboard'); break;  
                         case strpos($role_name, 'bhw') !== false:
-                            $redirect_page = enc_bhw('admin_dashboard'); break; 
+                            $redirect_page = enc_bhw('bhw_dashboard'); break; 
                             case strpos($role_name, 'liason') !== false:
-                                $redirect_page = enc_liason('admin_dashboard'); break;                                                              
+                                $redirect_page = enc_liason('liason_dashboard'); break;                                                              
                         default:
                             $redirect_page = enc_page('admin_dashboard');
                     }
