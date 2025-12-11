@@ -10,12 +10,13 @@ header('Content-Type: application/json');
 $mysqli = db_connection();
 $action = $_POST['action'] ?? '';
 
-// 1. FETCH USERS (Count Admin Unread)
+// 1. FETCH USERS (With Profile Picture)
 if ($action === 'fetch_users') {
-    // Count where admin_read is 0
+    // Added r.profile_pic to the query
     $sql = "SELECT 
                 r.id, 
                 CONCAT(r.first_name, ' ', r.last_name) as name, 
+                r.profile_pic, 
                 (SELECT COUNT(*) 
                  FROM support_messages 
                  WHERE resident_id = r.id 
@@ -31,9 +32,16 @@ if ($action === 'fetch_users') {
     $users = [];
     if ($result) {
         while ($row = $result->fetch_assoc()) {
+            // Convert Blob to Base64 if image exists
+            $img = null;
+            if (!empty($row['profile_pic'])) {
+                $img = 'data:image/jpeg;base64,' . base64_encode($row['profile_pic']);
+            }
+
             $users[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
+                'image' => $img, // Send image data to frontend
                 'unread' => (int)$row['unread_count']
             ];
         }
@@ -48,7 +56,6 @@ if ($action === 'fetch_chat') {
     $residentId = (int)($_POST['resident_id'] ?? 0);
     
     if ($residentId > 0) {
-        // A. Update: Mark messages as read by admin
         $updateSql = "UPDATE support_messages 
                       SET admin_read = 1 
                       WHERE resident_id = ? AND admin_read = 0";
@@ -57,7 +64,6 @@ if ($action === 'fetch_chat') {
         $stmt->execute();
         $stmt->close();
 
-        // B. Fetch conversation
         $sql = "SELECT sent_by, message, created_at 
                 FROM support_messages 
                 WHERE resident_id = ? 
@@ -88,7 +94,6 @@ if ($action === 'send') {
     $message = trim($_POST['message'] ?? '');
     
     if ($residentId > 0 && $message !== '') {
-        // Insert: Admin read it (1), Resident hasn't (0)
         $sql = "INSERT INTO support_messages (resident_id, sent_by, message, created_at, admin_read, resident_read) 
                 VALUES (?, 'admin', ?, NOW(), 1, 0)";
         
