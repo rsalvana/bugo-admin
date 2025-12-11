@@ -1,3 +1,13 @@
+/* Global text size for printing */
+body {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 18pt;   /* Increase this value if you want bigger text */
+}
+
+p, h2, h3, h4, strong, div, section, span {
+    font-size: inherit;
+}
+
 
       /* Layout helpers */
       .two-col{display:flex;justify-content:space-between;gap:24px;}

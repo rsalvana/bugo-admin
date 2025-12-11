@@ -1,3 +1,7 @@
+body {
+    /* --- ADDED FONT-FAMILY FOR SCREEN VIEW --- */
+    font-family: "Times New Roman", Times, serif;
+}
 
 /* Main Container */
 .container {
@@ -59,7 +63,7 @@
 .barangay-certification p {
     text-align: justify;
     margin: 10px 0;
-    font-size: 16px;
+    font-size: 18pt;
     line-height: 1.5;
 }
 
@@ -245,7 +249,7 @@ p span {
     /* Make text in each section larger */
     .barangay-certification p,
     .signature-section p {
-        font-size: 16pt; /* Larger font size for text inside the certification */
+        font-size: 18pt; /* Larger font size for text inside the certification */
         line-height: 1.6; /* Improve readability */
     }
 
@@ -334,8 +338,14 @@ p span {
             size: A4 portrait; /* A4 paper size in portrait orientation */
         }
         .container {
-            font-size: 12pt; /* Adjust font size for A4 paper */
+            font-size: 16pt; /* Adjust font size for A4 paper */
         }
+        body {
+        margin: 0;
+        /* --- ADDED FONT-FAMILY FOR PRINT VIEW --- */
+        font-family: "Times New Roman", Times, serif; 
+        font-size: 16pt; 
+    }
     }
 
     /* Letter Paper Size */
@@ -344,8 +354,14 @@ p span {
             size: letter portrait; /* Letter paper size in portrait orientation */
         }
         .container {
-            font-size: 12pt; /* Adjust font size for Letter paper */
+            font-size: 16pt; /* Adjust font size for Letter paper */
         }
+        body {
+        margin: 0;
+        /* --- ADDED FONT-FAMILY FOR PRINT VIEW --- */
+        font-family: "Times New Roman", Times, serif; 
+        font-size: 16pt; 
+    }
     }
 
     /* Legal Paper Size */
@@ -354,7 +370,13 @@ p span {
             size: legal portrait; /* Legal paper size in portrait orientation */
         }
         .container {
-            font-size: 12pt; /* Adjust font size for Legal paper */
+            font-size: 16pt; /* Adjust font size for Legal paper */
         }
+        body {
+        margin: 0;
+        /* --- ADDED FONT-FAMILY FOR PRINT VIEW --- */
+        font-family: "Times New Roman", Times, serif; 
+        font-size: 16pt; 
+    }
     }
 }
