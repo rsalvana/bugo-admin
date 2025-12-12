@@ -470,6 +470,17 @@ $mysqli->close();
                                </nav>
                              </div>
 
+                             <a class="nav-link <?php echo in_array($page, ['med_request','med_inventory']) ? '' : 'collapsed'; ?>"
+                               data-bs-toggle="collapse" data-bs-target="#bhw_nav_desktop">
+                               <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> BHW Department
+                               <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                             </a>
+                             <div class="collapse <?php echo in_array($page, ['med_request','barangay_info','med_inventory']) ? 'show' : ''; ?>" id="bhw_nav_desktop">
+                               <nav class="sb-sidenav-menu-nested nav">
+                                <a class="nav-link <?php echo ($page === 'med_request') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('med_request')); ?>">Request List</a>
+                                <a class="nav-link <?php echo ($page === 'med_inventory') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('med_inventory')); ?>">Medicine Inventory</a>
+                             </div>
+
                              <a class="nav-link <?php echo ($page === 'reports') ? 'active' : 'collapsed'; ?>"
                                href="index_Admin.php?page=<?php echo urlencode(encrypt('reports')); ?>">
                                <div class="sb-nav-link-icon"><i class="fas fa-chart-line"></i></div> Report
@@ -536,6 +547,8 @@ switch ($page) { // Use the $page variable
   case 'announcements': include 'api/announcements.php'; break;
   case 'verify_2fa_password': include 'auth/verify_2fa_password.php'; break;
   case 'add_announcement': include 'components/announcement/add_announcement.php'; break;
+  case 'med_inventory': include 'Modules/bhw_modules/med_inventory.php'; break;
+  case 'med_request': include 'Modules/bhw_modules/med_request.php'; break;
   default: echo "<div class='alert alert-danger'>Invalid or missing page.</div>"; break;
 }
 ?>

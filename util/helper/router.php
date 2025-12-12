@@ -30,6 +30,10 @@ function get_role_based_action($pageName) {
             return enc_revenue($pageName);
         case 'encoder':
             return enc_encoder($pageName);
+        case 'liason':
+            return enc_liason($pageName);
+        case 'bhw':
+            return enc_bhw($pageName);                        
         default:
             return enc_admin('admin_dashboard'); // fallback
     }
