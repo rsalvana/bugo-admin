@@ -1,21 +1,28 @@
 <?php
 
-//  Call: require_once __DIR__ . '/security/security.php';
+// --- DYNAMIC SECURITY SETTINGS ---
+// Detect if we are on Localhost or a Local IP (192.168.x.x)
+$host = $_SERVER['HTTP_HOST'] ?? '';
+$isLocal = (strpos($host, 'localhost') !== false || strpos($host, '192.168.') !== false || strpos($host, '127.0.0.1') !== false);
 
-// --- Enforce HTTPS for cookies ---
+// If we are Local, disable Secure cookies. If Live, enable them.
+$cookieSecure = !$isLocal; 
+$sameSite     = $isLocal ? 'Lax' : 'Strict'; // Lax is friendlier for local dev
+
+// --- Enforce Session Settings ---
 ini_set('session.cookie_httponly', 1);
-ini_set('session.cookie_secure', 1); // Set true in production with HTTPS
+ini_set('session.cookie_secure', $cookieSecure ? 1 : 0); // Dynamic
+
 session_set_cookie_params([
     'lifetime' => 3600,
-    'secure'   => true,
+    'secure'   => $cookieSecure, // Dynamic: False for IP, True for Production
     'httponly' => true, 
-    'samesite' => 'Strict' 
+    'samesite' => $sameSite 
 ]);
 
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Pragma: no-cache");
 header("Expires: 0");
-
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
@@ -25,13 +32,13 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-
 function validate_csrf_token($token) {
     return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
+
 function record_failed_attempt(mysqli $db, int $employee_id): void {
-    $max = 2;         // failures allowed
-    $lock = 60;      // 15 minutes
+    $max = 3;        // failures allowed (Increased to 3 for better UX)
+    $lock = 300;     // 5 minutes lock (60s is too short for security)
 
     $q = $db->prepare("SELECT attempts FROM login_attempts WHERE employee_id = ?");
     $q->bind_param("i", $employee_id);
@@ -75,3 +82,4 @@ function reset_attempts(mysqli $db, int $employee_id): void {
     $d->bind_param("i", $employee_id);
     $d->execute();
 }
+?>

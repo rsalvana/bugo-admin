@@ -1,7 +1,19 @@
 <?php
 define('ENCRYPTION_KEY', 'thisIsA32ByteLongSecretKey123456'); // exactly 32 chars!
-define('OFFICE_BASE_URL', (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) ? 'http://localhost/bugo-admin' : 'https://office.bugoportal.site'); // no trailing slash
-// define('OFFICE_BASE_URL', 'https://office.bugoportal.site'); // no trailing slash
+
+// --- DYNAMIC URL DETECTION FIX ---
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+// Check if accessing via Localhost OR Local IP (e.g., 192.168.x.x) OR Loopback
+if (strpos($host, 'localhost') !== false || strpos($host, '192.168.') !== false || strpos($host, '127.0.0.1') !== false) {
+    // Use the current host (IP or localhost) for the base URL
+    define('OFFICE_BASE_URL', 'http://' . $host . '/bugo-admin');
+} else {
+    // Production URL
+    define('OFFICE_BASE_URL', 'https://office.bugoportal.site');
+}
+// ---------------------------------
+
 /* =========
    Crypto
    ========= */
@@ -49,6 +61,7 @@ function get_redirect_url($key, $isApi = false) {
     $lookupKey = $isApi ? "{$key}_api" : $key;
     return $redirects[$lookupKey] ?? enc_page('admin_dashboard');
 }
+
 function role_redirect(string $roleName): string {
     $role = strtolower($roleName);
     switch (true) {
@@ -80,4 +93,4 @@ function role_redirect(string $roleName): string {
             return enc_admin('admin_dashboard');
     }
 }
-
+?>
