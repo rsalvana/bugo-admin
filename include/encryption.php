@@ -1,7 +1,19 @@
 <?php
 define('ENCRYPTION_KEY', 'thisIsA32ByteLongSecretKey123456'); // exactly 32 chars!
-define('OFFICE_BASE_URL', (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') !== false) ? 'http://localhost/bugo-admin' : 'https://office.bugoportal.site'); // no trailing slash
-// define('OFFICE_BASE_URL', 'https://office.bugoportal.site'); // no trailing slash
+
+// --- DYNAMIC URL DETECTION FIX ---
+$host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+// Check if accessing via Localhost OR Local IP (e.g., 192.168.x.x) OR Loopback
+if (strpos($host, 'localhost') !== false || strpos($host, '192.168.') !== false || strpos($host, '127.0.0.1') !== false) {
+    // Use the current host (IP or localhost) for the base URL
+    define('OFFICE_BASE_URL', 'http://' . $host . '/bugo-admin');
+} else {
+    // Production URL
+    define('OFFICE_BASE_URL', 'https://office.bugoportal.site');
+}
+// ---------------------------------
+
 /* =========
    Crypto
    ========= */
@@ -37,9 +49,9 @@ function enc_encoder(string $pageName): string     { return build_office_url('in
 function enc_multimedia(string $pageName): string  { return build_office_url('index_multimedia.php',         $pageName); }
 function enc_brgysec(string $pageName): string     { return build_office_url('index_barangay_secretary.php', $pageName); }
 function enc_beso(string $pageName): string        { return build_office_url('index_beso_staff.php',         $pageName); }
-function enc_tanod(string $pageName): string        { return build_office_url('index_tanod.php',         $pageName); }
-function enc_bhw(string $pageName): string        { return build_office_url('index_bhw.php',         $pageName); }
-function enc_liason(string $pageName): string        { return build_office_url('index_Liason.php',         $pageName); }
+function enc_tanod(string $pageName): string       { return build_office_url('index_tanod.php',              $pageName); }
+function enc_bhw(string $pageName): string         { return build_office_url('index_bhw.php',                $pageName); }
+
 /* =========
    Redirects
    ========= */
@@ -48,6 +60,7 @@ function get_redirect_url($key, $isApi = false) {
     $lookupKey = $isApi ? "{$key}_api" : $key;
     return $redirects[$lookupKey] ?? enc_page('admin_dashboard');
 }
+
 function role_redirect(string $roleName): string {
     $role = strtolower($roleName);
     switch (true) {
@@ -70,11 +83,9 @@ function role_redirect(string $roleName): string {
         case strpos($role, 'tanod') !== false:
             return enc_tanod('admin_dashboard');      
         case strpos($role, 'bhw') !== false:
-            return enc_bhw('admin_dashboard');
-            case strpos($role, 'liason') !== false:
-                return enc_liason('admin_dashboard');                                 
+            return enc_bhw('admin_dashboard');                   
         default:
             return enc_admin('admin_dashboard');
     }
 }
-
+?>

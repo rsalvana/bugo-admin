@@ -47,7 +47,7 @@ if (!function_exists('swal_and_redirect')) {
               </head><body>
                 <script>
                   Swal.fire({icon:'{$icon}', title:'{$title}', text:'{$text}'})
-                       .then(() => { window.location.href = '{$redirectUrl}'; });
+                        .then(() => { window.location.href = '{$redirectUrl}'; });
                 </script>
               </body></html>";
         exit;
@@ -83,7 +83,6 @@ function sendCredentials(string $to, string $password): void {
         $mail->setFrom('admin@bugoportal.site', 'Barangay Bugo');
         $mail->addAddress($to);
         $mail->addReplyTo('admin@bugoportal.site', 'Barangay Bugo');
-        // $mail->addBCC('admin@bugoportal.site'); // optional while testing
 
         $portalLink = 'https://bugoportal.site/';
 
@@ -99,8 +98,8 @@ function sendCredentials(string $to, string $password): void {
                           <p><a href=\"{$portalLink}\">Open Resident Portal</a></p>
                           <br><p>Thank you,<br>Barangay Bugo</p>";
         $mail->AltBody = "Hi {$to},\n\nHere are your Barangay Bugo portal login credentials:\n"
-                       . "Username: {$to}\nPassword: {$password}\n\n"
-                       . "Please log in and change your password.\n\n{$portalLink}\n\nThank you,\nBarangay Bugo";
+                        . "Username: {$to}\nPassword: {$password}\n\n"
+                        . "Please log in and change your password.\n\n{$portalLink}\n\nThank you,\nBarangay Bugo";
 
         $mail->send();
     } catch (Exception $e) {
@@ -134,7 +133,7 @@ $count_result = $stmt->get_result();
 $total_rows   = (int)$count_result->fetch_assoc()['total'];
 $total_pages  = max(ceil($total_rows / $limit), 1);
 
-$baseUrl = $redirects['residents'];
+$baseUrl = $resbaseUrl; 
 if ($page > $total_pages) { $page = 1; }
 $offset = ($page - 1) * $limit;
 
@@ -142,16 +141,8 @@ $offset = ($page - 1) * $limit;
 function slugify_lower(string $s): string {
     $t = @iconv('UTF-8','ASCII//TRANSLIT',$s);
     if ($t === false) $t = $s;
-    // Keep only letters and numbers, remove all other characters
     $t = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '', $t ?? ''));
     return $t !== '' ? $t : 'user';
-}
-function username_exists(mysqli $db, string $u): bool {
-    $q = $db->prepare("SELECT 1 FROM residents WHERE username = ? AND resident_delete_status = 0 LIMIT 1");
-    $q->bind_param("s", $u);
-    $q->execute(); $q->store_result();
-    $exists = $q->num_rows > 0; $q->close();
-    return $exists;
 }
 
 /* ---- Optional switch to disable outbound mail in staging ---- */
@@ -165,7 +156,7 @@ function sendCredentialsIfPresent(?string $to, string $password): void {
     sendCredentials($to, $password);
 }
 
-/* ---------------- Excel Import (improved) ---------------- */
+/* ---------------- Excel Import ---------------- */
 
 if (isset($_POST['import_excel'])) {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== ($_SESSION['csrf_token'] ?? '')) {
@@ -185,7 +176,7 @@ if (isset($_POST['import_excel'])) {
             $processed_fullnames = [];
             $duplicates_found    = false;
 
-            // Pass 1: find in-file duplicate emails (if any)
+            // Pass 1: find in-file duplicate emails
             foreach ($rows as $i => $row) {
                 $email = strtolower(trim((string)($row[9] ?? '')));
                 if ($email === '') continue;
@@ -196,7 +187,6 @@ if (isset($_POST['import_excel'])) {
                 $processed_emails[$email] = true;
             }
             
-            // Prepare statements outside the loop for efficiency
             $insert_stmt = $mysqli->prepare(
                 "INSERT INTO residents (
                     employee_id, zone_leader_id, username, password, temp_password,
@@ -209,7 +199,6 @@ if (isset($_POST['import_excel'])) {
             
             $check_dupe_stmt = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
             $update_user_stmt = $mysqli->prepare("UPDATE residents SET username = ? WHERE id = ?");
-
 
             // Pass 2: insert rows
             for ($i = 1; $i < count($rows); $i++) {
@@ -247,10 +236,8 @@ if (isset($_POST['import_excel'])) {
                     $du->close();
                 }
 
-                // ===== NEW USERNAME LOGIC (Excel Import) =====
                 $base_username = slugify_lower($first_name . $last_name);
                 $username      = $base_username; 
-                // ===============================================
 
                 $employee_id            = (int)($_SESSION['employee_id'] ?? 0);
                 $zone_leader_id         = 0;
@@ -268,7 +255,6 @@ if (isset($_POST['import_excel'])) {
                 $age                    = date_diff(date_create($birth_date), date_create('today'))->y;
                 $resident_delete_status = 0;
 
-                // Insert (with temp_password)
                 $insert_stmt->bind_param(
                     "iissssssssssssissiiisssssi",
                     $employee_id, $zone_leader_id, $username, $password, $raw_password,
@@ -279,15 +265,13 @@ if (isset($_POST['import_excel'])) {
                 );
                 
                 if (!$insert_stmt->execute()) {
-                     $duplicates_found = true; 
-                     continue;
+                      $duplicates_found = true; 
+                      continue;
                 }
 
                 $new_resident_id = $mysqli->insert_id;
 
-                // ===== NEW USERNAME DUPLICATE CHECK (Excel Import) =====
                 $final_username = $base_username;
-                
                 $check_dupe_stmt->bind_param("si", $base_username, $new_resident_id);
                 $check_dupe_stmt->execute();
                 if ($check_dupe_stmt->get_result()->num_rows > 0) {
@@ -295,7 +279,6 @@ if (isset($_POST['import_excel'])) {
                     $update_user_stmt->bind_param("si", $final_username, $new_resident_id);
                     $update_user_stmt->execute();
                 }
-                // =======================================================
 
                 $importedCount = count($processed_fullnames);
                 $trigs->isResidentBatchAdded(2, $importedCount);
@@ -303,7 +286,6 @@ if (isset($_POST['import_excel'])) {
                 sendCredentialsIfPresent($email, $raw_password);
             }
             
-            // Close prepared statements
             $insert_stmt->close();
             $check_dupe_stmt->close();
             $update_user_stmt->close();
@@ -324,7 +306,6 @@ if (isset($_POST['import_excel'])) {
         }
     }
 }
-
 
 
 /* ---------------- Manual Add (primary + family) ---------------- */
@@ -411,7 +392,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
     // Tx begins
     $mysqli->begin_transaction();
     try {
-        // Insert primary (with temp_password)
+        // Insert primary
         $stmt = $mysqli->prepare(
             "INSERT INTO residents(
                 employee_id, zone_leader_id, username, password, temp_password,
@@ -437,14 +418,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
 
         // ===== NEW USERNAME DUPLICATE CHECK (Manual Add) =====
         $final_username = $login_username; 
-        
         $check_stmt = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
         $check_stmt->bind_param("si", $login_username, $primary_resident_id);
         $check_stmt->execute();
         
         if ($check_stmt->get_result()->num_rows > 0) {
             $final_username = $login_username . $primary_resident_id; 
-            
             $update_stmt = $mysqli->prepare("UPDATE residents SET username = ? WHERE id = ?");
             $update_stmt->bind_param("si", $final_username, $primary_resident_id);
             $update_stmt->execute();
@@ -469,7 +448,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
             $family_civil_statuses  = $_POST['family_civilStatus'] ?? [];
             $family_occupations     = $_POST['family_occupation'] ?? [];
             $family_emails          = $_POST['family_email'] ?? [];
-            $family_usernames       = $_POST['family_username'] ?? []; // This is the auto-generated one
+            $family_usernames       = $_POST['family_username'] ?? [];
 
             for ($i = 0; $i < count($family_first_names); $i++) {
                 if (empty($family_first_names[$i]) || empty($family_last_names[$i]) || empty($family_birth_dates[$i]) || empty($family_genders[$i])) {
@@ -498,18 +477,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
                 $fam_civilStatus = sanitize_input($family_civil_statuses[$i] ?? 'Single');
                 $fam_occupation  = sanitize_input($family_occupations[$i] ?? '');
                 $fam_email       = filter_var($family_emails[$i] ?? '', FILTER_SANITIZE_EMAIL);
-                $fam_username_f  = sanitize_input($family_usernames[$i] ?? ''); // Auto-generated
+                $fam_username_f  = sanitize_input($family_usernames[$i] ?? ''); 
                 
                 // ===== NEW USERNAME LOGIC (Child) =====
                 $fam_base_username = slugify_lower($fam_firstName . $fam_lastName);
                 $fam_login_username = !empty($fam_username_f) ? strtolower($fam_username_f) : $fam_base_username;
                 if (empty($fam_login_username)) { $fam_login_username = $fam_base_username; }
                 if (empty($fam_login_username)) {
-                     throw new Exception("Child #".($i+1).": First/Last name cannot be empty.");
+                      throw new Exception("Child #".($i+1).": First/Last name cannot be empty.");
                 }
-                // ======================================
 
-                // active-only dupes for email
                 if (!empty($fam_email)) {
                     $chk = $mysqli->prepare("SELECT id FROM residents WHERE email = ? AND resident_delete_status = 0 LIMIT 1");
                     $chk->bind_param("s", $fam_email);
@@ -522,12 +499,11 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
 
                 $fam_birthDateObj = new DateTime($fam_birthDate);
                 $fam_age          = $today->diff($fam_birthDateObj)->y;
-
                 $fam_raw_password = generatePassword();
                 $fam_password     = password_hash($fam_raw_password, PASSWORD_DEFAULT);
                 $famPasswords[$i] = ['email' => $fam_email, 'pass' => $fam_raw_password];
 
-                // Insert child (with temp_password)
+                // Insert child
                 $fam_stmt = $mysqli->prepare(
                     "INSERT INTO residents (
                         employee_id, zone_leader_id, username, password, temp_password,
@@ -553,7 +529,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
 
                 // ===== NEW USERNAME DUPLICATE CHECK (Child) =====
                 $fam_final_username = $fam_login_username;
-                
                 $check_stmt_fam = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
                 $check_stmt_fam->bind_param("si", $fam_login_username, $family_member_id);
                 $check_stmt_fam->execute();
@@ -581,7 +556,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
             }
         }
 
-        // Commit and send creds
         $mysqli->commit();
         if (!empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
             sendCredentials($email, $raw_password);
@@ -643,9 +617,6 @@ $stmt = $mysqli->prepare($sql);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $result = $stmt->get_result();
-// --- end of file ---
-
-// taman dri
 ?>
 
 
@@ -672,9 +643,7 @@ function setupChildUsernameGenerator(container) {
     return;
   }
 
-  // Make username field readonly
   usernameInput.readOnly = true;
-  // Set placeholder
   usernameInput.placeholder = "Auto-generated";
 
   function updateChildUsername() {
@@ -685,44 +654,41 @@ function setupChildUsernameGenerator(container) {
 
   firstNameInput.addEventListener('input', updateChildUsername);
   lastNameInput.addEventListener('input', updateChildUsername);
-  updateChildUsername(); // Run once to initialize
+  updateChildUsername(); 
 }
 
-// G-PROTEIN: This function was missing!
+// G-PROTEIN: The bug was here. Removed backslashes (\) from template literals.
 // ---------- Shared Template ----------
 function generateFamilyMemberFields(prefix) {
-  // MODIFIED: Added 'readonly' to the username field
-  // MODIFIED: Changed email placeholder and label
-  // MODIFIED: Removed 'placeholder="Username if no email"'
   return `
     <div class="row mb-3">
       <div class="col-md-3">
         <small>First Name<span class="text-danger">*</span></small>
-        <input type="text" class="form-control child-first-name" name="\${prefix}_firstName[]" placeholder="First Name *" required>
+        <input type="text" class="form-control child-first-name" name="${prefix}_firstName[]" placeholder="First Name *" required>
       </div>
       <div class="col-md-3">
         <small>Middle Name</small>
-        <input type="text" class="form-control child-middle-name" name="\${prefix}_middleName[]" placeholder="Middle Name">
+        <input type="text" class="form-control child-middle-name" name="${prefix}_middleName[]" placeholder="Middle Name">
       </div>
       <div class="col-md-3">
         <small>Last Name<span class="text-danger">*</span></small>
-        <input type="text" class="form-control child-last-name" name="\${prefix}_lastName[]" placeholder="Last Name *" required>
+        <input type="text" class="form-control child-last-name" name="${prefix}_lastName[]" placeholder="Last Name *" required>
         <div class="child-name-feedback invalid-feedback"></div>
       </div>
       <div class="col-md-3">
         <small>Suffix</small>
-        <input type="text" class="form-control child-suffix-name" name="\${prefix}_suffixName[]" placeholder="Suffix">
+        <input type="text" class="form-control child-suffix-name" name="${prefix}_suffixName[]" placeholder="Suffix">
       </div>
     </div>
 
     <div class="row mb-3">
       <div class="col-md-3">
         <small>Birthdate<span class="text-danger">*</span></small>
-        <input type="date" class="form-control" name="\${prefix}_birthDate[]" required>
+        <input type="date" class="form-control" name="${prefix}_birthDate[]" required>
       </div>
       <div class="col-md-3">
         <small>Gender<span class="text-danger">*</span></small>
-        <select class="form-select" name="\${prefix}_gender[]" required>
+        <select class="form-select" name="${prefix}_gender[]" required>
           <option value="" disabled selected>Select Gender</option>
           <option value="Male">Male</option>
           <option value="Female">Female</option>
@@ -730,41 +696,41 @@ function generateFamilyMemberFields(prefix) {
       </div>
       <div class="col-md-3">
         <small>Relationship<span class="text-danger">*</span></small>
-        <select class="form-select" name="\${prefix}_relationship[]" required>
+        <select class="form-select" name="${prefix}_relationship[]" required>
           <option value="">Select Relationship</option>
           <option value="Child">Child</option>
         </select>
       </div>
       <div class="col-md-3">
         <small>Contact Number<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_contactNumber[]" placeholder="Contact Number" required>
+        <input type="text" class="form-control" name="${prefix}_contactNumber[]" placeholder="Contact Number" required>
       </div>
     </div>
 
     <div class="row mb-3">
       <div class="col-md-3">
         <small>Civil Status<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_civilStatus[]" placeholder="Civil Status" required>
+        <input type="text" class="form-control" name="${prefix}_civilStatus[]" placeholder="Civil Status" required>
       </div>
       <div class="col-md-3">
         <small>Occupation<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_occupation[]" placeholder="Occupation" required>
+        <input type="text" class="form-control" name="${prefix}_occupation[]" placeholder="Occupation" required>
       </div>
 
       <div class="col-md-3 family-email-wrapper">
         <small>Email (Optional)</small>
-        <input type="email" class="form-control family-email" name="\${prefix}_email[]" placeholder="Email (if available)">
+        <input type="email" class="form-control family-email" name="${prefix}_email[]" placeholder="Email (if available)">
       </div>
       <div class="col-md-3 family-username-wrapper">
         <small>Username</small>
-        <input type="text" class="form-control family-username" name="\${prefix}_username[]" readonly>
+        <input type="text" class="form-control family-username" name="${prefix}_username[]" readonly>
       </div>
     </div>
 
     <div class="row mb-3">
       <div class="col-md-3">
         <small>Birth Place<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_birthplace[]" placeholder="Birth Place" required>
+        <input type="text" class="form-control" name="${prefix}_birthplace[]" placeholder="Birth Place" required>
       </div>
     </div>
   `;
@@ -1090,13 +1056,10 @@ function addFamilyMember() {
 
   const newBlock = document.getElementById(`familyMember${familyMemberCount}`);
   if (newBlock) {
-      // ⬇️ MODIFIED: Setup username generator for this new block
       setupChildUsernameGenerator(newBlock);
-      // ⬇️ MODIFIED: Setup email-toggle logic for this new block
       applyEmailUsernameToggle(newBlock);
   }
 
-  // your existing validation hook
   setupChildNameValidation();
 }
 
@@ -1152,16 +1115,12 @@ function addEditFamilyMember() {
 
   container.insertAdjacentHTML('beforeend', html);
 
-  // ⬇️ MODIFIED: Get the new block and set up its username generator
   const newEditBlock = document.getElementById(`editFamilyMember${editFamilyMemberCount}`);
   if (newEditBlock) {
-      // ⬇️ MODIFIED: Setup username generator for this new block
       setupChildUsernameGenerator(newEditBlock);
-      // 👇 NEW: bind the email/username hide–show for this EDIT block
       applyEmailUsernameToggle(newEditBlock);
   }
 
-  // existing validation hook
   setupChildNameValidation();
 }
 
@@ -1190,10 +1149,8 @@ function setupChildNameValidation() {
     });
   });
 
-  // Also listen to changes in the primary resident name fields
   const primarySelectors = ['.primary-first-name', '.primary-middle-name', '.primary-last-name', '.primary-suffix-name'];
   primarySelectors.forEach(selector => {
-    // Check if the element exists before adding listener
     const el = document.querySelector(selector);
     if (el) {
         el.addEventListener('blur', checkForDuplicateNames);
@@ -1204,12 +1161,11 @@ function setupChildNameValidation() {
 
 function checkForDuplicateNames() {
   const container = document.getElementById('familyMembersContainer');
-  if (!container) return; // Exit if the container isn't on the page
+  if (!container) return;
     
   const allMembers = container.querySelectorAll('.family-member');
   const names = [];
 
-  // Get primary name fields
   const primaryFirst  = (document.querySelector('.primary-first-name')?.value || '').trim().toLowerCase();
   const primaryMiddle = (document.querySelector('.primary-middle-name')?.value || '').trim().toLowerCase();
   const primaryLast   = (document.querySelector('.primary-last-name')?.value || '').trim().toLowerCase();
@@ -1231,11 +1187,10 @@ function checkForDuplicateNames() {
     const lastInput   = current.element.querySelector('.child-last-name');
     const suffixInput = current.element.querySelector('.child-suffix-name');
 
-    if (!feedback || !firstInput || !lastInput) return; // Safety check
+    if (!feedback || !firstInput || !lastInput) return;
 
     let isDuplicate = false;
 
-    // Compare against other children
     for (let j = 0; j < names.length; j++) {
       if (i !== j &&
           current.first === names[j].first &&
@@ -1248,9 +1203,8 @@ function checkForDuplicateNames() {
       }
     }
 
-    // Compare against primary resident
     const matchesPrimary = (
-      current.first && current.last && // Only check if name is not blank
+      current.first && current.last && 
       current.first === primaryFirst &&
       current.middle === primaryMiddle &&
       current.last === primaryLast &&
@@ -1276,93 +1230,7 @@ function checkForDuplicateNames() {
   });
 }
 
-
-
-// ---------- Shared Template ----------
-
-function generateFamilyMemberFields(prefix) {
-  // MODIFIED: Added 'readonly' to the username field
-  // MODIFIED: Changed email placeholder and label
-  // MODIFIED: Removed 'placeholder="Username if no email"'
-  return `
-    <div class="row mb-3">
-      <div class="col-md-3">
-        <small>First Name<span class="text-danger">*</span></small>
-        <input type="text" class="form-control child-first-name" name="\${prefix}_firstName[]" placeholder="First Name *" required>
-      </div>
-      <div class="col-md-3">
-        <small>Middle Name</small>
-        <input type="text" class="form-control child-middle-name" name="\${prefix}_middleName[]" placeholder="Middle Name">
-      </div>
-      <div class="col-md-3">
-        <small>Last Name<span class="text-danger">*</span></small>
-        <input type="text" class="form-control child-last-name" name="\${prefix}_lastName[]" placeholder="Last Name *" required>
-        <div class="child-name-feedback invalid-feedback"></div>
-      </div>
-      <div class="col-md-3">
-        <small>Suffix</small>
-        <input type="text" class="form-control child-suffix-name" name="\${prefix}_suffixName[]" placeholder="Suffix">
-      </div>
-    </div>
-
-    <div class="row mb-3">
-      <div class="col-md-3">
-        <small>Birthdate<span class="text-danger">*</span></small>
-        <input type="date" class="form-control" name="\${prefix}_birthDate[]" required>
-      </div>
-      <div class="col-md-3">
-        <small>Gender<span class="text-danger">*</span></small>
-        <select class="form-select" name="\${prefix}_gender[]" required>
-          <option value="" disabled selected>Select Gender</option>
-          <option value="Male">Male</option>
-          <option value="Female">Female</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <small>Relationship<span class="text-danger">*</span></small>
-        <select class="form-select" name="\${prefix}_relationship[]" required>
-          <option value="">Select Relationship</option>
-          <option value="Child">Child</option>
-        </select>
-      </div>
-      <div class="col-md-3">
-        <small>Contact Number<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_contactNumber[]" placeholder="Contact Number" required>
-      </div>
-    </div>
-
-    <div class="row mb-3">
-      <div class="col-md-3">
-        <small>Civil Status<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_civilStatus[]" placeholder="Civil Status" required>
-      </div>
-      <div class="col-md-3">
-        <small>Occupation<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_occupation[]" placeholder="Occupation" required>
-      </div>
-
-      <div class="col-md-3 family-email-wrapper">
-        <small>Email (Optional)</small>
-        <input type="email" class="form-control family-email" name="\${prefix}_email[]" placeholder="Email (if available)">
-      </div>
-      <div class="col-md-3 family-username-wrapper">
-        <small>Username</small>
-        <input type="text" class="form-control family-username" name="\${prefix}_username[]" readonly>
-      </div>
-    </div>
-
-    <div class="row mb-3">
-      <div class="col-md-3">
-        <small>Birth Place<span class="text-danger">*</span></small>
-        <input type="text" class="form-control" name="\${prefix}_birthplace[]" placeholder="Birth Place" required>
-      </div>
-    </div>
-  `;
-}
-
-
     $(document).ready(function () {
-    // This logic is for the *original* location dropdowns, not the new default ones.
     $('#province').change(function () {
         let provinceId = $(this).val();
         $('#city_municipality').html('<option value="">Loading...</option>').prop('disabled', true);
@@ -1405,7 +1273,7 @@ function generateFamilyMemberFields(prefix) {
 
 
 document.getElementById('editForm').addEventListener('submit', function(event) {
-    event.preventDefault(); // Always prevent default to wait for confirmation
+    event.preventDefault(); 
 
     Swal.fire({
         title: 'Are you sure?',
@@ -1418,7 +1286,7 @@ document.getElementById('editForm').addEventListener('submit', function(event) {
         cancelButtonText: 'Cancel'
     }).then((result) => {
         if (result.isConfirmed) {
-            this.submit(); // Proceed with form submission
+            this.submit();
         } else {
             Swal.fire({
                 icon: 'info',
@@ -1433,7 +1301,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const form = document.getElementById("addResidentForm");
   if (!form) return;
 
-  // G-PROTEIN: This is the auto-username generator for the PRIMARY resident
   const firstNameInput = form.querySelector('#primary_firstName');
   const lastNameInput = form.querySelector('#primary_lastName');
   const usernameInput = form.querySelector('#primary_username');
@@ -1448,16 +1315,11 @@ document.addEventListener("DOMContentLoaded", function () {
       firstNameInput.addEventListener('input', updatePrimaryUsername);
       lastNameInput.addEventListener('input', updatePrimaryUsername);
   }
-  // G-PROTEIN: End auto-username generator
 
   form.addEventListener("submit", function (e) {
     let valid = true;
     let msg = "";
 
-    // Primary
-    // (Validation removed, username is auto-generated)
-
-    // Children
     const familyBlocks = document.querySelectorAll('#familyMembersContainer .family-member');
     familyBlocks.forEach((block, idx) => {
       const cEmail = (block.querySelector('.family-email')?.value || '').trim();
@@ -1477,8 +1339,6 @@ document.addEventListener("DOMContentLoaded", function () {
         text: msg
       });
     }
-    // G-PROTEIN: This confirmation is already here from your original file.
-    // It's just moved after the validation.
     else {
         e.preventDefault();
         Swal.fire({
@@ -1512,8 +1372,8 @@ $('select[name="res_zone"]').change(function () {
         success: function (response) {
             let data = JSON.parse(response);
             if (data.status === 'success') {
-                $('#zone_leader').val(data.leader_name); // Display name
-                $('#zone_leader_id').val(data.leader_id); // Store ID
+                $('#zone_leader').val(data.leader_name); 
+                $('#zone_leader_id').val(data.leader_id); 
             } else {
                 $('#zone_leader').val('No leader found');
                 $('#zone_leader_id').val('');
@@ -1531,16 +1391,13 @@ function applyEmailUsernameToggle(container) {
   if (!emailInput || !usernameInput || !emailWrapper || !usernameWrapper) return;
 
   function toggleFields() {
-    // If email is provided, hide username.
     if (emailInput.value.trim() !== "") {
       usernameWrapper.style.display = "none";
     } else {
-      // If no email, show username
       usernameWrapper.style.display = "";
     }
   }
 
-  // Bind + run once for initial state
   emailInput.addEventListener("input", toggleFields);
   toggleFields();
 }
@@ -1587,7 +1444,8 @@ function validatePrimaryBirthdateEl(el){
 function validateChildBirthdateEl(el){
   const v=(el.value||'').trim(); if(!v){ clearInvalid(el); return true; }
   if(v>ymdToday()){ setInvalid(el,'Birthdate cannot be in the future.'); return false; }
-  if(ageFromYMYMD(v)>17){ setInvalid(el,'Family member must be 17 years old or below.'); return false; }
+  // Fixed typo here: ageFromYMYMD -> ageFromYMD
+  if(ageFromYMD(v)>17){ setInvalid(el,'Family member must be 17 years old or below.'); return false; }
   clearInvalid(el); return true;
 }
 function validateResidencyStartEl(el){
@@ -1599,16 +1457,16 @@ function validateResidencyStartEl(el){
 // ================== DELEGATED BINDINGS ==================
 document.addEventListener('input', (e)=>{
   const t=e.target;
-  if(t.matches('input[name="birthDate"]'))       validatePrimaryBirthdateEl(t);
+  if(t.matches('input[name="birthDate"]'))        validatePrimaryBirthdateEl(t);
   if(t.matches('input[name="residency_start"]')) validateResidencyStartEl(t);
-  if(t.matches('input[name$="_birthDate[]"]'))   validateChildBirthdateEl(t);
+  if(t.matches('input[name$="_birthDate[]"]'))    validateChildBirthdateEl(t);
 }, true);
 
 document.addEventListener('change', (e)=>{
   const t=e.target;
-  if(t.matches('input[name="birthDate"]'))       validatePrimaryBirthdateEl(t);
+  if(t.matches('input[name="birthDate"]'))        validatePrimaryBirthdateEl(t);
   if(t.matches('input[name="residency_start"]')) validateResidencyStartEl(t);
-  if(t.matches('input[name$="_birthDate[]"]'))   validateChildBirthdateEl(t);
+  if(t.matches('input[name$="_birthDate[]"]'))    validateChildBirthdateEl(t);
 }, true);
 
 function enforceResidencyMax(el){ if(el) el.setAttribute('max', ymdToday()); }
@@ -1629,11 +1487,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   enforceResidencyMax(document.querySelector('input[name="residency_start"]'));
   const p=document.querySelector('input[name="birthDate"]'); if(p) validatePrimaryBirthdateEl(p);
   document.querySelectorAll('input[name$="_birthDate[]"]').forEach(validateChildBirthdateEl);
-
-  const addForm=document.getElementById('addResidentForm');
-  if(addForm){
-    // This submit listener is now handled above, combined with the username check
-  }
 });
 
 // ================== DYNAMIC FAMILY ROW SUPPORT ==================
@@ -1696,8 +1549,6 @@ function toggleRestriction(residentId){
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <?php
-// --- This block displays ALL alerts after the page and libraries have loaded ---
-
 // Handle Batch Import Alert
 if (isset($batch_import_message)) {
     echo "<script>
@@ -1714,7 +1565,7 @@ if (isset($batch_import_message)) {
     </script>";
 }
 
-// Handle Form SUCCESS Alert (from Add Resident OR Linking)
+// Handle Form SUCCESS Alert
 if (isset($form_success)) {
     echo "<script>
         Swal.fire({
@@ -1723,14 +1574,12 @@ if (isset($form_success)) {
             text: '" . $form_success . "',
             confirmButtonColor: '#3085d6'
         }).then(() => {
-            // Reload same page to stay on Resident List
             location.reload();
         });
     </script>";
 }
 
-
-// Handle Form ERROR Alert (from Add Resident OR Linking)
+// Handle Form ERROR Alert
 if (isset($form_error)) {
     echo "<script>
         Swal.fire({
@@ -1739,7 +1588,6 @@ if (isset($form_error)) {
             text: '" . $form_error . "',
             confirmButtonColor: '#d33'
         }); 
-        // No redirect on error, just close the modal
     </script>";
 }
 ?>
