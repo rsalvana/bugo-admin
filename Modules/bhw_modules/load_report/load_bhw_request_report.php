@@ -70,17 +70,25 @@ $result = $mysqli->query($query);
         <span class="text-muted">Year: <?php echo $year ? $year : date('Y'); ?></span>
     </div>
 </div>
-
+<style>
+    .report-box {
+        width: 100%;        /* Stretches to fill the entire available space */
+        max-width: 100%;    /* Ensures it doesn't get restricted */
+        padding: 10px;      /* Adds a little breathing room inside */
+        box-sizing: border-box; /* Ensures padding doesn't break the width */
+    }
+    
+</style>
 <div class="report-box">
     <?php if ($result && $result->num_rows > 0): ?>
         <table class="table table-custom w-100 mb-0">
             <thead>
                 <tr>
-                    <th style="width: 25%;">Resident ID</th>
-                    <th style="width: 35%;">Medicines (Qty)</th>
-                    <th style="width: 15%;">Status</th>
-                    <th style="width: 15%;">Date</th>
-                    <th style="width: 10%;">Time</th>
+                    <th style="width: 50%;">Resident ID</th>
+                    <th style="width: 50%;">Medicines (Qty)</th>
+                    <th style="width: 50%;">Status</th>
+                    <th style="width: 50%;">Date</th>
+                    <th style="width: 50%;">Time</th>
                 </tr>
             </thead>
             <tbody>

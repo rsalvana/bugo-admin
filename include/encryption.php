@@ -40,6 +40,7 @@ function enc_beso(string $pageName): string        { return build_office_url('in
 function enc_tanod(string $pageName): string        { return build_office_url('index_tanod.php',         $pageName); }
 function enc_bhw(string $pageName): string        { return build_office_url('index_bhw.php',         $pageName); }
 function enc_liason(string $pageName): string        { return build_office_url('index_Liason.php',         $pageName); }
+function enc_indigency(string $pageName): string { return build_office_url('index_indigency_staff.php', $pageName); }
 /* =========
    Redirects
    ========= */
@@ -72,7 +73,9 @@ function role_redirect(string $roleName): string {
         case strpos($role, 'bhw') !== false:
             return enc_bhw('admin_dashboard');
             case strpos($role, 'liason') !== false:
-                return enc_liason('admin_dashboard');                                 
+                return enc_liason('admin_dashboard'); 
+            case strpos($role, 'indigency') !== false:  
+            return enc_indigency('indigency_dashboard');                                
         default:
             return enc_admin('admin_dashboard');
     }
