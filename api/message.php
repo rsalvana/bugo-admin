@@ -19,7 +19,6 @@ if ($action) {
 
     // 1. FETCH USERS (With Profile Picture)
     if ($action === 'fetch_users') {
-        // CORRECTED COLUMN NAME: profile_picture
         $sql = "SELECT 
                     r.id, 
                     CONCAT(r.first_name, ' ', r.last_name) as name, 
@@ -39,7 +38,6 @@ if ($action) {
         $users = [];
         if ($result) {
             while ($row = $result->fetch_assoc()) {
-                // Convert BLOB to Base64 for display
                 $img = null;
                 if (!empty($row['profile_picture'])) {
                     $img = 'data:image/jpeg;base64,' . base64_encode($row['profile_picture']);
@@ -48,7 +46,7 @@ if ($action) {
                 $users[] = [
                     'id' => $row['id'],
                     'name' => $row['name'],
-                    'image' => $img, // Sending the image data
+                    'image' => $img, 
                     'unread' => (int)$row['unread_count']
                 ];
             }
@@ -63,13 +61,11 @@ if ($action) {
         $residentId = (int)($_POST['resident_id'] ?? 0);
         
         if ($residentId > 0) {
-            // Mark messages as read
             $stmt = $mysqli->prepare("UPDATE support_messages SET admin_read = 1 WHERE resident_id = ? AND admin_read = 0");
             $stmt->bind_param("i", $residentId);
             $stmt->execute();
             $stmt->close();
 
-            // Get messages
             $stmt = $mysqli->prepare("SELECT sent_by, message, created_at FROM support_messages WHERE resident_id = ? ORDER BY created_at ASC");
             $stmt->bind_param("i", $residentId);
             $stmt->execute();
@@ -107,12 +103,8 @@ if ($action) {
         }
         exit;
     }
-    
-    // If action not matched
     exit;
 }
-
-// --- HTML OUTPUT STARTS HERE ---
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -126,28 +118,29 @@ if ($action) {
     
     <style>
         /* --- MODERN THEME --- */
-        /* Note: We scope to .chat-wrapper to avoid breaking the main dashboard layout */
-        
         .chat-wrapper {
             background-color: #f0f2f5; 
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            height: 85vh;
+            height: 85vh; /* Desktop Height */
             width: 100%;
+            display: flex;
+            justify-content: center;
         }
 
         .chat-container {
             height: 100%;
+            width: 100%;
             max-width: 1600px;
-            margin: 0 auto;
             background: #ffffff;
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.05);
             display: flex;
             overflow: hidden;
             border: 1px solid rgba(0,0,0,0.03);
+            position: relative; /* Essential for mobile positioning */
         }
 
-        /* --- SIDEBAR --- */
+        /* --- SIDEBAR (USER LIST) --- */
         .sidebar {
             width: 350px;
             border-right: 1px solid #f0f0f0;
@@ -155,24 +148,23 @@ if ($action) {
             flex-direction: column;
             background-color: #ffffff;
             flex-shrink: 0;
+            transition: transform 0.3s ease;
         }
 
         .sidebar-header {
             padding: 20px;
             border-bottom: 1px solid #f0f0f0;
             background: #fff;
+            flex-shrink: 0;
         }
         .sidebar-header h5 {
-            font-weight: 700;
-            color: #4e73df;
-            margin: 0;
+            font-weight: 700; color: #4e73df; margin: 0;
             display: flex; align-items: center; gap: 10px;
         }
 
         .user-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
+            flex: 1; overflow-y: auto; padding: 10px;
+            -webkit-overflow-scrolling: touch;
         }
         
         .user-item {
@@ -180,10 +172,9 @@ if ($action) {
             border-radius: 12px; cursor: pointer; transition: all 0.2s ease;
             border: 1px solid transparent;
         }
-        .user-item:hover { background-color: #f8f9fc; transform: translateX(3px); }
+        .user-item:hover { background-color: #f8f9fc; }
         .user-item.active { background-color: #eef2ff; border-color: #e0e7ff; }
 
-        /* AVATAR STYLE */
         .avatar {
             width: 45px; height: 45px; border-radius: 50%;
             object-fit: cover; margin-right: 15px; flex-shrink: 0;
@@ -203,34 +194,41 @@ if ($action) {
             padding: 4px 8px; border-radius: 20px; box-shadow: 0 2px 5px rgba(255, 91, 91, 0.3);
         }
 
-        /* --- CHAT AREA --- */
+        /* --- CHAT VIEW --- */
         .chat-view {
             flex: 1; display: flex; flex-direction: column;
             background-color: #fcfcfc; position: relative; min-width: 0;
+            transition: transform 0.3s ease;
         }
 
         .chat-header {
             flex: 0 0 auto;
-            padding: 15px 25px; background: #fff; border-bottom: 1px solid #f0f0f0;
+            padding: 15px 20px; background: #fff; border-bottom: 1px solid #f0f0f0;
             display: flex; align-items: center; justify-content: space-between; height: 70px;
         }
         
         .header-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e3e6f0; }
         .header-avatar-initial { width: 40px; height: 40px; border-radius: 50%; background: #4e73df; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
-        
         .chat-header-title { font-weight: 700; font-size: 1.1rem; color: #333; }
         .status-indicator { font-size: 0.8rem; color: #1cc88a; font-weight: 600; display: flex; align-items: center; gap: 5px; }
 
+        /* BACK BUTTON (Mobile Only) */
+        .back-btn { 
+            display: none; font-size: 1.2rem; color: #5a5c69; 
+            margin-right: 15px; cursor: pointer; padding: 5px;
+        }
+
         .messages-box {
-            flex: 1; overflow-y: auto; padding: 25px;
+            flex: 1; overflow-y: auto; padding: 20px;
             display: flex; flex-direction: column; gap: 15px;
             background-image: radial-gradient(#e9ecef 1px, transparent 1px);
             background-size: 20px 20px;
+            -webkit-overflow-scrolling: touch;
         }
 
         .msg {
-            max-width: 70%; padding: 12px 18px; border-radius: 18px;
-            font-size: 0.95rem; line-height: 1.5; position: relative;
+            max-width: 75%; padding: 12px 18px; border-radius: 18px;
+            font-size: 0.95rem; line-height: 1.4; position: relative;
             box-shadow: 0 2px 5px rgba(0,0,0,0.03); word-wrap: break-word;
         }
         .msg.admin {
@@ -246,28 +244,54 @@ if ($action) {
 
         .input-area {
             flex: 0 0 auto;
-            padding: 20px; background: #fff; border-top: 1px solid #f0f0f0;
+            padding: 15px; background: #fff; border-top: 1px solid #f0f0f0;
             display: flex; gap: 10px; align-items: center;
         }
         .chat-input {
             flex: 1; padding: 12px 20px; border-radius: 30px;
-            border: 1px solid #e0e0e0; background: #f8f9fa; outline: none; transition: 0.2s;
+            border: 1px solid #e0e0e0; background: #f8f9fa; outline: none;
         }
         .chat-input:focus { background: #fff; border-color: #4e73df; }
-
         .send-btn {
             width: 45px; height: 45px; border-radius: 50%;
             background: #4e73df; color: white; border: none;
-            display: flex; align-items: center; justify-content: center; cursor: pointer;
-            transition: transform 0.2s;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
         }
-        .send-btn:hover { transform: scale(1.05); }
 
         .empty-state {
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             height: 100%; color: #aaa;
         }
         .empty-icon { font-size: 4rem; margin-bottom: 15px; color: #e0e0e0; }
+
+        /* --- RESPONSIVE MOBILE STYLES --- */
+        @media (max-width: 992px) {
+            .chat-wrapper { height: 80vh; } /* Adjust for mobile browser bars */
+            
+            .sidebar {
+                width: 100%; /* Full width on mobile */
+                height: 100%;
+                border-right: none;
+            }
+
+            .chat-view {
+                position: absolute;
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                transform: translateX(100%); /* Hide off-screen right */
+                z-index: 10;
+                background: #fff;
+            }
+
+            /* When active, slide in */
+            .chat-view.mobile-active {
+                transform: translateX(0);
+            }
+
+            /* Show back button on mobile */
+            .back-btn { display: block; }
+        }
     </style>
 </head>
 <body>
@@ -283,14 +307,16 @@ if ($action) {
             </div>
         </div>
 
-        <div class="chat-view">
+        <div class="chat-view" id="chatViewLayer">
             <div class="chat-header">
-                <div class="d-flex align-items-center" style="gap: 12px;">
+                <div class="d-flex align-items-center" style="gap: 10px;">
+                    <i class="fas fa-arrow-left back-btn" onclick="closeChat()"></i>
+                    
                     <div id="headerAvatarContainer"></div>
                     <div class="chat-header-title" id="chatHeader">Select a resident</div>
                 </div>
                 <div class="status-indicator" id="onlineStatus" style="display: none;">
-                    <i class="fas fa-circle" style="font-size: 8px;"></i> Online
+                    <i class="fas fa-circle" style="font-size: 8px;"></i>
                 </div>
             </div>
 
@@ -302,7 +328,7 @@ if ($action) {
             </div>
 
             <div class="input-area">
-                <input type="text" id="adminMsgInput" class="chat-input" placeholder="Type your reply..." onkeypress="handleEnter(event)">
+                <input type="text" id="adminMsgInput" class="chat-input" placeholder="Type message..." onkeypress="handleEnter(event)">
                 <button class="send-btn" onclick="sendAdminMessage()">
                     <i class="fas fa-paper-plane"></i>
                 </button>
@@ -312,14 +338,12 @@ if ($action) {
 </div>
 
 <script>
-    // Point to THIS file since it contains the PHP backend logic at the top
     const API_URL = 'api/message.php'; 
     
     let currentResidentId = null;
     let usersInterval = null;
     let chatInterval = null;
 
-    // Start Polling
     fetchUsers();
     usersInterval = setInterval(fetchUsers, 3000); 
     chatInterval = setInterval(fetchChat, 2000); 
@@ -346,13 +370,9 @@ if ($action) {
                 const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
                 const count = parseInt(user.unread || 0);
                 
-                // IMAGE LOGIC (Sidebar)
-                let avatarHtml = '';
-                if(user.image) {
-                    avatarHtml = `<img src="${user.image}" class="avatar" alt="Pic">`;
-                } else {
-                    avatarHtml = `<div class="avatar avatar-initial">${initial}</div>`;
-                }
+                let avatarHtml = user.image 
+                    ? `<img src="${user.image}" class="avatar" alt="Pic">`
+                    : `<div class="avatar avatar-initial">${initial}</div>`;
 
                 let badgeHtml = '';
                 if (count > 0 && user.id != currentResidentId) {
@@ -361,11 +381,8 @@ if ($action) {
                 }
                 
                 const safeName = user.name.replace(/'/g, "\\'");
-                // Use a safer way to pass the image string (empty string if null)
                 const safeImage = user.image ? user.image : ''; 
 
-                // Pass the image to selectUser, but we need to be careful with quotes. 
-                // Best practice: Store data in data attributes instead of function args for large strings
                 html += `
                     <div class="user-item ${isActive}" onclick="handleUserClick(${user.id}, '${safeName}')" data-image="${safeImage}">
                         ${avatarHtml}
@@ -379,41 +396,41 @@ if ($action) {
             });
             container.innerHTML = html;
 
-        } catch(e) { 
-            console.error("Fetch Error:", e);
-            document.getElementById('users-container').innerHTML = '<div class="text-center p-3 text-danger small">Connection Failed</div>';
-        }
+        } catch(e) { console.error(e); }
     }
 
-    // Helper to handle click and retrieve image data safely
     function handleUserClick(id, name) {
-        // Find the clicked element to get the data-image attribute
         const el = event.currentTarget; 
         const imageUrl = el.getAttribute('data-image');
         selectUser(id, name, imageUrl);
     }
 
-    // 2. Select User (Updates Header with Image)
+    // 2. Select User (Logic Updated for Mobile)
     function selectUser(id, name, imageUrl) {
         currentResidentId = id;
         
-        let headerImgHtml = '';
-        if(imageUrl && imageUrl.length > 50) {
-            headerImgHtml = `<img src="${imageUrl}" class="header-avatar">`;
-        } else {
-            const initial = name.charAt(0).toUpperCase();
-            headerImgHtml = `<div class="header-avatar-initial">${initial}</div>`;
-        }
+        let headerImgHtml = imageUrl && imageUrl.length > 50 
+            ? `<img src="${imageUrl}" class="header-avatar">`
+            : `<div class="header-avatar-initial">${name.charAt(0).toUpperCase()}</div>`;
 
         document.getElementById('headerAvatarContainer').innerHTML = headerImgHtml;
         document.getElementById('chatHeader').innerHTML = name;
         document.getElementById('onlineStatus').style.display = 'flex';
         
+        // --- MOBILE: SLIDE IN CHAT ---
+        document.getElementById('chatViewLayer').classList.add('mobile-active');
+        
         const chatBox = document.getElementById('admin-chat-box');
-        chatBox.innerHTML = '<div class="empty-state"><i class="fas fa-circle-notch fa-spin text-primary opacity-25 fa-3x mb-3"></i><p>Loading history...</p></div>';
+        chatBox.innerHTML = '<div class="empty-state"><i class="fas fa-circle-notch fa-spin text-primary opacity-25 fa-3x mb-3"></i></div>';
         
         fetchUsers(); 
         fetchChat();  
+    }
+
+    // --- NEW: CLOSE CHAT (Mobile) ---
+    function closeChat() {
+        document.getElementById('chatViewLayer').classList.remove('mobile-active');
+        currentResidentId = null; // Optional: Deselect user when going back
     }
 
     // 3. Fetch Chat
@@ -431,14 +448,14 @@ if ($action) {
             if (data.status === 'success') {
                 renderMessages(data.messages);
             }
-        } catch(e) { console.error("Chat Error:", e); }
+        } catch(e) { console.error(e); }
     }
 
     function renderMessages(messages) {
         const chatBox = document.getElementById('admin-chat-box');
         
         if (messages.length === 0) {
-            chatBox.innerHTML = '<div class="empty-state"><p>No messages yet. Say hello!</p></div>';
+            chatBox.innerHTML = '<div class="empty-state"><p>No messages yet.</p></div>';
             return;
         }
 
@@ -458,7 +475,7 @@ if ($action) {
         if (chatBox.innerHTML !== html) {
              const wasAtBottom = (chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 150);
              chatBox.innerHTML = html;
-             if (wasAtBottom || chatBox.innerHTML.includes('Loading...')) {
+             if (wasAtBottom || chatBox.innerHTML.includes('fa-spin')) {
                  chatBox.scrollTop = chatBox.scrollHeight;
              }
         }
@@ -496,7 +513,6 @@ if ($action) {
             await fetch(API_URL, { method: 'POST', body: formData });
             fetchChat(); 
         } catch (e) {
-            console.error("Send failed", e);
             document.getElementById(`temp-${tempId}`).style.background = '#dc3545';
         }
     }

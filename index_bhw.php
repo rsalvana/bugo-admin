@@ -75,6 +75,15 @@ if (isset($_POST['logout']) && $_POST['logout'] === 'true') {
 }
 
 $mysqli->close();
+
+// --- FIX: DETERMINE CURRENT PAGE FOR ACTIVE STATE ---
+$page = 'bhw_dashboard'; // Default page
+if (isset($_GET['page'])) {
+    $decrypted = decrypt($_GET['page']);
+    if ($decrypted !== false) {
+        $page = $decrypted;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -82,8 +91,7 @@ $mysqli->close();
 <head>
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
     <title>LGU BUGO - Barangay Health Worker</title>
     
@@ -106,52 +114,103 @@ $mysqli->close();
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <style>
-        /* Pulse Animation for Notification */
+        /* Pulse Animation */
         @keyframes pulse-red {
             0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
             70% { box-shadow: 0 0 0 6px rgba(220, 53, 69, 0); }
             100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
         }
-        .badge-pulse {
-            animation: pulse-red 2s infinite;
-        }
+        .badge-pulse { animation: pulse-red 2s infinite; }
         
-        /* Fix for Badge Overlap */
-        .icon-wrapper {
-            position: relative;
-            display: inline-block;
-        }
+        .icon-wrapper { position: relative; display: inline-block; }
         .notification-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            font-size: 0.6rem;
-            padding: 0.25em 0.4em;
-            border: 2px solid #343a40; /* Dark border to separate from icon */
+            position: absolute; top: -5px; right: -5px;
+            font-size: 0.6rem; padding: 0.25em 0.4em;
+            border: 2px solid #343a40; 
+        }
+
+        /* --- ACTIVE STATE HIGHLIGHT (IDENTIFIER) --- */
+        .sb-sidenav .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1); /* Subtle highlight */
+            color: #fff !important;
+            border-left: 4px solid #0d6efd; /* Blue identifier line on the left */
+            font-weight: 600;
+        }
+        .sb-sidenav .nav-link.active .sb-nav-link-icon {
+            color: #0d6efd !important; /* Make icon blue too */
+        }
+
+        /* --- MOBILE SIDEBAR CSS --- */
+        body.sb-nav-fixed #layoutSidenav_content { padding-top: 56px; }
+        
+        @media (max-width: 992px) {
+            #layoutSidenav { display: block !important; }
+            
+            #layoutSidenav_nav {
+                position: fixed !important;
+                top: 56px; bottom: 0; left: 0;
+                width: 260px !important;
+                transform: translateX(-100%) !important; 
+                transition: transform .25s ease;
+                z-index: 1029;
+                background-color: #212529;
+                overflow-y: auto;
+            }
+            
+            #layoutSidenav_nav[data-open="true"] { 
+                transform: translateX(0) !important; 
+            }
+            
+            #layoutSidenav_content {
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            
+            #layoutSidenav_content > main,
+            #layoutSidenav_content .container-fluid,
+            #layoutSidenav_content .container {
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            
+            main.main, .main, .section, section.section {
+                min-width: 0 !important;
+                max-width: 100% !important;
+            }
+            .row > [class*="col-"] { min-width: 0 !important; }
+
+            .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            
+            .table-responsive table th,
+            .table-responsive table td {
+                white-space: nowrap !important;
+                word-break: normal !important;
+            }
         }
     </style>
 </head>
 
 <body class="sb-nav-fixed">
+    
     <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
         <a class="navbar-brand ps-3">
             <img src="assets/logo/bugo_logo.png" alt="Barangay Bugo Logo" style="width: 40px; height: auto; margin-right: 10px; filter: brightness(0) invert(1);">
-            Barangay Bugo
+            <span class="d-none d-sm-inline">Barangay Bugo</span>
         </a>
 
         <button class="btn btn-link btn-sm order-1 order-lg-0 me-4 me-lg-0" id="sidebarToggle" href="#!"><i class="fas fa-bars"></i></button>
         
         <?php require_once 'util/helper/router.php';?>
         
-        <ul class="navbar-nav ms-auto me-4 align-items-center">
+        <ul class="navbar-nav ms-auto me-3 me-lg-4 align-items-center">
             
             <li class="nav-item dropdown me-3">
                 <a class="nav-link dropdown-toggle" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <div class="icon-wrapper">
                         <i class="bi bi-bell-fill fs-5 text-white"></i>
-                        <span id="notif-badge" class="notification-badge badge rounded-pill bg-danger" style="display: none;">
-                            0
-                        </span>
+                        <span id="notif-badge" class="notification-badge badge rounded-pill bg-danger" style="display: none;">0</span>
                     </div>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end shadow border-0" aria-labelledby="notifDropdown" style="width: 320px; max-height: 400px; overflow-y: auto;">
@@ -162,11 +221,9 @@ $mysqli->close();
                         </div>
                     </li>
                     <li><hr class="dropdown-divider my-0"></li>
-                    
                     <div id="notif-list">
                         <li class="dropdown-item text-center small text-muted py-3">Checking...</li>
                     </div>
-
                     <li><hr class="dropdown-divider my-0"></li>
                     <li>
                         <a class="dropdown-item text-center small fw-bold text-primary py-2 bg-light" href="index_bhw.php?page=<?= urlencode(encrypt('med_request')) ?>">
@@ -183,7 +240,7 @@ $mysqli->close();
                     <?php else: ?>
                         <i class="fas fa-user-circle me-2 fs-4"></i>
                     <?php endif; ?>
-                    <?= htmlspecialchars($employee['employee_fname'] ?? 'Profile') ?>
+                    <span class="d-none d-md-inline"><?= htmlspecialchars($employee['employee_fname'] ?? 'Profile') ?></span>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="profileDropdown">
                     <li><a class="dropdown-item" href="<?= get_role_based_action('profile') ?>">View Profile</a></li>
@@ -226,19 +283,20 @@ $mysqli->close();
                 <div class="sb-sidenav-menu">
                     <div class="nav">
                         <div class="sb-sidenav-menu-heading">Core</div>
-                        <a class="nav-link <?php echo ($page === 'bhw_dashboard') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('bhw_dashboard')); ?>">
+                        
+                        <a class="nav-link nav-link-mobile <?php echo ($page === 'bhw_dashboard') ? 'active' : ''; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('bhw_dashboard')); ?>">
                             <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div> Dashboard
                         </a>
-                        <a class="nav-link <?php echo ($page === 'med_request') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_request')); ?>">
+                        <a class="nav-link nav-link-mobile <?php echo ($page === 'med_request') ? 'active' : ''; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_request')); ?>">
                             <div class="sb-nav-link-icon"><i class="fas fa-users"></i></div> Request List
                         </a>
-                        <a class="nav-link <?php echo ($page === 'med_inventory') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_inventory')); ?>">
+                        <a class="nav-link nav-link-mobile <?php echo ($page === 'med_inventory') ? 'active' : ''; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('med_inventory')); ?>">
                             <div class="sb-nav-link-icon"><i class="fas fa-gavel"></i></div> Medicine Inventory
                         </a>
-                        <a class="nav-link <?php echo ($page === 'message') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('message')); ?>">
+                        <a class="nav-link nav-link-mobile <?php echo ($page === 'message') ? 'active' : ''; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('message')); ?>">
                             <div class="sb-nav-link-icon"><i class="fas fa-comment-dots"></i></div> Online Consultation
                         </a>                        
-                        <a class="nav-link <?php echo ($page === 'bhw_report') ? '' : 'collapsed'; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('bhw_report')); ?>">
+                        <a class="nav-link nav-link-mobile <?php echo ($page === 'bhw_report') ? 'active' : ''; ?>" href="index_bhw.php?page=<?php echo urlencode(encrypt('bhw_report')); ?>">
                             <div class="sb-nav-link-icon"><i class="fas fa-chart-line"></i></div> Report
                         </a>                        
                     </div>
@@ -255,18 +313,12 @@ $mysqli->close();
                 <main id="main" class="main">
                     <section class="section"> 
                         <?php
+                        // Page routing logic
                         require_once __DIR__ . '/include/connection.php';
                         $mysqli = db_connection();
                           
-                        $decryptedPage = 'bhw_dashboard'; 
-
-                        if (isset($_GET['page'])) {
-                            $decrypted = decrypt($_GET['page']);
-                            if ($decrypted !== false) {
-                                $decryptedPage = $decrypted;
-                            }
-                        }
-                        switch ($decryptedPage) {
+                        // Use $page variable determined at the top
+                        switch ($page) {
                             case 'bhw_dashboard':
                                 include 'Modules/bhw_modules/bhw_dashboard.php';
                                 break;
@@ -314,6 +366,36 @@ $mysqli->close();
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
     
     <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const btn = document.getElementById('sidebarToggle');
+        const nav = document.getElementById('layoutSidenav_nav');
+        
+        if (btn && nav) {
+            btn.addEventListener('click', function (e) {
+                e.preventDefault(); 
+                const open = nav.getAttribute('data-open') === 'true';
+                nav.setAttribute('data-open', String(!open));
+            });
+
+            document.addEventListener('click', function (e) {
+                if (window.matchMedia('(max-width: 992px)').matches) {
+                    if (!nav.contains(e.target) && !btn.contains(e.target)) {
+                        nav.removeAttribute('data-open');
+                    }
+                }
+            });
+
+            const mobileLinks = document.querySelectorAll('.nav-link-mobile');
+            mobileLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    if (window.matchMedia('(max-width: 992px)').matches) {
+                        nav.removeAttribute('data-open');
+                    }
+                });
+            });
+        }
+    });
+
     function confirmLogout() {
         Swal.fire({
             title: 'Are you sure?',
@@ -336,13 +418,12 @@ $mysqli->close();
         return false;
     }
 
-    // --- BHW NOTIFICATION SYSTEM SCRIPT ---
     document.addEventListener('DOMContentLoaded', function() {
         let lastCount = 0; 
-        let tempHidden = false; // Flag to temporarily hide badge
+        let tempHidden = false; 
 
         function checkBhwNotifications() {
-            if(tempHidden) return; // Don't update if user manually cleared it
+            if(tempHidden) return; 
 
             fetch('api/get_bhw_notifications.php')
             .then(response => response.json())
@@ -351,13 +432,11 @@ $mysqli->close();
                 const list = document.getElementById('notif-list');
                 const currentCount = parseInt(data.count);
                 
-                // 1. Update Badge
                 if (currentCount > 0) {
                     badge.innerText = currentCount > 99 ? '99+' : currentCount;
                     badge.style.display = 'inline-block';
                     badge.classList.add('badge-pulse'); 
 
-                    // Toast Alert for NEW requests
                     if (currentCount > lastCount && lastCount !== 0) {
                         const Toast = Swal.mixin({
                             toast: true, position: 'top-end', showConfirmButton: false, timer: 3000, timerProgressBar: true
@@ -371,7 +450,6 @@ $mysqli->close();
 
                 lastCount = currentCount;
 
-                // 2. Update Dropdown List
                 if (data.data.length > 0) {
                     let html = '';
                     data.data.forEach(item => {
@@ -397,19 +475,32 @@ $mysqli->close();
             .catch(err => console.error('Notification Error:', err));
         }
 
-        // --- CLEAR BADGE MANUALLY ---
-        // Allows user to hide the red dot temporarily (until page refresh)
         window.markAllRead = function() {
             const badge = document.getElementById('notif-badge');
             badge.style.display = 'none';
-            tempHidden = true; // Stop polling from showing it again immediately
-            
-            // Optional: Re-enable checking after 60 seconds
+            tempHidden = true; 
             setTimeout(() => { tempHidden = false; }, 60000);
         }
 
         checkBhwNotifications();
         setInterval(checkBhwNotifications, 5000);
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        function wrapTables() {
+            const main = document.querySelector('main .section, main');
+            if (main) {
+                main.querySelectorAll('table').forEach(t => {
+                    if (!t.closest('.table-responsive')) {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'table-responsive';
+                        t.parentNode.insertBefore(wrap, t);
+                        wrap.appendChild(t);
+                    }
+                });
+            }
+        }
+        wrapTables();
     });
     </script>
 </body>

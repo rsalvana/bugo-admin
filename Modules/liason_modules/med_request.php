@@ -1,5 +1,5 @@
 <?php
-// med_request.php (LIASON SIDE)
+// med_request.php (LIASON SIDE - WITH BLUE THEME)
 if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
     http_response_code(403); exit;
 }
@@ -56,7 +56,7 @@ $total_records = $stmtCount->get_result()->fetch_assoc()['total_records'];
 $total_pages = ceil($total_records / $records_per_page);
 
 // Fetch Data
-$sql = "SELECT mr.*, r.first_name, r.last_name, r.age, r.contact_number, r.res_street_address, r.res_zone
+$sql = "SELECT mr.*, r.first_name, r.last_name, r.age, r.contact_number, r.res_street_address, r.res_zone, r.profile_picture
         FROM medicine_requests mr JOIN residents r ON mr.res_id = r.id
         $whereClause
         ORDER BY FIELD(mr.status, 'Approved', 'Picked Up', 'On Delivery', 'Delivered', 'Rejected') ASC, mr.request_date DESC
@@ -72,44 +72,44 @@ $result = $stmt->get_result();
 <style>
     /* Card Glass Effect */
     .card-glass {
-        background: linear-gradient(145deg, #ffffff 0%, #f8f9fc 100%);
+        background: linear-gradient(145deg, #ffffff 0%, #f3f5f9 100%);
         border: 1px solid rgba(255,255,255,0.8);
-        border-radius: 16px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+        border-radius: 20px;
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
     }
     
-    /* Filter Card */
+    /* Filter Card - Updated to Blue */
     .filter-card {
-        background: #fff;
-        border-left: 5px solid #1cc88a; /* Green accent for Liason */
+        background: #ffffff;
+        border-left: 5px solid #4e73df; /* Changed from Green to Blue */
         border-radius: 12px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         transition: transform 0.2s;
     }
     .filter-card:hover { transform: translateY(-2px); }
 
-    /* Inputs */
+    /* Inputs - Updated Focus Color */
     .form-floating > .form-control {
         border-radius: 10px;
+        border: 1px solid #e0e0e0;
         background-color: #fcfcfc;
-        border: 1px solid #e3e6f0;
     }
     .form-floating > .form-control:focus {
-        border-color: #1cc88a; /* Green focus */
-        box-shadow: 0 0 0 4px rgba(28, 200, 138, 0.1);
+        border-color: #4e73df; /* Blue focus */
+        box-shadow: 0 0 0 4px rgba(78, 115, 223, 0.1);
         background-color: #fff;
     }
-
-    /* Gradient Button (Green Theme) */
+    
+    /* Gradient Button - Updated to Blue Theme */
     .btn-gradient {
-        background: linear-gradient(45deg, #1cc88a, #13855c);
+        background: linear-gradient(45deg, #4e73df, #224abe);
         border: none;
         color: white;
         transition: all 0.3s;
     }
     .btn-gradient:hover {
-        background: linear-gradient(45deg, #13855c, #0e6345);
-        box-shadow: 0 4px 12px rgba(28, 200, 138, 0.4);
+        background: linear-gradient(45deg, #224abe, #1a3a9c);
+        box-shadow: 0 4px 12px rgba(78, 115, 223, 0.4);
         transform: translateY(-1px);
     }
 
@@ -125,21 +125,28 @@ $result = $stmt->get_result();
     }
     .table-modern tbody td { padding: 1rem; border-bottom: 1px solid #f0f0f0; }
     .table-modern tbody tr:hover { background-color: #f8f9fc; }
-
-    /* Avatar */
+    
+    /* Avatar - Updated to Purple/Blue Gradient */
     .avatar-modern {
         width: 42px; height: 42px;
-        background: linear-gradient(135deg, #1cc88a 0%, #13855c 100%); /* Green Avatar */
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border-radius: 12px;
         font-weight: bold;
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        overflow: hidden;
+        padding: 0;
+    }
+    .avatar-modern img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
 
-    /* Badges */
+    /* Status Badges - Matched BHW colors where applicable */
     .badge-soft { padding: 6px 12px; border-radius: 30px; font-weight: 600; font-size: 0.75rem; }
-    .badge-approved { background: #d1ecf1; color: #0c5460; }
+    .badge-approved { background: #d4edda; color: #155724; } /* Green for Approved/Delivered usually fine */
     .badge-pickedup { background: #cce5ff; color: #004085; }
     .badge-delivery { background: #e2e3f5; color: #383d41; }
     .badge-delivered { background: #d4edda; color: #155724; }
@@ -150,11 +157,11 @@ $result = $stmt->get_result();
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mt-4 mb-4">
         <div>
             <h2 class="text-gray-800 fw-bold mb-1">
-                <i class="bi bi-truck text-success me-2"></i>Delivery Management
+                <i class="bi bi-truck text-primary me-2"></i>Delivery Management
             </h2>
             <p class="text-muted small mb-0">Track medicine deliveries and update status.</p>
         </div>
-        <button class="btn btn-white shadow-sm rounded-pill px-4 fw-bold text-success" onclick="location.reload()">
+        <button class="btn btn-white shadow-sm rounded-pill px-4 fw-bold text-primary" onclick="location.reload()">
             <i class="bi bi-arrow-clockwise"></i> Refresh
         </button>
     </div>
@@ -164,7 +171,7 @@ $result = $stmt->get_result();
             <input type="hidden" name="page" value="<?= encrypt('med_request') ?>">
             
             <div class="col-12 mb-1">
-                <small class="text-uppercase fw-bold text-success tracking-wide"><i class="bi bi-sliders me-1"></i> Delivery Filters</small>
+                <small class="text-uppercase fw-bold text-primary tracking-wide"><i class="bi bi-sliders me-1"></i> Delivery Filters</small>
             </div>
 
             <div class="col-md-4">
@@ -205,7 +212,7 @@ $result = $stmt->get_result();
 
     <div class="card card-glass border-0 mb-5">
         <div class="card-header bg-transparent border-0 py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 fw-bold text-dark"><i class="bi bi-box-seam me-2 text-success"></i>Delivery Tasks</h6>
+            <h6 class="m-0 fw-bold text-dark"><i class="bi bi-box-seam me-2 text-primary"></i>Delivery Tasks</h6>
             <span class="badge bg-dark text-white rounded-pill px-3">Total: <?= $total_records ?></span>
         </div>
         <div class="card-body p-0">
@@ -216,7 +223,7 @@ $result = $stmt->get_result();
                             <th class="ps-4">Resident Info</th> 
                             <th>Date Requested</th>
                             <th>Status</th>
-                            <th>Proof</th>
+                            <th>Prescription</th>
                             <th class="text-end pe-4">Action</th>
                         </tr>
                     </thead>
@@ -227,8 +234,13 @@ $result = $stmt->get_result();
                                     <td class="ps-4">
                                         <div class="d-flex align-items-center">
                                             <div class="avatar-modern me-3">
-                                                <?= strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1)) ?>
+                                                <?php if (!empty($row['profile_picture'])): ?>
+                                                    <img src="data:image/jpeg;base64,<?= base64_encode($row['profile_picture']) ?>" alt="Pic">
+                                                <?php else: ?>
+                                                    <?= strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1)) ?>
+                                                <?php endif; ?>
                                             </div>
+
                                             <div>
                                                 <div class="fw-bold text-dark d-flex align-items-center gap-2">
                                                     <?= htmlspecialchars($row['first_name'] . ' ' . $row['last_name']) ?>
@@ -281,7 +293,7 @@ $result = $stmt->get_result();
                                             </button>
 
                                         <?php elseif($s === 'Picked Up'): ?>
-                                            <button class="btn btn-info text-white btn-sm rounded-3 shadow-sm px-3 update-status" 
+                                            <button class="btn btn-outline-dark btn-sm rounded-3 shadow-sm px-3 update-status" 
                                                     data-id="<?= $row['id'] ?>" data-status="On Delivery">
                                                 <i class="bi bi-truck me-1"></i> Start Delivery
                                             </button>
@@ -324,7 +336,7 @@ $result = $stmt->get_result();
                     </li>
                     <?php for ($i = $start; $i <= $end; $i++): ?>
                         <li class="page-item <?= ($i == $page_no) ? 'active' : '' ?>">
-                            <a class="page-link rounded-circle border-0 <?= ($i == $page_no) ? 'bg-success text-white shadow' : 'bg-light text-dark' ?>" 
+                            <a class="page-link rounded-circle border-0 <?= ($i == $page_no) ? 'bg-primary text-white shadow' : 'bg-light text-dark' ?>" 
                                style="width:30px; height:30px; display:flex; align-items:center; justify-content:center;"
                                href="?<?= http_build_query(array_merge($queryParams, ['page_no' => $i])) ?>"><?= $i ?></a>
                         </li>

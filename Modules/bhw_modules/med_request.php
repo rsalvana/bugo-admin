@@ -1,5 +1,5 @@
 <?php
-// med_request.php (BHW SIDE)
+// med_request.php (BHW SIDE - WITH PROFILE PICTURE)
 if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
     http_response_code(403); exit;
 }
@@ -54,8 +54,8 @@ $stmtCount->execute();
 $total_records = $stmtCount->get_result()->fetch_assoc()['total_records'];
 $total_pages = ceil($total_records / $records_per_page);
 
-// Fetch
-$sql = "SELECT mr.*, r.first_name, r.last_name, r.age, r.contact_number, r.res_street_address, r.res_zone
+// Fetch - ADDED 'r.profile_picture' HERE
+$sql = "SELECT mr.*, r.first_name, r.last_name, r.age, r.contact_number, r.res_street_address, r.res_zone, r.profile_picture
         FROM medicine_requests mr JOIN residents r ON mr.res_id = r.id
         $whereClause
         ORDER BY FIELD(mr.status, 'Pending', 'Approved', 'Picked Up', 'On Delivery', 'Delivered', 'Rejected') ASC, mr.request_date DESC
@@ -82,17 +82,13 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
         box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
     }
     
-    /* Catchy Filter Section */
     .filter-card {
         background: #ffffff;
-        border-left: 5px solid #4e73df; /* Catchy accent line */
+        border-left: 5px solid #4e73df;
         border-radius: 12px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        transition: transform 0.2s;
     }
-    .filter-card:hover { transform: translateY(-2px); }
 
-    /* Floating Inputs Modernization */
     .form-floating > .form-control {
         border-radius: 10px;
         border: 1px solid #e0e0e0;
@@ -104,7 +100,6 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
         background-color: #fff;
     }
     
-    /* Gradient Button */
     .btn-gradient {
         background: linear-gradient(45deg, #4e73df, #224abe);
         border: none;
@@ -117,7 +112,6 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
         transform: translateY(-1px);
     }
 
-    /* Table & Avatars */
     .table-modern thead th {
         background-color: #f1f3f9;
         color: #5a5c69;
@@ -138,6 +132,12 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
         font-weight: bold;
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        overflow: hidden; /* Added to keep image inside border radius */
+    }
+    .avatar-modern img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
 
     /* Status Badges */
@@ -229,7 +229,7 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
                             <th class="ps-4">Resident</th> 
                             <th>Request Date</th>
                             <th>Status</th>
-                            <th>Proof</th>
+                            <th>Prescription</th>
                             <th class="text-end pe-4">Action</th>
                         </tr>
                     </thead>
@@ -240,7 +240,11 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
                                     <td class="ps-4">
                                         <div class="d-flex align-items-center">
                                             <div class="avatar-modern me-3">
-                                                <?= strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1)) ?>
+                                                <?php if (!empty($row['profile_picture'])): ?>
+                                                    <img src="data:image/jpeg;base64,<?= base64_encode($row['profile_picture']) ?>" alt="Pic">
+                                                <?php else: ?>
+                                                    <?= strtoupper(substr($row['first_name'], 0, 1) . substr($row['last_name'], 0, 1)) ?>
+                                                <?php endif; ?>
                                             </div>
                                             <div>
                                                 <div class="fw-bold text-dark d-flex align-items-center gap-2">
@@ -268,7 +272,7 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
                                             'Approved' => 'badge-approved',
                                             'Picked Up' => 'badge-pickedup',
                                             'On Delivery' => 'badge-delivery',
-                                            'Delivered' => 'badge-approved', /* Recycle green for delivered */
+                                            'Delivered' => 'badge-approved',
                                             'Rejected' => 'badge-rejected',
                                             default => 'bg-secondary text-white'
                                         };
@@ -293,6 +297,8 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
                                             <button class="btn btn-primary btn-sm rounded-3 shadow-sm process-btn px-3 fw-bold" 
                                                     data-id="<?= $row['id'] ?>"
                                                     data-name="<?= htmlspecialchars($row['first_name'] . ' ' . $row['last_name']) ?>"
+                                                    data-mode="edit" 
+                                                    data-remarks="<?= htmlspecialchars($row['remarks'] ?? '') ?>"
                                                     data-img="data:image/jpeg;base64,<?= base64_encode($row['prescription_img']) ?>">
                                                 <i class="bi bi-pencil-square me-1"></i> Review
                                             </button>
@@ -303,23 +309,21 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
                                                 Mark Picked Up
                                             </button>
 
-                                        <?php elseif($s === 'Picked Up'): ?>
-                                            <button class="btn btn-outline-dark btn-sm rounded-3 px-3 update-status" 
-                                                    data-id="<?= $row['id'] ?>" data-status="On Delivery">
-                                                <i class="bi bi-truck me-1"></i> Start Delivery
-                                            </button>
-
-                                        <?php elseif($s === 'On Delivery'): ?>
-                                            <button class="btn btn-success btn-sm rounded-3 shadow-sm px-3 confirm-delivery" 
-                                                    data-id="<?= $row['id'] ?>">
-                                                <i class="bi bi-check-lg me-1"></i> Confirm
+                                        <?php elseif($s === 'Picked Up' || $s === 'On Delivery'): ?>
+                                            <button class="btn btn-light border btn-sm rounded-3 px-3 process-btn text-muted" 
+                                                    data-id="<?= $row['id'] ?>"
+                                                    data-name="<?= htmlspecialchars($row['first_name'] . ' ' . $row['last_name']) ?>"
+                                                    data-mode="view" 
+                                                    data-remarks="<?= htmlspecialchars($row['remarks'] ?? '') ?>"
+                                                    data-img="data:image/jpeg;base64,<?= base64_encode($row['prescription_img']) ?>">
+                                                <i class="bi bi-eye"></i> View Details
                                             </button>
 
                                         <?php elseif($s === 'Delivered' && $row['delivery_proof']): ?>
                                             <button class="btn btn-link btn-sm text-success text-decoration-none fw-bold view-img" 
                                                     data-title="Proof of Delivery"
                                                     data-img="data:image/jpeg;base64,<?= base64_encode($row['delivery_proof']) ?>">
-                                                View Proof
+                                                <i class="bi bi-check-circle-fill me-1"></i> View Proof
                                             </button>
                                         <?php endif; ?>
                                     </td>
@@ -365,7 +369,7 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 rounded-4 shadow-lg">
             <div class="modal-header border-bottom-0 pb-0">
-                <h5 class="modal-title fw-bold text-primary">Dispense Medicine</h5>
+                <h5 class="modal-title fw-bold text-primary" id="modalTitle">Dispense Medicine</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4">
@@ -380,7 +384,7 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
                     <div class="col-lg-7">
                         <h6 class="fw-bold mb-3">Request Details: <span id="p_res_name" class="text-primary"></span></h6>
                         
-                        <div class="bg-light p-3 rounded-4 mb-3">
+                        <div id="inventorySection" class="bg-light p-3 rounded-4 mb-3">
                             <div class="input-group">
                                 <select id="sel_med" class="form-select border-0 bg-white shadow-sm rounded-start-pill ps-3">
                                     <option value="">Select Medicine...</option>
@@ -407,30 +411,18 @@ while($row = $invResult->fetch_assoc()) { $inventory[] = $row; }
                         
                         <textarea id="p_remarks" class="form-control bg-light border-0 rounded-4 mb-3" rows="2" placeholder="Admin remarks (optional)..."></textarea>
                         
-                        <div class="d-flex gap-2">
+                        <div id="actionButtons" class="d-flex gap-2">
                             <button class="btn btn-light text-danger flex-grow-1 rounded-pill fw-bold" id="btn_reject">Reject</button>
                             <button class="btn btn-primary flex-grow-1 rounded-pill fw-bold shadow-sm" id="btn_approve">Approve & Dispense</button>
+                        </div>
+                        
+                        <div id="viewButtons" class="d-none">
+                            <button class="btn btn-secondary w-100 rounded-pill fw-bold" data-bs-dismiss="modal">Close</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
-
-<div class="modal fade" id="proofModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <form class="modal-content border-0 rounded-4 shadow-lg" id="proofForm">
-            <div class="modal-body p-4 text-center">
-                <div class="mb-3 text-success"><i class="bi bi-camera-fill display-4"></i></div>
-                <h5 class="fw-bold mb-2">Confirm Delivery</h5>
-                <p class="text-muted small mb-4">Upload a photo proof that the resident received the items.</p>
-                <input type="hidden" name="action" value="confirm_delivery">
-                <input type="hidden" name="request_id" id="proof_req_id">
-                <input type="file" name="proof_img" class="form-control mb-4" accept="image/*" required>
-                <button type="submit" class="btn btn-success w-100 rounded-pill fw-bold shadow-sm">Complete Transaction</button>
-            </div>
-        </form>
     </div>
 </div>
 
@@ -460,6 +452,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let currentReqId = null;
     let items = [];
 
+    // View Image Modal
     document.querySelectorAll('.view-img').forEach(btn => {
         btn.addEventListener('click', function() {
             document.getElementById('img_title').innerText = this.dataset.title;
@@ -468,12 +461,35 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Handle "Review" (Edit) and "View Info" (Read-only) buttons
     document.querySelectorAll('.process-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             currentReqId = this.dataset.id;
+            const mode = this.dataset.mode; // 'edit' or 'view'
+
             document.getElementById('p_res_name').innerText = this.dataset.name;
             document.getElementById('p_presc_img').src = this.dataset.img;
+            
+            // --- LOAD REMARKS FROM DATA ATTRIBUTE ---
+            document.getElementById('p_remarks').value = this.dataset.remarks || '';
+
             items = []; renderItems();
+
+            // Toggle UI elements based on mode
+            if (mode === 'view') {
+                document.getElementById('modalTitle').innerText = 'Request Details';
+                document.getElementById('inventorySection').classList.add('d-none');
+                document.getElementById('actionButtons').classList.add('d-none');
+                document.getElementById('viewButtons').classList.remove('d-none');
+                document.getElementById('p_remarks').setAttribute('readonly', true);
+            } else {
+                document.getElementById('modalTitle').innerText = 'Dispense Medicine';
+                document.getElementById('inventorySection').classList.remove('d-none');
+                document.getElementById('actionButtons').classList.remove('d-none');
+                document.getElementById('viewButtons').classList.add('d-none');
+                document.getElementById('p_remarks').removeAttribute('readonly');
+            }
+
             new bootstrap.Modal(document.getElementById('processModal')).show();
         });
     });
@@ -489,7 +505,11 @@ document.addEventListener('DOMContentLoaded', function() {
         sel.value = ""; document.getElementById('sel_qty').value = 1;
     });
 
-    window.removeItem = function(index) { items.splice(index, 1); renderItems(); }
+    window.removeItem = function(index) { 
+        // Prevent removing items in View Mode (simple check)
+        if(document.getElementById('inventorySection').classList.contains('d-none')) return;
+        items.splice(index, 1); renderItems(); 
+    }
 
     function renderItems() {
         const tb = document.getElementById('dispense_list');
@@ -498,11 +518,17 @@ document.addEventListener('DOMContentLoaded', function() {
             tb.innerHTML = ''; emptyMsg.style.display = 'block';
         } else {
             emptyMsg.style.display = 'none';
+            // Only show delete button if NOT in view mode
+            const isViewMode = document.getElementById('inventorySection').classList.contains('d-none');
+            const delBtn = isViewMode ? '' : `<button class="btn btn-sm text-danger" onclick="removeItem(${items.length})"><i class="bi bi-x-circle-fill"></i></button>`;
+
             tb.innerHTML = items.map((i, idx) => `
                 <tr class="border-bottom">
                     <td><span class="fw-bold text-dark">${i.name}</span> <small class="text-muted">(${i.unit})</small></td>
                     <td class="text-end"><span class="badge bg-primary rounded-pill">${i.qty}</span></td>
-                    <td class="text-end" style="width:30px;"><button class="btn btn-sm text-danger" onclick="removeItem(${idx})"><i class="bi bi-x-circle-fill"></i></button></td>
+                    <td class="text-end" style="width:30px;">
+                        ${!isViewMode ? `<button class="btn btn-sm text-danger" onclick="removeItem(${idx})"><i class="bi bi-x-circle-fill"></i></button>` : ''}
+                    </td>
                 </tr>
             `).join('');
         }
@@ -535,22 +561,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     fetch('api/bhw_request_action.php', { method: 'POST', body: fd }).then(r => r.json()).then(d => { if(d.success) location.reload(); });
                 }
             });
-        });
-    });
-
-    document.querySelectorAll('.confirm-delivery').forEach(btn => {
-        btn.addEventListener('click', function() {
-            document.getElementById('proof_req_id').value = this.dataset.id;
-            new bootstrap.Modal(document.getElementById('proofModal')).show();
-        });
-    });
-
-    document.getElementById('proofForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        Swal.fire({ title: 'Uploading...', didOpen: () => Swal.showLoading() });
-        fetch('api/bhw_request_action.php', { method: 'POST', body: new FormData(this) })
-        .then(r => r.json()).then(d => { 
-            d.success ? Swal.fire('Success', d.message, 'success').then(() => location.reload()) : Swal.fire('Error', d.message, 'error'); 
         });
     });
 });
