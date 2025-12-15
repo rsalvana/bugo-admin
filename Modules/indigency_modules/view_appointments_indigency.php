@@ -1,19 +1,12 @@
 <?php
-ini_set('display_errors', 0); // Don't show PHP errors to users
-ini_set('log_errors', 1);     // Log errors instead
-error_reporting(E_ALL);       // Still report them in logs
-
-if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
-    http_response_code(403);
-    require_once __DIR__ . '/../security/403.html';
-    exit;
-}
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+error_reporting(E_ALL);
 
 include 'class/session_timeout.php';
-require_once __DIR__ . '/../include/connection.php';
+require_once __DIR__ . '/../../include/connection.php';
 $mysqli = db_connection();
 $mysqli->query("SET time_zone = '+08:00'");
-
 
 require 'vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
@@ -21,16 +14,117 @@ use PHPMailer\PHPMailer\Exception;
 
 date_default_timezone_set('Asia/Manila');
 
-/* ============== Pagination + Filters (read) ============== */
+/* =========================
+   CASE GUARDS (Respondent-only)
+   ========================= */
+
+/** Resolve res_id and current status by tracking (schedules/urgent_request) */
+function bb_get_resident_id_by_tracking(mysqli $db, string $tracking): array {
+    // schedules
+    if ($stmt = $db->prepare("SELECT res_id, status FROM schedules WHERE tracking_number = ? LIMIT 1")) {
+        $stmt->bind_param("s", $tracking);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        if ($row = $r->fetch_assoc()) { $stmt->close(); return [(int)$row['res_id'], (string)$row['status'], 'schedules']; }
+        $stmt->close();
+    }
+    // urgent_request
+    if ($stmt = $db->prepare("SELECT res_id, status FROM urgent_request WHERE tracking_number = ? LIMIT 1")) {
+        $stmt->bind_param("s", $tracking);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        if ($row = $r->fetch_assoc()) { $stmt->close(); return [(int)$row['res_id'], (string)$row['status'], 'urgent_request']; }
+        $stmt->close();
+    }
+    return [0, '', ''];
+}
+
+/** Get resident's canonical name (lowercased/trimmed here in PHP) */
+function bb_get_resident_name(mysqli $db, int $resId): array {
+    if ($resId <= 0) return ['','','',''];
+    $stmt = $db->prepare("SELECT first_name, middle_name, last_name, suffix_name FROM residents WHERE id = ? LIMIT 1");
+    $stmt->bind_param("i", $resId);
+    $stmt->execute();
+    $r = $stmt->get_result();
+    $row = $r->fetch_assoc() ?: ['first_name'=>'','middle_name'=>'','last_name'=>'','suffix_name'=>''];
+    $stmt->close();
+    // normalize
+    $n = fn($s) => mb_strtolower(trim((string)$s));
+    return [$n($row['first_name'] ?? ''), $n($row['middle_name'] ?? ''), $n($row['last_name'] ?? ''), $n($row['suffix_name'] ?? '')];
+}
+
+/**
+ * TRUE if there is at least one Ongoing case where the RESIDENT is the RESPONDENT.
+ * Matches by name fields (case-insensitive, trims empties).
+ * Table columns per your screenshot: Resp_First_Name, Resp_Middle_Name, Resp_Last_Name, Resp_Suffix_Name, action_taken
+ */
+function bb_cases_respondent_has_ongoing(mysqli $db, string $f, string $m, string $l, string $s): bool {
+    // We compare normalized lower(trim()) on both sides
+    $sql = "
+        SELECT COUNT(*) AS cnt
+          FROM cases
+         WHERE LOWER(TRIM(COALESCE(Resp_First_Name,'')))  = LOWER(TRIM(COALESCE(?,'')))
+           AND LOWER(TRIM(COALESCE(Resp_Middle_Name,''))) = LOWER(TRIM(COALESCE(?,'')))
+           AND LOWER(TRIM(COALESCE(Resp_Last_Name,'')))   = LOWER(TRIM(COALESCE(?,'')))
+           AND LOWER(TRIM(COALESCE(Resp_Suffix_Name,''))) = LOWER(TRIM(COALESCE(?,'')))
+           AND LOWER(TRIM(COALESCE(action_taken,'')))     = 'ongoing'
+        LIMIT 1";
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param("ssss", $f, $m, $l, $s);
+    $stmt->execute();
+    $stmt->bind_result($cnt);
+    $stmt->fetch();
+    $stmt->close();
+    return ((int)$cnt) > 0;
+}
+
+/** One-call guard you can reuse in other endpoints too */
+function bb_block_release_if_respondent_has_ongoing(mysqli $db, string $tracking, string $certificate, string $newStatus): void {
+    $isClearance = (stripos($certificate, 'clearance') !== false);
+    if (!$isClearance || strcasecmp($newStatus, 'Released') !== 0) return;
+
+    // Get resident + current status
+    [$resId, $currentStatus] = bb_get_resident_id_by_tracking($db, $tracking);
+    if ($resId <= 0) {
+        echo "<script>alert('❌ Cannot release: resident not found for this tracking number.'); history.back();</script>";
+        exit;
+    }
+
+    // Enforce step-lock: must be Approved by Captain first
+    if (strcasecmp($currentStatus, 'ApprovedCaptain') !== 0) {
+        echo "<script>alert('❌ You can only release after “Approved by Captain”.'); history.back();</script>";
+        exit;
+    }
+
+    // Name-match against RESPONDENT with action_taken = Ongoing
+    [$f,$m,$l,$s] = bb_get_resident_name($db, $resId);
+    if (bb_cases_respondent_has_ongoing($db, $f,$m,$l,$s)) {
+        echo "<script>alert('❌ Cannot release: resident is a RESPONDENT in an Ongoing case.'); history.back();</script>";
+        exit;
+    }
+}
+
+
+$user_role   = $_SESSION['Role_Name'] ?? '';
+$user_id     = $_SESSION['user_id'] ?? 0;        // used for duplicate checks
+$employee_id = $_SESSION['employee_id'] ?? null; // used when updating status
+$BASE = OFFICE_BASE_URL;                     // no trailing slash (from your constant)
+
+// current employee (delegate)
+$empId   = (int)($_SESSION['employee_id'] ?? 0);
+$empName = trim(($_SESSION['employee_fullname'] ?? '')
+            ?: (($_SESSION['employee_fname'] ?? '').' '.($_SESSION['employee_mname'] ?? '').' '.($_SESSION['employee_lname'] ?? '').' '.($_SESSION['employee_sname'] ?? '')));
+$empRole = $_SESSION['Role_Name'] ?? 'Revenue Staff';
+
+/* ---------------- Pagination + Filters (request) ---------------- */
 $results_per_page = 100;
 $page  = isset($_GET['pagenum']) && is_numeric($_GET['pagenum']) ? max(1, (int)$_GET['pagenum']) : 1;
-$offset = ($page - 1) * $results_per_page;
 
-$date_filter    = $_GET['date_filter']   ?? 'today'; // today|this_week|next_week|this_month|this_year
-$status_filter = $_GET['status_filter'] ?? '';     // Pending|Approved|Rejected|Released|ApprovedCaptain
-$search_term    = trim($_GET['search'] ?? '');     // name or tracking
+$date_filter   = $_GET['date_filter']   ?? 'today'; // today|this_week|next_week|this_month|this_year
+$status_filter = $_GET['status_filter'] ?? '';      // Pending|Approved|Rejected|Released|ApprovedCaptain
+$search_term   = trim($_GET['search'] ?? '');       // name or tracking
 
-/* ====================== Delete (archive flag) ====================== */
+/* ---------------- Delete = soft-archive by flag ---------------- */
 if (isset($_POST['delete_appointment'], $_POST['tracking_number'], $_POST['certificate'])) {
     $tracking_number = $_POST['tracking_number'];
     $certificate     = $_POST['certificate'];
@@ -44,6 +138,7 @@ if (isset($_POST['delete_appointment'], $_POST['tracking_number'], $_POST['certi
     $stmt_update = $mysqli->prepare($update_query);
     $stmt_update->bind_param("s", $tracking_number);
     $stmt_update->execute();
+    $stmt_update->close();
 
     echo "<script>
         alert('Appointment archived.');
@@ -52,26 +147,26 @@ if (isset($_POST['delete_appointment'], $_POST['tracking_number'], $_POST['certi
     exit;
 }
 
-/* ====================== Status update ====================== */
+/* ---------------- Status update (with duplicate cedula check) ---------------- */
 if (isset($_POST['update_status'], $_POST['tracking_number'], $_POST['new_status'], $_POST['certificate'])) {
-    $tracking_number = $_POST['tracking_number'];
-    $new_status      = $_POST['new_status'];
-    $certificate     = $_POST['certificate'];
-    $cedula_number   = trim($_POST['cedula_number'] ?? '');
-    $rejection_reason= trim($_POST['rejection_reason'] ?? '');
-    $employee_id     = $_SESSION['employee_id'] ?? null;
+    $tracking_number  = $_POST['tracking_number'];
+    $new_status       = $_POST['new_status'];
+    $certificate      = $_POST['certificate'];
+    $cedula_number    = trim($_POST['cedula_number'] ?? '');
+    $rejection_reason = trim($_POST['rejection_reason'] ?? '');
 
-    // Check if urgent cedula
+    // Is this an urgent cedula?
     $checkUrgentCedula = $mysqli->prepare("SELECT COUNT(*) FROM urgent_cedula_request WHERE tracking_number = ?");
     $checkUrgentCedula->bind_param("s", $tracking_number);
     $checkUrgentCedula->execute();
     $checkUrgentCedula->bind_result($isUrgentCedula);
     $checkUrgentCedula->fetch();
     $checkUrgentCedula->close();
+    bb_block_release_if_respondent_has_ongoing($mysqli, $tracking_number, $certificate, $new_status);
 
-    // (Optional) duplicate cedula number check when approving
+
+    // Uniqueness check for cedula number when approving
     if (($isUrgentCedula > 0 || $certificate === 'Cedula') && $new_status === 'Approved' && !empty($cedula_number)) {
-        $user_id = $_SESSION['user_id'] ?? 0; // ensure defined
         $checkDup = $mysqli->prepare("
             SELECT COUNT(*) FROM (
                 SELECT cedula_number FROM urgent_cedula_request WHERE cedula_number = ? AND res_id != ?
@@ -91,107 +186,79 @@ if (isset($_POST['update_status'], $_POST['tracking_number'], $_POST['new_status
         }
     }
 
-// Perform the status update based on type/urgency
-if ($isUrgentCedula > 0) {
-    if ($new_status === 'Rejected') {
-        $query = "UPDATE urgent_cedula_request 
-                    SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
-                    WHERE tracking_number = ?";
-        $stmt = $mysqli->prepare($query);
-        $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
-    } else {
-        // If releasing, make sure issuance fields are set
-        if ($new_status === 'Released') {
-            $issued_on       = date('Y-m-d');
-            $issued_at_place= 'Barangay Bugo, Cagayan de Oro City';
-            $query = "UPDATE urgent_cedula_request 
-                        SET cedula_status = ?, cedula_number = ?,
-                            issued_on = CASE WHEN issued_on IS NULL OR issued_on='0000-00-00' THEN ? ELSE issued_on END,
-                            issued_at = CASE WHEN issued_at IS NULL OR issued_at='' THEN ? ELSE issued_at END,
-                            rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssssis", $new_status, $cedula_number, $issued_on, $issued_at_place, $employee_id, $tracking_number);
-        } else {
-            $query = "UPDATE urgent_cedula_request 
-                        SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
-        }
-    }
-} elseif ($certificate === 'Cedula') {
-    if ($new_status === 'Rejected') {
-        $query = "UPDATE cedula 
-                    SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
-                    WHERE tracking_number = ?";
-        $stmt = $mysqli->prepare($query);
-        $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
-    } else {
-        if ($new_status === 'Released') {
-            $issued_on       = date('Y-m-d');
-            $issued_at_place= 'Barangay Bugo, Cagayan de Oro City';
-            $query = "UPDATE cedula 
-                        SET cedula_status = ?, cedula_number = ?,
-                            issued_on = CASE WHEN issued_on IS NULL OR issued_on='0000-00-00' THEN ? ELSE issued_on END,
-                            issued_at = CASE WHEN issued_at IS NULL OR issued_at='' THEN ? ELSE issued_at END,
-                            rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssssis", $new_status, $cedula_number, $issued_on, $issued_at_place, $employee_id, $tracking_number);
-        } else {
-            $query = "UPDATE cedula 
-                        SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
-        }
-    }
-} else {
-    // urgent non-cedula?
-    $checkUrgent = $mysqli->prepare("SELECT COUNT(*) FROM urgent_request WHERE tracking_number = ?");
-    $checkUrgent->bind_param("s", $tracking_number);
-    $checkUrgent->execute();
-    $checkUrgent->bind_result($isUrgent);
-    $checkUrgent->fetch();
-    $checkUrgent->close();
-
-    if ($isUrgent > 0) {
+    // Update the correct source table
+    if ($isUrgentCedula > 0) {
         if ($new_status === 'Rejected') {
-            $query = "UPDATE urgent_request 
-                        SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
+            $query = "UPDATE urgent_cedula_request 
+                      SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+                      WHERE tracking_number = ?";
             $stmt = $mysqli->prepare($query);
             $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
         } else {
-            $query = "UPDATE urgent_request 
-                        SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
+            $query = "UPDATE urgent_cedula_request 
+                      SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                      WHERE tracking_number = ?";
             $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
         }
-    } else {
+    } elseif ($certificate === 'Cedula') {
         if ($new_status === 'Rejected') {
-            $query = "UPDATE schedules 
-                        SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
+            $query = "UPDATE cedula 
+                      SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+                      WHERE tracking_number = ?";
             $stmt = $mysqli->prepare($query);
             $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
         } else {
-            $query = "UPDATE schedules 
-                        SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
+            $query = "UPDATE cedula 
+                      SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                      WHERE tracking_number = ?";
             $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
+        }
+    } else {
+        // urgent non-cedula?
+        $checkUrgent = $mysqli->prepare("SELECT COUNT(*) FROM urgent_request WHERE tracking_number = ?");
+        $checkUrgent->bind_param("s", $tracking_number);
+        $checkUrgent->execute();
+        $checkUrgent->bind_result($isUrgent);
+        $checkUrgent->fetch();
+        $checkUrgent->close();
+
+        if ($isUrgent > 0) {
+            if ($new_status === 'Rejected') {
+                $query = "UPDATE urgent_request 
+                          SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+                          WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
+            } else {
+                $query = "UPDATE urgent_request 
+                          SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                          WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            }
+        } else {
+            if ($new_status === 'Rejected') {
+                $query = "UPDATE schedules 
+                          SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+                          WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
+            } else {
+                $query = "UPDATE schedules 
+                          SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                          WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            }
         }
     }
-}
-
 
     $stmt->execute();
     $stmt->close();
 
-    // Determine appointment source for notifications
+    /* --------- Fetch resident contact (source-aware) --------- */
     $isUrgentCedula = false;
     $isUrgentSchedule = false;
 
@@ -214,25 +281,21 @@ if ($isUrgentCedula > 0) {
     }
 
     if ($isUrgentCedula) {
-        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM urgent_cedula_request u
-                            JOIN residents r ON u.res_id = r.id
-                            WHERE u.tracking_number = ?";
+        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name,' ',r.middle_name,' ',r.last_name) AS full_name
+                        FROM urgent_cedula_request u JOIN residents r ON u.res_id = r.id
+                        WHERE u.tracking_number = ?";
     } elseif ($certificate === 'Cedula') {
-        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM cedula c
-                            JOIN residents r ON c.res_id = r.id
-                            WHERE c.tracking_number = ?";
+        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name,' ',r.middle_name,' ',r.last_name) AS full_name
+                        FROM cedula c JOIN residents r ON c.res_id = r.id
+                        WHERE c.tracking_number = ?";
     } elseif ($isUrgentSchedule) {
-        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM urgent_request u
-                            JOIN residents r ON u.res_id = r.id
-                            WHERE u.tracking_number = ?";
+        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name,' ',r.middle_name,' ',r.last_name) AS full_name
+                        FROM urgent_request u JOIN residents r ON u.res_id = r.id
+                        WHERE u.tracking_number = ?";
     } else {
-        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM schedules s
-                            JOIN residents r ON s.res_id = r.id
-                            WHERE s.tracking_number = ?";
+        $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name,' ',r.middle_name,' ',r.last_name) AS full_name
+                        FROM schedules s JOIN residents r ON s.res_id = r.id
+                        WHERE s.tracking_number = ?";
     }
 
     $stmt_email = $mysqli->prepare($email_query);
@@ -240,13 +303,13 @@ if ($isUrgentCedula > 0) {
     $stmt_email->execute();
     $result_email = $stmt_email->get_result();
 
-    if ($result_email->num_rows > 0) {
+    if ($result_email && $result_email->num_rows > 0) {
         $rowe = $result_email->fetch_assoc();
         $email          = $rowe['email'];
         $resident_name  = $rowe['full_name'];
         $contact_number = $rowe['contact_number'];
 
-        // Email (PHPMailer)
+        // Email
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
@@ -261,7 +324,6 @@ if ($isUrgentCedula > 0) {
             $mail->addAddress($email, $resident_name);
             $mail->Subject = 'Appointment Status Update';
             $mail->Body = "Dear $resident_name,\n\nYour appointment for \"$certificate\" has been updated to \"$new_status\".\n\nThank you.\nBarangay Office";
-
             $mail->send();
         } catch (Exception $e) {
             error_log("Email failed: " . $mail->ErrorInfo);
@@ -278,15 +340,13 @@ if ($isUrgentCedula > 0) {
             'message' => $sms_message,
             'sendername' => $sender
         ]);
-        $sms_options = [
-            'http' => [
-                'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
-                'method'  => 'POST',
-                'content' => $sms_data,
-            ],
-        ];
+        $sms_options = ['http' => [
+            'header'  => "Content-type: application/x-www-form-urlencoded\r\n",
+            'method'  => 'POST',
+            'content' => $sms_data,
+        ]];
         $sms_context = stream_context_create($sms_options);
-        $sms_result  = file_get_contents("https://api.semaphore.co/api/v4/messages", false, $sms_context);
+        $sms_result  = @file_get_contents("https://api.semaphore.co/api/v4/messages", false, $sms_context);
 
         if ($sms_result !== FALSE) {
             $sms_response = json_decode($sms_result, true);
@@ -295,73 +355,238 @@ if ($isUrgentCedula > 0) {
             $log_stmt = $mysqli->prepare($log_query);
             $log_stmt->bind_param("ssss", $resident_name, $contact_number, $sms_message, $status);
             $log_stmt->execute();
+            $log_stmt->close();
         } else {
             error_log("❌ SMS failed to send to $contact_number");
         }
     }
 
     echo "<script>
-        alert('Status updated to $new_status');
-        window.location = '" . enc_page('view_appointments') . "';
-    </script>";
+    alert('Appointment archived.');
+    window.location = 'index_indigency_staff.php?page=" . urlencode(encrypt('view_appointments')) . "';
+</script>";
     exit;
 }
 
-/* ====================== Auto-archive housekeeping ====================== */
-$archiveSchedules = "
-    INSERT INTO archived_schedules
-    SELECT * FROM schedules
-    WHERE status = 'Released' AND selected_date < CURDATE()
-";
-$deleteSchedules = "
-    DELETE FROM schedules
-    WHERE status = 'Released' AND selected_date < CURDATE()
-";
-$mysqli->query($archiveSchedules);
-$mysqli->query($deleteSchedules);
+/* ---------------- Auto-archive housekeeping (unchanged) ---------------- */
+$mysqli->query("INSERT INTO archived_schedules SELECT * FROM schedules WHERE status='Released' AND selected_date<CURDATE()");
+$mysqli->query("DELETE FROM schedules WHERE status='Released' AND selected_date<CURDATE()");
 
-$archiveCedula = "
-    INSERT INTO archived_cedula
-    SELECT * FROM cedula
-    WHERE cedula_status = 'Released' AND YEAR(issued_on) < YEAR(CURDATE())
-";
-$deleteCedula = "
-    DELETE FROM cedula
-    WHERE cedula_status = 'Released' AND YEAR(issued_on) < YEAR(CURDATE())
-";
-$mysqli->query($archiveCedula);
-$mysqli->query($deleteCedula);
+$mysqli->query("INSERT INTO archived_cedula SELECT * FROM cedula WHERE cedula_status='Released' AND YEAR(issued_on)<YEAR(CURDATE())");
+$mysqli->query("DELETE FROM cedula WHERE cedula_status='Released' AND YEAR(issued_on)<YEAR(CURDATE())");
 
-$archiveUrgentCedula = "
-    INSERT INTO archived_urgent_cedula_request
-    SELECT * FROM urgent_cedula_request
-    WHERE cedula_status = 'Released' AND YEAR(issued_on) < YEAR(CURDATE())
-";
-$deleteUrgentCedula = "
-    DELETE FROM urgent_cedula_request
-    WHERE cedula_status = 'Released' AND YEAR(issued_on) < YEAR(CURDATE())
-";
-$mysqli->query($archiveUrgentCedula);
-$mysqli->query($deleteUrgentCedula);
+$mysqli->query("INSERT INTO archived_urgent_cedula_request SELECT * FROM urgent_cedula_request WHERE cedula_status='Released' AND YEAR(issued_on)<YEAR(CURDATE())");
+$mysqli->query("DELETE FROM urgent_cedula_request WHERE cedula_status='Released' AND YEAR(issued_on)<YEAR(CURDATE())");
 
-$archiveUrgentRequest = "
-    INSERT INTO archived_urgent_request
-    SELECT * FROM urgent_request
-    WHERE status = 'Released' AND selected_date < CURDATE()
-";
-$deleteUrgentRequest = "
-    DELETE FROM urgent_request
-    WHERE status = 'Released' AND selected_date < CURDATE()
-";
-$mysqli->query($archiveUrgentRequest);
-$mysqli->query($deleteUrgentRequest);
+$mysqli->query("INSERT INTO archived_urgent_request SELECT * FROM urgent_request WHERE status='Released' AND selected_date<CURDATE()");
+$mysqli->query("DELETE FROM urgent_request WHERE status='Released' AND selected_date<CURDATE()");
 
-$mysqli->query("UPDATE schedules SET appointment_delete_status = 1 WHERE selected_date < CURDATE() AND status IN ('Released', 'Rejected')");
-$mysqli->query("UPDATE cedula SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Released', 'Rejected')");
-$mysqli->query("UPDATE urgent_request SET urgent_delete_status = 1 WHERE selected_date < CURDATE() AND status IN ('Released', 'Rejected')");
-$mysqli->query("UPDATE urgent_cedula_request SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Released', 'Rejected')");
+$mysqli->query("UPDATE schedules SET appointment_delete_status = 1 WHERE selected_date < CURDATE() AND status IN ('Released','Rejected')");
+$mysqli->query("UPDATE cedula SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Released','Rejected')");
+$mysqli->query("UPDATE urgent_request SET urgent_delete_status = 1 WHERE selected_date < CURDATE() AND status IN ('Released','Rejected')");
+$mysqli->query("UPDATE urgent_cedula_request SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Released','Rejected')");
 
-/* ====================== Officials / Logos / Barangay Info ====================== */
+/* ---------------- UNION (ALL) + shared WHERE for list & count ---------------- */
+$unionSql = "
+  /* 1) Urgent Cedula */
+  SELECT 
+    1 AS src_priority,
+    ucr.tracking_number,
+    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
+    'Cedula' AS certificate,
+    ucr.cedula_status AS status,
+    ucr.appointment_time AS selected_time,
+    ucr.appointment_date AS selected_date,
+    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
+    'Cedula Application (Urgent)' AS purpose,
+    ucr.issued_on, ucr.cedula_number, ucr.issued_at,
+    ucr.income AS cedula_income,
+    el.employee_id AS signatory_employee_id,
+    TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
+    COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
+    NULL AS assigned_kagawad_id,
+    NULL AS assigned_kag_name
+  FROM urgent_cedula_request ucr
+  JOIN residents r ON ucr.res_id = r.id
+  LEFT JOIN employee_list  el ON el.employee_id = ucr.employee_id
+  LEFT JOIN employee_roles er ON er.Role_Id     = el.Role_id
+  WHERE ucr.cedula_delete_status = 0
+    AND ucr.appointment_date >= CURDATE()
+
+  UNION ALL
+
+  /* 2) Regular Schedules */
+  SELECT 
+    2 AS src_priority,
+    s.tracking_number,
+    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
+    s.certificate, s.status, s.selected_time, s.selected_date,
+    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
+    s.purpose,
+    c.issued_on, c.cedula_number, c.issued_at,
+    c.income AS cedula_income,
+    el.employee_id AS signatory_employee_id,
+    TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
+    COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
+    s.assignedKagId   AS assigned_kagawad_id,
+    s.assignedKagName AS assigned_kag_name
+  FROM schedules s
+  JOIN residents r ON s.res_id = r.id
+  LEFT JOIN cedula         c  ON c.res_id = r.id
+  LEFT JOIN employee_list  el ON el.employee_id = s.employee_id
+  LEFT JOIN employee_roles er ON er.Role_Id     = el.Role_id
+  WHERE s.appointment_delete_status = 0
+    AND s.selected_date >= CURDATE()
+    /* If you want to exclude BESO here instead of at render-time, keep this: */
+    AND s.certificate != 'BESO Application'
+
+  UNION ALL
+
+  /* 3) Cedula (regular) */
+  SELECT 
+    3 AS src_priority,
+    c.tracking_number,
+    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
+    'Cedula' AS certificate,
+    c.cedula_status AS status,
+    c.appointment_time AS selected_time,
+    c.appointment_date AS selected_date,
+    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
+    'Cedula Application' AS purpose,
+    c.issued_on, c.cedula_number, c.issued_at,
+    c.income AS cedula_income,
+    el.employee_id AS signatory_employee_id,
+    TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
+    COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
+    NULL AS assigned_kagawad_id,
+    NULL AS assigned_kag_name
+  FROM cedula c
+  JOIN residents r ON c.res_id = r.id
+  LEFT JOIN employee_list  el ON el.employee_id = c.employee_id
+  LEFT JOIN employee_roles er ON er.Role_Id     = el.Role_id
+  WHERE c.cedula_delete_status = 0
+    AND c.appointment_date >= CURDATE()
+
+  UNION ALL
+
+  /* 4) Urgent (non-cedula) */
+  SELECT 
+    4 AS src_priority,
+    u.tracking_number,
+    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
+    u.certificate, u.status, u.selected_time, u.selected_date,
+    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
+    u.purpose,
+    COALESCE(c.issued_on, uc.issued_on) AS issued_on,
+    COALESCE(c.cedula_number, uc.cedula_number) AS cedula_number,
+    COALESCE(c.issued_at, uc.issued_at) AS issued_at,
+    COALESCE(c.income, uc.income) AS cedula_income,
+    el.employee_id AS signatory_employee_id,
+    TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
+    COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
+    u.assignedKagId   AS assigned_kagawad_id,
+    u.assignedKagName AS assigned_kag_name
+  FROM urgent_request u
+  JOIN residents r ON u.res_id = r.id
+  LEFT JOIN cedula                c  ON c.res_id  = r.id AND c.cedula_status  = 'Approved'
+  LEFT JOIN urgent_cedula_request uc ON uc.res_id = r.id AND uc.cedula_status = 'Approved'
+  LEFT JOIN employee_list         el ON el.employee_id = u.employee_id
+  LEFT JOIN employee_roles        er ON er.Role_Id     = el.Role_id
+  WHERE u.urgent_delete_status = 0
+    AND u.selected_date >= CURDATE()
+    AND u.certificate != 'BESO Application'
+";
+
+
+/* Build WHERE for both count & list */
+$whereParts = [];
+$types = '';
+$vals  = [];
+
+switch ($date_filter) {
+  case 'today':
+    $whereParts[] = "selected_date = CURDATE()";
+    break;
+  case 'this_week':
+    $whereParts[] = "YEARWEEK(selected_date,1) = YEARWEEK(CURDATE(),1)";
+    break;
+  case 'next_week':
+    $whereParts[] = "YEARWEEK(selected_date,1) = YEARWEEK(DATE_ADD(CURDATE(), INTERVAL 1 WEEK),1)";
+    break;
+  case 'this_month':
+    $whereParts[] = "YEAR(selected_date)=YEAR(CURDATE()) AND MONTH(selected_date)=MONTH(CURDATE())";
+    break;
+  case 'this_year':
+    $whereParts[] = "YEAR(selected_date)=YEAR(CURDATE())";
+    break;
+}
+
+if ($status_filter !== '') {
+  $whereParts[] = "status = ?";
+  $types .= 's';
+  $vals[]  = $status_filter;
+}
+
+if ($search_term !== '') {
+  $whereParts[] = "(tracking_number LIKE ? OR fullname LIKE ?)";
+  $types .= 'ss';
+  $like = "%$search_term%";
+  $vals[] = $like;
+  $vals[] = $like;
+}
+$whereParts[] = "status <> 'Rejected'";
+$whereSql = $whereParts ? ('WHERE '.implode(' AND ', $whereParts)) : '';
+
+/* ---------------- Count (dedup by tracking_number) ---------------- */
+$countSql = "
+  SELECT COUNT(*) AS total
+  FROM (
+    SELECT tracking_number
+    FROM ( $unionSql ) base
+    $whereSql
+    GROUP BY tracking_number
+  ) t
+";
+$stmt = $mysqli->prepare($countSql);
+if ($types !== '') { $stmt->bind_param($types, ...$vals); }
+$stmt->execute();
+$total_results = (int)$stmt->get_result()->fetch_assoc()['total'];
+$stmt->close();
+
+$total_pages = max(1, (int)ceil($total_results / $results_per_page));
+if ($page > $total_pages) { $page = $total_pages; }
+$offset = ($page - 1) * $results_per_page;
+
+/* ---------------- List page (same filters; dedup; order; limit) ---------------- */
+$listSql = "
+  SELECT *
+  FROM (
+    SELECT *
+    FROM ( $unionSql ) base
+    $whereSql
+    GROUP BY tracking_number
+  ) all_appointments
+  ORDER BY
+    (status='Pending' AND selected_time='URGENT' AND selected_date=CURDATE()) DESC,
+    (status='Pending' AND selected_date=CURDATE()) DESC,
+    selected_date ASC, selected_time ASC,
+    FIELD(status,'Pending','Approved','Rejected')
+  LIMIT ? OFFSET ?
+";
+$stmt = $mysqli->prepare($listSql);
+$bindTypes = $types . 'ii';
+$bindVals  = array_merge($vals, [ $results_per_page, $offset ]);
+$stmt->bind_param($bindTypes, ...$bindVals);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$filtered_appointments = [];
+while ($row = $result->fetch_assoc()) {
+    $filtered_appointments[] = $row;
+}
+$stmt->close();
+
+/* -------------- The rest of your officials/logos/info queries (unchanged) -------------- */
 $off = "SELECT b.position, r.first_name, r.middle_name, r.last_name, b.status
         FROM barangay_information b
         INNER JOIN residents r ON b.official_id = r.id
@@ -369,14 +594,15 @@ $off = "SELECT b.position, r.first_name, r.middle_name, r.last_name, b.status
           AND b.position NOT LIKE '%Lupon%'
           AND b.position NOT LIKE '%Barangay Tanod%'
           AND b.position NOT LIKE '%Barangay Police%'
-        ORDER BY FIELD(b.position, 'Punong Barangay','Kagawad','Kagawad','Kagawad','Kagawad','Kagawad','Kagawad','Kagawad','SK Chairman','Secretary','Treasurer')";
+        ORDER BY FIELD(b.position,'Punong Barangay','Kagawad','Kagawad','Kagawad','Kagawad','Kagawad','Kagawad',
+                       'Kagawad','SK Chairman','Secretary','Treasurer')";
 $offresult = $mysqli->query($off);
 $officials = [];
 if ($offresult && $offresult->num_rows > 0) {
     while ($row = $offresult->fetch_assoc()) {
         $officials[] = [
             'position' => $row['position'],
-            'name'     => $row['first_name'] . ' ' . $row['middle_name'] . ' ' . $row['last_name']
+            'name'     => $row['first_name'].' '.$row['middle_name'].' '.$row['last_name']
         ];
     }
 }
@@ -400,47 +626,26 @@ if ($kr = $mysqli->query($kagawadSql)) {
   $kr->close();
 }
 
-/* ====================== Witnesses (Sec / Exec Sec) ====================== */
-$witnesses = [];
-$witnessSql = "
-    SELECT 
-           CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name) AS full_name,
-           b.position
-    FROM barangay_information b
-    JOIN residents r ON r.id = b.official_id
-    WHERE b.status='active'
-      AND (b.position LIKE '%Barangay Secretary%' OR b.position LIKE '%Barangay Executive Secretary%' OR b.position LIKE '%Admin%')
-    ORDER BY b.position
-";
-if ($wr = $mysqli->query($witnessSql)) {
-    while ($row = $wr->fetch_assoc()) $witnesses[] = $row;
-    $wr->close();
-}
+$logo_sql   = "SELECT * FROM logos WHERE logo_name LIKE '%Barangay%' AND status='active' LIMIT 1";
+$logo       = ($lr = $mysqli->query($logo_sql)) && $lr->num_rows > 0 ? $lr->fetch_assoc() : null;
 
-$logo_sql = "SELECT * FROM logos WHERE logo_name LIKE '%Barangay%' AND status = 'active' LIMIT 1";
-$logo_result = $mysqli->query($logo_sql);
-$logo = $logo_result && $logo_result->num_rows > 0 ? $logo_result->fetch_assoc() : null;
-
-$citySql = "SELECT * FROM logos WHERE (logo_name LIKE '%City%' OR logo_name LIKE '%Municipality%') AND status = 'active' LIMIT 1";
-$cityResult = $mysqli->query($citySql);
-$cityLogo = $cityResult && $cityResult->num_rows > 0 ? $cityResult->fetch_assoc() : null;
+$citySql    = "SELECT * FROM logos WHERE (logo_name LIKE '%City%' OR logo_name LIKE '%Municipality%') AND status='active' LIMIT 1";
+$cityLogo   = ($cr = $mysqli->query($citySql)) && $cr->num_rows > 0 ? $cr->fetch_assoc() : null;
 
 $barangayInfoSql = "SELECT bm.city_municipality_name, b.barangay_name
-                      FROM barangay_info bi
-                      LEFT JOIN city_municipality bm ON bi.city_municipality_id = bm.city_municipality_id
-                      LEFT JOIN barangay b ON bi.barangay_id = b.barangay_id
-                      WHERE bi.id = 1";
+                    FROM barangay_info bi
+                    LEFT JOIN city_municipality bm ON bi.city_municipality_id = bm.city_municipality_id
+                    LEFT JOIN barangay b ON bi.barangay_id = b.barangay_id
+                    WHERE bi.id = 1";
 $barangayInfoResult = $mysqli->query($barangayInfoSql);
 if ($barangayInfoResult && $barangayInfoResult->num_rows > 0) {
     $barangayInfo = $barangayInfoResult->fetch_assoc();
     $cityMunicipalityName = $barangayInfo['city_municipality_name'];
     if (stripos($cityMunicipalityName, "City of") === false) {
         $cityMunicipalityName = "MUNICIPALITY OF " . strtoupper($cityMunicipalityName);
-    } else {
-        $cityMunicipalityName = strtoupper($cityMunicipalityName);
-    }
-    $barangayName = $barangayInfo['barangay_name'];
-    $barangayName = strtoupper(preg_replace('/\s*\(Pob\.\)\s*/', '', $barangayName));
+    } else { $cityMunicipalityName = strtoupper($cityMunicipalityName); }
+
+    $barangayName = strtoupper(preg_replace('/\s*\(Pob\.\)\s*/', '', $barangayInfo['barangay_name']));
     if (stripos($barangayName, "Barangay") !== false) {
         $barangayName = strtoupper($barangayName);
     } elseif (stripos($barangayName, "Pob") !== false && stripos($barangayName, "Poblacion") === false) {
@@ -458,24 +663,19 @@ if ($barangayInfoResult && $barangayInfoResult->num_rows > 0) {
 $councilTermSql = "SELECT council_term FROM barangay_info WHERE id = 1";
 $councilTermResult = $mysqli->query($councilTermSql);
 $councilTerm = ($councilTermResult && $councilTermResult->num_rows > 0)
-    ? ($councilTermResult->fetch_assoc()['council_term'] ?? '#')
-    : '#';
+    ? ($councilTermResult->fetch_assoc()['council_term'] ?? '#') : '#';
 
 $lupon_sql = "SELECT r.first_name, r.middle_name, r.last_name, b.position
-                  FROM barangay_information b
-                  INNER JOIN residents r ON b.official_id = r.id
-                  WHERE b.status = 'active' AND (b.position LIKE '%Lupon%' OR b.position LIKE '%Barangay Tanod%' OR b.position LIKE '%Barangay Police%')";
+              FROM barangay_information b
+              INNER JOIN residents r ON b.official_id = r.id
+              WHERE b.status='active' AND (b.position LIKE '%Lupon%' OR b.position LIKE '%Barangay Tanod%' OR b.position LIKE '%Barangay Police%')";
 $lupon_result = $mysqli->query($lupon_sql);
-$lupon_official = null;
-$barangay_tanod_official = null;
+$lupon_official = null; $barangay_tanod_official = null;
 if ($lupon_result && $lupon_result->num_rows > 0) {
     while ($lr = $lupon_result->fetch_assoc()) {
-        if (stripos($lr['position'], 'Lupon') !== false) {
-            $lupon_official = $lr['first_name'].' '.$lr['middle_name'].' '.$lr['last_name'];
-        }
-        if (stripos($lr['position'], 'Barangay Tanod') !== false || stripos($lr['position'], 'Barangay Police') !== false) {
+        if (stripos($lr['position'], 'Lupon') !== false) $lupon_official = $lr['first_name'].' '.$lr['middle_name'].' '.$lr['last_name'];
+        if (stripos($lr['position'], 'Barangay Tanod') !== false || stripos($lr['position'], 'Barangay Police') !== false)
             $barangay_tanod_official = $lr['first_name'].' '.$lr['middle_name'].' '.$lr['last_name'];
-        }
     }
 }
 
@@ -490,202 +690,8 @@ if ($barangayContactResult && $barangayContactResult->num_rows > 0) {
     $mobileNumber    = "No mobile number found";
 }
 
-/* ====================== FILTERED QUERY + COUNT (SQL) ====================== */
-$unionSql = "
-  -- 1) Urgent Cedula
-  SELECT 
-    1 AS src_priority,
-    ucr.tracking_number,
-    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
-    'Cedula' AS certificate,
-    ucr.cedula_status AS status,
-    ucr.appointment_time AS selected_time,
-    ucr.appointment_date AS selected_date,
-    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
-    'Cedula Application (Urgent)' AS purpose,
-    ucr.issued_on, ucr.cedula_number, ucr.issued_at,
-    ucr.income AS cedula_income,
-    el.employee_id AS signatory_employee_id,
-    CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname) AS signatory_name,
-    er.Role_Name AS signatory_position,
-    /* no Kagawad for urgent_cedula rows */
-    NULL AS assigned_kag_name,
-    NULL AS assigned_witness_name
-  FROM urgent_cedula_request ucr
-  JOIN residents r ON ucr.res_id = r.id
-  LEFT JOIN employee_list  el ON el.employee_id = ucr.employee_id
-  LEFT JOIN employee_roles er ON er.Role_Id       = el.Role_id
-  WHERE ucr.cedula_delete_status = 0 AND ucr.appointment_date >= CURDATE()
-
-  UNION ALL
-
-  -- 2) Regular Schedules
-  SELECT 
-    2 AS src_priority,
-    s.tracking_number,
-    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
-    s.certificate, s.status, s.selected_time, s.selected_date,
-    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
-    s.purpose,
-    c.issued_on, c.cedula_number, c.issued_at,
-    c.income AS cedula_income,
-    el.employee_id AS signatory_employee_id,
-    CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname) AS signatory_name,
-    er.Role_Name AS signatory_position,
-    s.assignedKagName AS assigned_kag_name,
-    s.assigned_witness_name
-  FROM schedules s
-  JOIN residents r ON s.res_id = r.id
-  LEFT JOIN cedula           c  ON c.res_id = r.id
-  LEFT JOIN employee_list  el ON el.employee_id = s.employee_id
-  LEFT JOIN employee_roles er ON er.Role_Id       = el.Role_id
-  WHERE s.appointment_delete_status = 0 AND s.selected_date >= CURDATE()
-
-  UNION ALL
-
-  -- 3) Cedula Appointments
-  SELECT 
-    3 AS src_priority,
-    c.tracking_number,
-    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
-    'Cedula' AS certificate,
-    c.cedula_status AS status,
-    c.appointment_time AS selected_time,
-    c.appointment_date AS selected_date,
-    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
-    'Cedula Application' AS purpose,
-    c.issued_on, c.cedula_number, c.issued_at,
-    c.income AS cedula_income,
-    el.employee_id AS signatory_employee_id,
-    CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname) AS signatory_name,
-    er.Role_Name AS signatory_position,
-    /* no Kagawad for regular cedula rows */
-    NULL AS assigned_kag_name,
-    NULL AS assigned_witness_name
-  FROM cedula c
-  JOIN residents r ON c.res_id = r.id
-  LEFT JOIN employee_list  el ON el.employee_id = c.employee_id
-  LEFT JOIN employee_roles er ON er.Role_Id       = el.Role_id
-  WHERE c.cedula_delete_status = 0 AND c.appointment_date >= CURDATE()
-
-  UNION ALL
-
-  -- 4) Urgent Requests
-  SELECT 
-    4 AS src_priority,
-    u.tracking_number,
-    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name,' ',IFNULL(r.suffix_name,'')) AS fullname,
-    u.certificate, u.status, u.selected_time, u.selected_date,
-    r.id AS res_id, r.birth_date, r.birth_place, r.res_zone, r.civil_status, r.residency_start, r.res_street_address,
-    u.purpose,
-    COALESCE(c.issued_on, uc.issued_on) AS issued_on,
-    COALESCE(c.cedula_number, uc.cedula_number) AS cedula_number,
-    COALESCE(c.issued_at, uc.issued_at) AS issued_at,
-    COALESCE(c.income, uc.income) AS cedula_income,
-    el.employee_id AS signatory_employee_id,
-    CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname) AS signatory_name,
-    er.Role_Name AS signatory_position,
-    u.assignedKagName AS assigned_kag_name,
-    u.assigned_witness_name
-  FROM urgent_request u
-  JOIN residents r ON u.res_id = r.id
-  LEFT JOIN cedula                c  ON c.res_id = r.id AND c.cedula_status = 'Approved'
-  LEFT JOIN urgent_cedula_request uc ON uc.res_id = r.id AND uc.cedula_status = 'Approved'
-  LEFT JOIN employee_list         el ON el.employee_id = u.employee_id
-  LEFT JOIN employee_roles        er ON er.Role_Id       = el.Role_id
-  WHERE u.urgent_delete_status = 0 AND u.selected_date >= CURDATE()
-";
-
-
-
-
-$whereParts = [];
-$types = '';
-$vals  = [];
-
-// Date filter
-switch ($date_filter) {
-  case 'today':
-    $whereParts[] = "selected_date = CURDATE()";
-    break;
-  case 'this_week':
-    $whereParts[] = "YEARWEEK(selected_date, 1) = YEARWEEK(CURDATE(), 1)";
-    break;
-  case 'next_week':
-    $whereParts[] = "YEARWEEK(selected_date, 1) = YEARWEEK(DATE_ADD(CURDATE(), INTERVAL 1 WEEK), 1)";
-    break;
-  case 'this_month':
-    $whereParts[] = "YEAR(selected_date) = YEAR(CURDATE()) AND MONTH(selected_date) = MONTH(CURDATE())";
-    break;
-  case 'this_year':
-    $whereParts[] = "YEAR(selected_date) = YEAR(CURDATE())";
-    break;
-  default: /* none */ break;
-}
-
-// Status filter
-if ($status_filter !== '') {
-  $whereParts[] = "status = ?";
-  $types .= 's';
-  $vals[]  = $status_filter;
-}
-
-// Search term
-if ($search_term !== '') {
-  $whereParts[] = "(tracking_number LIKE ? OR fullname LIKE ?)";
-  $types .= 'ss';
-  $like = "%$search_term%";
-  $vals[] = $like;
-  $vals[] = $like;
-}
-$whereParts[] = "status <> 'Rejected'";
-$whereSql = $whereParts ? ('WHERE '.implode(' AND ', $whereParts)) : '';
-
-// Count
-$countSql = "SELECT COUNT(*) AS total FROM ($unionSql) AS all_appointments $whereSql";
-$stmt = $mysqli->prepare($countSql);
-if ($types !== '') { $stmt->bind_param($types, ...$vals); }
-$stmt->execute();
-$total_results = (int)$stmt->get_result()->fetch_assoc()['total'];
-$stmt->close();
-
-$total_pages = max(1, (int)ceil($total_results / $results_per_page));
-if ($page > $total_pages) { $page = $total_pages; $offset = ($page - 1) * $results_per_page; }
-
-// Page data
-$listSql = "
-WITH all_appointments AS (
-  $unionSql
-),
-ranked AS (
-  SELECT a.*,
-         ROW_NUMBER() OVER (PARTITION BY tracking_number ORDER BY src_priority) AS rn
-  FROM all_appointments a
-)
-SELECT *
-FROM ranked
-$whereSql
-AND rn = 1
-ORDER BY
-  (status='Pending' AND selected_time='URGENT' AND selected_date=CURDATE()) DESC,
-  (status='Pending' AND selected_date=CURDATE()) DESC,
-  selected_date ASC, selected_time ASC,
-  FIELD(status,'Pending','Approved','Rejected')
-LIMIT ? OFFSET ?";
-
-
-$stmt = $mysqli->prepare($listSql);
-$typesList = $types . 'ii';
-$valsList  = array_merge($vals, [ $results_per_page, $offset ]);
-$stmt->bind_param($typesList, ...$valsList);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$filtered_appointments = [];
-while ($row = $result->fetch_assoc()) {
-    $filtered_appointments[] = $row;
-}
-$stmt->close();
+/* -------- $filtered_appointments now holds the rows to render.
+           $total_pages is consistent; hide pagination if $total_pages == 1 -------- */
 
 ?>
 <?php
@@ -716,55 +722,33 @@ if ($stmtCap = $mysqli->prepare("
 }
 ?>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Appointment List</title>
 
-  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Appointment List</title>
+        
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" integrity="sha512-..." crossorigin="anonymous" referrerpolicy="no-referrer" />
+        <link rel="stylesheet" href="css/styles.css">
+        <link rel="stylesheet" href="css/ViewApp/ViewApp.css" />
+                        <!-- SweetAlert2 CSS -->
+        <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+
+        <!-- SweetAlert2 JS -->
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-  <link rel="stylesheet" href="css/styles.css" />
-  <link rel="stylesheet" href="css/ViewApp/ViewApp.css" />
-
-  <style>
-.signatory-wrap{width:48%;text-align:center;position:relative;}
-.pb-name,.pb-title{position:relative;z-index:1;margin:0;}
-.pb-name{font-size:30px;}
-.pb-title{font-size:20px;margin-bottom:6px;}
-/* PB signature sits ON TOP of the name */
-.pb-signature{
-  position:absolute; top:-14px; left:50%; transform:translateX(-50%);
-  width:150px; height:auto; z-index:3; pointer-events:none;
-}
-
-.authority-note{font-size:14px;margin-top:6px;}
-.auth{position:relative;margin-top:10px;}
-.auth-name,.auth-title{position:relative;z-index:1;margin:0;}
-.auth-name{font-size:22px;}
-.auth-title{font-size:16px;margin-bottom:8px;}
-/* Authorized signature sits ON TOP of the delegate's name */
-.auth-signature{
-  position:absolute; top:-26px; left:50%; transform:translateX(-50%);
-  width:140px; height:auto; z-index:3; pointer-events:none;
-}
-</style>
-</head>
-<body>
-  <div class="container my-4 app-shell">
+    </head>
+    <div class="container my-4 app-shell">
     <div class="d-flex align-items-center justify-content-between gap-3 mb-3">
       <h2 class="page-title m-0"><i class="bi bi-card-list me-2"></i>Appointment List</h2>
       <span class="small text-muted d-none d-md-inline">Manage filters, search, and quick actions</span>
     </div>
 
+    <!-- Filters -->
     <div class="card card-filter mb-3 shadow-sm">
       <div class="card-body py-3">
-        <form method="GET" action="index_Admin.php" class="row g-2 align-items-end">
+        <form method="GET" action="index_indigency_staff.php" class="row g-2 align-items-end">
           <input type="hidden" name="page" value="<?= $_GET['page'] ?? 'view_appointments' ?>" />
 
           <div class="col-12 col-md-3">
@@ -804,7 +788,9 @@ if ($stmtCap = $mysqli->prepare("
 
 <div class="card shadow-sm">
   <div class="card-body table-shell">
-    <div class="table-edge">                <div class="table-scroll">            <table class="table table-hover align-middle mb-0" id="appointmentsTable">
+    <div class="table-edge">               <!-- keeps rounded corners -->
+      <div class="table-scroll">           <!-- becomes the scroller -->
+        <table class="table table-hover align-middle mb-0" id="appointmentsTable">
           <thead class="table-head sticky-top">
             <tr>
               <th style="width: 200px;">Full Name</th>
@@ -817,24 +803,40 @@ if ($stmtCap = $mysqli->prepare("
             </tr>
           </thead>
           <tbody id="appointmentTableBody">
-            <?php if (count($filtered_appointments) > 0): ?>
-              <?php foreach ($filtered_appointments as $row): ?>
-                <?php include 'components/appointment_row.php'; ?>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <tr>
-                <td colspan="7" class="text-center text-muted py-4">No appointments found</td>
-              </tr>
-            <?php endif; ?>
-          </tbody>
+<?php
+if (!empty($filtered_appointments)):
+    foreach ($filtered_appointments as $row):
+
+// FILTER: Show only Indigency types
+if (stripos($row['certificate'], 'Indigency') === false) {
+    continue; 
+}
+
+        // ❌  Skip BESO if the user is Revenue Staff
+        if (stripos($user_role, 'revenue') !== false &&
+            $row['certificate'] === 'BESO Application') {
+            continue;
+        }
+
+        // Re‑use your existing row template
+        include 'components/appointment_row.php';
+
+    endforeach;
+else: ?>
+    <tr>
+        <td colspan="7" class="text-center">No appointments found</td>
+    </tr>
+<?php endif; ?>
+</tbody>
         </table>
       </div>
     </div>
   </div>
 </div>
+ <!-- Windowed Pagination -->
   <?php
     // Build preserved query string excluding pagenum
-    $pageBase = enc_page('view_appointments');
+    $pageBase = 'index_indigency_staff.php?page=' . urlencode(encrypt('view_appointments'));
     $params = $_GET; unset($params['pagenum']);
     $qs = '';
     if (!empty($params)) {
@@ -856,6 +858,7 @@ if ($stmtCap = $mysqli->prepare("
   <nav aria-label="Page navigation" class="mt-3">
     <ul class="pagination justify-content-end pagination-soft mb-0">
 
+      <!-- First -->
       <?php if ($page <= 1): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -872,6 +875,7 @@ if ($stmtCap = $mysqli->prepare("
         </li>
       <?php endif; ?>
 
+      <!-- Previous -->
       <?php if ($page <= 1): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -888,20 +892,24 @@ if ($stmtCap = $mysqli->prepare("
         </li>
       <?php endif; ?>
 
+      <!-- Left ellipsis -->
       <?php if ($start > 1): ?>
         <li class="page-item disabled"><span class="page-link">…</span></li>
       <?php endif; ?>
 
+      <!-- Windowed numbers -->
       <?php for ($i = $start; $i <= $end; $i++): ?>
         <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
           <a class="page-link" href="<?= $pageBase . $qs . '&pagenum=' . $i; ?>"><?= $i; ?></a>
         </li>
       <?php endfor; ?>
 
+      <!-- Right ellipsis -->
       <?php if ($end < $total_pages): ?>
         <li class="page-item disabled"><span class="page-link">…</span></li>
       <?php endif; ?>
 
+      <!-- Next -->
       <?php if ($page >= $total_pages): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -918,6 +926,7 @@ if ($stmtCap = $mysqli->prepare("
         </li>
       <?php endif; ?>
 
+      <!-- Last -->
       <?php if ($page >= $total_pages): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -936,9 +945,8 @@ if ($stmtCap = $mysqli->prepare("
 
     </ul>
   </nav>
-
-
- <div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
+ <!-- View Appointment Modal (enhanced) -->
+<div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content modal-elev rounded-4">
       <div class="modal-header modal-accent rounded-top-4">
@@ -954,6 +962,7 @@ if ($stmtCap = $mysqli->prepare("
 
       <div class="modal-body p-0">
         <div class="p-4 content-grid">
+          <!-- Case history -->
           <section class="card soft-card">
             <div class="card-header soft-card-header">
               <span class="section-title"><i class="bi bi-journal-check"></i> Case History</span>
@@ -965,6 +974,7 @@ if ($stmtCap = $mysqli->prepare("
             </div>
           </section>
 
+          <!-- Same day -->
           <section class="card soft-card grid-col-2">
             <div class="card-header soft-card-header">
               <span class="section-title"><i class="bi bi-calendar-week"></i> Appointments on This Day</span>
@@ -976,6 +986,7 @@ if ($stmtCap = $mysqli->prepare("
             </div>
           </section>
 
+          <!-- Update form -->
           <section class="card soft-card grid-col-2">
             <div class="card-header soft-card-header d-flex justify-content-between align-items-center">
               <span class="section-title"><i class="bi bi-arrow-repeat"></i> Update Status</span>
@@ -997,6 +1008,7 @@ if ($stmtCap = $mysqli->prepare("
                     </select>
                   </div>
 
+                  <!-- NEW: Assign Kagawad (hidden until ApprovedCaptain is selected) -->
                   <div class="col-12 col-md-6 d-none" id="assignKagawadGroup">
                     <label class="form-label">Assign Kagawad (required for Approved by Captain)</label>
                     <select class="form-select" name="assigned_kagawad_id" id="assignKagawadSelect">
@@ -1004,18 +1016,6 @@ if ($stmtCap = $mysqli->prepare("
                       <?php foreach ($kagawads as $k): ?>
                         <option value="<?= (int)$k['res_id'] ?>">
                           <?= htmlspecialchars($k['position'].' — '.$k['full_name']) ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  
-                  <div class="col-12 col-md-6 d-none" id="assignWitnessGroup">
-                    <label for="assignWitnessSelect" class="form-label">Assign Witness (required for BESO)</label>
-                    <select class="form-select" name="assigned_witness_name" id="assignWitnessSelect">
-                      <option value="">— Select Witness —</option>
-                      <?php foreach ($witnesses as $w): ?>
-                        <option value="<?= htmlspecialchars($w['full_name']) ?>">
-                          <?= htmlspecialchars($w['position'].' — '.$w['full_name']) ?>
                         </option>
                       <?php endforeach; ?>
                     </select>
@@ -1061,8 +1061,7 @@ if ($stmtCap = $mysqli->prepare("
     </div>
   </div>
 </div>
-
-
+  <!-- Status Change Modal -->
   <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-sm">
       <form method="POST" action="">
@@ -1074,7 +1073,6 @@ if ($stmtCap = $mysqli->prepare("
           <div class="modal-body bg-light">
             <input type="hidden" name="tracking_number" id="modalTrackingNumber">
             <input type="hidden" name="certificate" id="modalCertificate">
-            <input type="hidden" name="update_status" value="1">
 
             <div class="mb-3">
               <label for="newStatus" class="form-label fw-semibold">New Status</label>
@@ -1083,22 +1081,19 @@ if ($stmtCap = $mysqli->prepare("
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Released">Released</option>
-                <option value="ApprovedCaptain">ApprovedCaptain</option>
+                <!--<option value="ApprovedCaptain">ApprovedCaptain</option>-->
               </select>
             </div>
 
-
-
-
-            <div class="mb-3" id="statusModalCedulaNumberContainer" style="display:none;">
-              <label for="statusModalCedulaNumber" class="form-label fw-semibold">Cedula Number</label>
-              <input type="text" name="cedula_number" id="statusModalCedulaNumber" class="form-control shadow-sm rounded-3" placeholder="Enter Cedula Number">
-            </div>
-
-            <div class="mb-3" id="statusModalRejectionReasonContainer" style="display:none;">
-              <label for="statusModalRejectionReason" class="form-label fw-semibold">Rejection Reason</label>
-              <textarea class="form-control shadow-sm rounded-3" name="rejection_reason" id="statusModalRejectionReason" rows="2" placeholder="State reason for rejection..."></textarea>
-            </div>
+        <div class="mb-3" id="statusModalCedulaNumberContainer" style="display:none;">
+          <label for="statusModalCedulaNumber" class="form-label fw-semibold">Cedula Number</label>
+          <input type="text" name="cedula_number" id="statusModalCedulaNumber" class="form-control shadow-sm rounded-3" placeholder="Enter Cedula Number">
+        </div>
+        
+        <div class="mb-3" id="statusModalRejectionReasonContainer" style="display:none;">
+          <label for="statusModalRejectionReason" class="form-label fw-semibold">Rejection Reason</label>
+          <textarea class="form-control shadow-sm rounded-3" name="rejection_reason" id="statusModalRejectionReason" rows="2" placeholder="State reason for rejection..."></textarea>
+        </div>
           </div>
           <div class="modal-footer bg-light rounded-bottom-4">
             <button type="submit" name="update_status" class="btn btn-success w-100 rounded-pill shadow-sm">
@@ -1124,11 +1119,11 @@ function escapeHtml(s=''){
 }
 
 /* ----------
-    renderSignatorySection
-    Shows PB name/title always.
-    If the signatory IS the PB -> show PB e-signature overlayed on PB name.
-    If delegated -> show “By the authority…” block with the delegate’s name/title
-    and overlay the delegate signature on their name.
+   renderSignatorySection
+   Shows PB name/title always.
+   If the signatory IS the PB -> show PB e-signature overlayed on PB name.
+   If delegated -> show “By the authority…” block with the delegate’s name/title
+   and overlay the delegate signature on their name.
 ---------- */
 function renderSignatorySection(isCaptain /* ignored */, assignedKagName){
   const pbNm = `<?php echo htmlspecialchars($punong_barangay ?? ''); ?>`;
@@ -1150,9 +1145,11 @@ function renderSignatorySection(isCaptain /* ignored */, assignedKagName){
   "
 >
 
+      <!-- PB always -->
       <h5 class="pb-name"><u><strong>${pbNm}</strong></u></h5>
       <p class="auth-title">PUNONG BARANGAY</p>
 
+      <!-- Always show "By the authority…" block -->
       <div class="authority-note"><strong>By the authority of the Punong Barangay</strong></div>
       <div class="auth">
         <h6 class="auth-name"><u><strong>${escapeHtml(kag || 'Authorized Kagawad')}</strong></u></h6>
@@ -1164,17 +1161,16 @@ function renderSignatorySection(isCaptain /* ignored */, assignedKagName){
 
 
 /* ----------
-    printAppointment (excerpt)
-    This shows the complete "Barangay Indigency With Picture" case updated
-    with the overlay signature styles. Reuse the same styles/renderer for
-    your other certificate blocks.
+   printAppointment (excerpt)
+   This shows the complete "Barangay Indigency With Picture" case updated
+   with the overlay signature styles. Reuse the same styles/renderer for
+   your other certificate blocks.
 ---------- */
 function printAppointment(
   certificate, fullname, res_zone, birth_date = "", birth_place = "", res_street_address = "",
   purpose = "", issued_on ="", issued_at = "", cedula_number = "", civil_status = "",
-  residency_start = "", age= "", residentId = "",  assignedKagName = "",  
+  residency_start = "", age= "", residentId = "",  assignedKagName = "",   
   signatoryEmployeeId = 0, seriesNum = "",
-  assignedWitnessName = ""
 ) {
   let printAreaContent = "";
 
@@ -1199,47 +1195,20 @@ function printAppointment(
   /* ======================= BARANGAY INDIGENCY WITH PICTURE ======================= */
   if (certificate === "Barangay Indigency With Picture") {
     printAreaContent = `
-    <html>
-      <head>
-        <link rel="stylesheet" href="css/form.css">
-        <link rel="stylesheet" href="css/print/print.css">
-        
-        <style>
-            /* 1. UPDATED CSS: Set layers properly */
-            .container { 
-                position: relative; 
-            }
-            .watermark-logo {
-                position: absolute;
-                top: 70%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 80%;
-                opacity: 0.20;
-                z-index: 0;   /* Sits above paper, behind text */
-                pointer-events: none;
-            }
-            /* 2. IMPORTANT: Force text and images to sit ON TOP */
-            header, section, .two-col, .photo-2x2, .footer {
-                position: relative;
-                z-index: 2;
-            }
-        </style>
-      </head>
-      <body>
-        <div class="container" id="printArea">
-        
+<html>
+  <head>
+    <link rel="stylesheet" href="css/form.css">
+    <link rel="stylesheet" href="css/print/print.css">
+  </head>
+  <body>
+    <div class="container" id="printArea">
+      <header>
+        <div class="logo-header">
           <?php if ($logo): ?>
-              <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
+          <?php else: ?>
+            <p>No active Barangay logo found.</p>
           <?php endif; ?>
-
-          <header>
-            <div class="logo-header">
-              <?php if ($logo): ?>
-                <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-              <?php else: ?>
-                <p>No active Barangay logo found.</p>
-              <?php endif; ?>
 
           <div class="header-text">
             <h2><strong>Republic of the Philippines</strong></h2>
@@ -1249,6 +1218,7 @@ function printAppointment(
             <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
           </div>
 
+          <!-- Resident photo -->
           <img src="${residentPhotoUrl}" alt="Resident Photo" class="photo-2x2" onerror="this.style.display='none'"/>
         </div>
       </header>
@@ -1272,12 +1242,14 @@ function printAppointment(
       <br><br><br><br><br>
 
       <div class="two-col" style="margin-bottom:18px;">
+        <!-- Left column: cedula info -->
         <section class="col-48" style="line-height:1.8;">
           <p><strong>Community Tax No.:</strong> ${escapeHtml(cedula_number)}</p>
           <p><strong>Issued on:</strong> ${issued_on ? new Date(issued_on).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : ''}</p>
           <p><strong>Issued at:</strong> ${escapeHtml(issued_at)}</p>
         </section>
 
+        <!-- Right column: dynamic signatory with overlay signature -->
         ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
       </div>
     </div>
@@ -1290,7 +1262,7 @@ else if (certificate === "Barangay Residency With Picture") {
     const formattedBirthDate = birth_date ? new Date(birth_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
     const formattedResidencyStart = residency_start ? new Date(residency_start).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
     const formattedIssuedOn = issued_on ? new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
-    const residentPhotoUrl = residentId
+      const residentPhotoUrl = residentId
     ? `components/employee_modal/show_profile_picture.php?res_id=${encodeURIComponent(residentId)}&t=${Date.now()}`
     : "";
 
@@ -1301,44 +1273,17 @@ else if (certificate === "Barangay Residency With Picture") {
     <link rel="stylesheet" href="css/print/print.css">
     <style>
       /* square 2x2in resident photo for print */
-      .photo-2x2 {
-        width: 2in; height: 2in;        /* exact 2x2 inches */
-        object-fit: cover;              /* fill without distortion */
-        border-radius: 0;               /* NOT circular */
-        border: 1px solid #000;         /* optional passport-style border */
+      .photo-2x2{
+        width: 2in; height: 2in;           /* exact 2x2 inches */
+        object-fit: cover;                  /* fill without distortion */
+        border-radius: 0;                   /* NOT circular */
+        border: 1px solid #000;             /* optional passport-style border */
         display: block;
-        position: relative;             /* Important for layering */
-        z-index: 2;                     /* Sit on top of watermark */
-      }
-
-      /* 1. UPDATED CSS: Set layers properly */
-      .container { 
-          position: relative; 
-      }
-      .watermark-logo {
-          position: absolute;
-          top: 70%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          width: 80%;
-          opacity: 0.20;
-          z-index: 0;   /* Sits above paper, behind text */
-          pointer-events: none;
-      }
-      /* 2. IMPORTANT: Force text and sections to sit ON TOP */
-      header, section, .footer, .two-col {
-          position: relative;
-          z-index: 2;
       }
     </style>
   </head>
   <body>
     <div class="container" id="printArea">
-    
-      <?php if ($logo): ?>
-          <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
-      <?php endif; ?>
-
       <header>
         <div class="logo-header">
           <?php if ($logo): ?>
@@ -1355,137 +1300,68 @@ else if (certificate === "Barangay Residency With Picture") {
             <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
           </div>
 
+          <!-- Resident photo (square 2x2) -->
           <img src="${residentPhotoUrl}" alt="Resident Photo" class="photo-2x2" onerror="this.style.display='none'"/>
         </div>
       </header>
-                  <hr class="header-line">
+                    <hr class="header-line">
 
-                  <section class="barangay-certification">
-                      <h4 style="text-align: center; font-size: 50px;"><strong>CERTIFICATION</strong></h4>
-                      <p>TO WHOM IT MAY CONCERN:</p><br>
-                      <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, is a resident of 
-                      <strong>${res_zone}</strong>, <strong>${res_street_address}</strong> Bugo, Cagayan de Oro City. He/She was born on <strong>${formattedBirthDate}</strong> at <strong>${birth_place}</strong>. 
-                      Stayed in Bugo, CDOC since <strong>${formattedResidencyStart}</strong> and up to present.</p>
-                      <br>
-                      <p>This Certification is issued upon the request of the above-mentioned person 
-                          for <strong>${purpose}</strong> only.</p>
-                      <br>
-                      <p>Issued this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
-                  </section>
+                    <section class="barangay-certification">
+                        <h4 style="text-align: center; font-size: 50px;"><strong>CERTIFICATION</strong></h4>
+                        <p>TO WHOM IT MAY CONCERN:</p><br>
+                        <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, is a resident of 
+                        <strong>${res_zone}</strong>, <strong>${res_street_address}</strong> Bugo, Cagayan de Oro City. He/She was born on <strong>${formattedBirthDate}</strong> at <strong>${birth_place}</strong>. 
+                        Stayed in Bugo, CDOC since <strong>${formattedResidencyStart}</strong> and up to present.</p>
+                        <br>
+                        <p>This Certification is issued upon the request of the above-mentioned person 
+                            for <strong>${purpose}</strong> only.</p>
+                        <br>
+                        <p>Issued this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
+                    </section>
 
-                  <br><br><br><br><br>
+                    <br><br><br><br><br>
 
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
-                      <section style="width: 48%; line-height: 1.8;">
-                          <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
-                          <p><strong>Issued on:</strong> ${formattedIssuedOn}</p>
-                          <p><strong>Issued at:</strong> ${issued_at}</p>
-                      </section>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
+                        <section style="width: 48%; line-height: 1.8;">
+                            <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
+                            <p><strong>Issued on:</strong> ${formattedIssuedOn}</p>
+                            <p><strong>Issued at:</strong> ${issued_at}</p>
+                        </section>
         ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
-                  </div>
-              </div>
-          </body>
-      </html>
-    `;
-}
-
-          <div class="header-text">
-            <h2><strong>Republic of the Philippines</strong></h2>
-            <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-            <h3><strong><?php echo $barangayName; ?></strong></h3>
-            <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-            <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-          </div>
-
-          <img src="${residentPhotoUrl}" alt="Resident Photo" class="photo-2x2" onerror="this.style.display='none'"/>
-        </div>
-      </header>
-                  <hr class="header-line">
-
-                  <section class="barangay-certification">
-                      <h4 style="text-align: center; font-size: 50px;"><strong>CERTIFICATION</strong></h4>
-                      <p>TO WHOM IT MAY CONCERN:</p><br>
-                      <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, is a resident of 
-                      <strong>${res_zone}</strong>, <strong>${res_street_address}</strong> Bugo, Cagayan de Oro City. He/She was born on <strong>${formattedBirthDate}</strong> at <strong>${birth_place}</strong>. 
-                      Stayed in Bugo, CDOC since <strong>${formattedResidencyStart}</strong> and up to present.</p>
-                      <br>
-                      <p>This Certification is issued upon the request of the above-mentioned person 
-                          for <strong>${purpose}</strong> only.</p>
-                      <br>
-                      <p>Issued this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
-                  </section>
-
-                  <br><br><br><br><br>
-
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
-                      <section style="width: 48%; line-height: 1.8;">
-                          <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
-                          <p><strong>Issued on:</strong> ${formattedIssuedOn}</p>
-                          <p><strong>Issued at:</strong> ${issued_at}</p>
-                      </section>
-        ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
-                  </div>
-              </div>
-          </body>
-      </html>
+                    </div>
+                </div>
+            </body>
+        </html>
     `;
 }
 else if (certificate === "Barangay Indigency") {
-    printAreaContent = `
-        <html>
-            <head>
-                <link rel="stylesheet" href="css/form.css">
-                <link rel="stylesheet" href="css/print/print.css">
-                
-                <style>
-                    /* 1. UPDATED CSS: Uses z-index 0 to ensure it stays visible */
-                    .container { 
-                        position: relative; 
-                    }
-                    .watermark-logo {
-                        position: absolute;
-                        top: 70%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        width: 80%;
-                        opacity: 0.20; /* Adjust transparency here */
-                        z-index: 0;   /* Changed from -1 to 0 to prevent hiding */
-                        pointer-events: none;
-                    }
-                    /* Ensure text sits on top of the watermark */
-                    header, section, .two-col, .footer {
-                        position: relative;
-                        z-index: 2;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container" id="printArea">
-                
-                    <?php if ($logo): ?>
-                        <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
-                    <?php endif; ?>
-
-                    <header>
-                        <div class="logo-header"> 
-                            <?php if ($logo): ?>
-                                <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-                            <?php else: ?>
-                                <p>No active Barangay logo found.</p>
-                            <?php endif; ?>
-                                <div class="header-text">
-                                    <h2><strong>Republic of the Philippines</strong></h2>
-                                    <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-                                    <h3><strong><?php echo $barangayName; ?></strong></h3>
-                                    <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-                                    <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-                                </div>
+            printAreaContent = `
+                <html>
+                    <head>
+                        <link rel="stylesheet" href="css/form.css">
+                        <link rel="stylesheet" href="css/print/print.css">
+                    </head>
+                    <body>
+                        <div class="container" id="printArea">
+                            <header>
+                    <div class="logo-header"> <?php if ($logo): ?>
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
+        <?php else: ?>
+            <p>No active Barangay logo found.</p>
+        <?php endif; ?>
+                                    <div class="header-text">
+                                        <h2><strong>Republic of the Philippines</strong></h2>
+                                        <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
+                                        <h3><strong><?php echo $barangayName; ?></strong></h3>
+                                        <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
+                                        <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
+                                    </div>
                         <?php if ($cityLogo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"   >
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"    >
         <?php else: ?>
             <p>No active City/Municipality logo found.</p>
         <?php endif; ?>
-                      </div>
+                    </div>
                             </header>
                             <hr class="header-line">
                             <section class="barangay-certification">
@@ -1512,7 +1388,7 @@ else if (certificate === "Barangay Indigency") {
                                 <p><strong>Issued on:</strong> ${new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                                 <p><strong>Issued at:</strong> ${issued_at}</p>
                     </section>
-${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+        ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
 
                             </div>
                         </div>
@@ -1520,7 +1396,6 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                 </html>
             `;
         } else if (certificate === "Barangay Residency") {
-    // 1. Format dates properly
     const formattedBirthDate = birth_date ? new Date(birth_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
     const formattedResidencyStart = residency_start ? new Date(residency_start).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
     const formattedIssuedOn = issued_on ? new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
@@ -1530,36 +1405,9 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
             <head>
                 <link rel="stylesheet" href="css/form.css">
                 <link rel="stylesheet" href="css/print/print.css">
-                
-                <style>
-                    /* 2. ADD THIS STYLE: Ensures Watermark is visible */
-                    .container { 
-                        position: relative; 
-                    }
-                    .watermark-logo {
-                        position: absolute;
-                        top: 70%;
-                        left: 50%;
-                        transform: translate(-50%, -50%);
-                        width: 80%;
-                        opacity: 0.20; 
-                        z-index: 0;   /* Sits above the white paper background */
-                        pointer-events: none;
-                    }
-                    /* Ensure text sits on top of the watermark */
-                    header, section, .footer, .two-col {
-                        position: relative;
-                        z-index: 2;
-                    }
-                </style>
             </head>
             <body>
                 <div class="container" id="printArea">
-                
-                    <?php if ($logo): ?>
-                        <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
-                    <?php endif; ?>
-
                     <header>
                         <div class="logo-header">
                             <?php if ($logo): ?>
@@ -1606,70 +1454,39 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                             <p><strong>Issued on:</strong> ${formattedIssuedOn}</p>
                             <p><strong>Issued at:</strong> ${issued_at}</p>
                         </section>
-                        ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                     </div>
                 </div>
             </body>
         </html>
     `;
-}else if (certificate === "Barangay Clearance") {
-    printAreaContent = `
-    <html>
-    <head>
-        <link rel="stylesheet" href="css/clearance.css">
-        <link rel="stylesheet" href="css/print/clearance.css">
-        
-        <style>
-            /* 1. UPDATED CSS: Position the watermark */
-            .container { 
-                position: relative; 
-            }
-            .watermark-logo {
-                position: absolute;
-                top: 70%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                width: 80%;
-                opacity: 0.20;
-                z-index: 0;
-                pointer-events: none;
-            }
-            /* 2. IMPORTANT: Force the text and side-by-side columns to sit ON TOP */
-            header, .side-by-side, section, .footer {
-                position: relative;
-                z-index: 2;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container" id="printArea">
-        
-        <?php if ($logo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+}else if (certificate === "Residency") {
+            printAreaContent = `
+                <html>
+                    <head>
+                        <link rel="stylesheet" href="css/form.css">
+                    </head>
+                    <body>
+                    <div class="container" id="printArea">
+                <header>
+                    <div class="logo-header"> <?php if ($logo): ?>
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
+        <?php else: ?>
+            <p>No active Barangay logo found.</p>
         <?php endif; ?>
-
-        <br>
-        <br>
-            <header>
-                <div class="logo-header"> 
-                    <?php if ($logo): ?>
-                        <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-                    <?php else: ?>
-                        <p>No active Barangay logo found.</p>
-                    <?php endif; ?>
-                                <div class="header-text">
-                                    <h2><strong>Republic of the Philippines</strong></h2>
-                                    <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-                                    <h3><strong><?php echo $barangayName; ?></strong></h3>
-                                    <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-                                    <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-                                </div>
+                                    <div class="header-text">
+                                        <h2><strong>Republic of the Philippines</strong></h2>
+                                        <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
+                                        <h3><strong><?php echo $barangayName; ?></strong></h3>
+                                        <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
+                                        <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
+                                    </div>
                         <?php if ($cityLogo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"   >
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"    >
         <?php else: ?>
             <p>No active City/Municipality logo found.</p>
         <?php endif; ?>
-                      </div>
+                    </div>
                                 <hr class="header-line">
                             </header>
                             <section class="barangay-certification">
@@ -1697,13 +1514,28 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                                 <p><strong>Issued on:</strong> ${new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                                 <p><strong>Issued at:</strong> ${issued_at}</p>
                     </section>
-+ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+                    <section style="width: -155%; text-align: center; font-size: 25px;">
+                        <?php
+                            // Find the Punong Barangay from the $officials array
+                            $punong_barangay = null;
+                            foreach ($officials as $official) {
+                                if ($official['position'] == 'Punong Barangay') {
+                                    $punong_barangay = $official['name'];
+                                    break;
+                                }
+                            }
+                        ?>
+                        <h5><u><strong><?php echo htmlspecialchars($punong_barangay); ?></strong></u></h5>
+                        <p>Punong Barangay</p>
+                        <!-- e-Signature Image -->
+                        <img src="components/employee_modal/show_esignature.php?t=<?=time()?>"  alt="Punong Barangay e-Signature" style="width: 150px; height: auto; margin-top: 10px;">
+                    </section>
                             </div>
                         </div>
                     </body>
                 </html>
             `;
-        } else if (certificate === "Barangay Clearance") {
+        }  else if (certificate === "Barangay Clearance") {
         printAreaContent = `
         <html>
         <head>
@@ -1728,7 +1560,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                             <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
                         </div>
                         <?php if ($cityLogo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"   >
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"    >
         <?php else: ?>
             <p>No active City/Municipality logo found.</p>
         <?php endif; ?>
@@ -1818,6 +1650,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
         </div>
     </div>
 </div>
+                    <!-- Right Section: Certification Text -->
                     <div class="right-content">
                         <p>TO WHOM IT MAY CONCERN:</p>
                         <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, legal age, <strong>${civil_status}</strong>. 
@@ -1826,7 +1659,8 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                         He/She has no pending case filed and blottered before this office.</p><br>
                         <p>This certification is being issued upon the request of the above-named person, in connection with his/her desire <strong>${purpose}</strong>.</p><br>
 
-                        <p>Given this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
+                        <!-- New Section Added Below -->
+                            <p>Given this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
                         <br>
                         <div style="text-align: center; font-size: 15px;" >
                             <u><strong>${fullname}</strong></u>
@@ -1839,7 +1673,8 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
             <p><strong>As per records (LUPON TAGAPAMAYAPA):</strong></p>
             <p>Brgy. Case #: ___________________________</p>
             <p>Certified by: <U><strong><?php echo htmlspecialchars($lupon_official); ?></strong></U></p>
-            <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
+            <!-- e-Signature for Lupon Official positioned over the name -->
+                <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
                     <img src="components/employee_modal/lupon_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
                         style="width: 120px; height: auto; z-index: 1;">
                 </div>
@@ -1852,6 +1687,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
             <p><strong>As per records (BARANGAY TANOD):</strong></p>
             <p>Brgy. Tanod Remarks: _____________________</p>
             <p>Certified by: <U><strong><?php echo htmlspecialchars($barangay_tanod_official); ?></strong></U></p>
+            <!-- e-Signature for Barangay Tanod Official positioned over the name -->
             <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
                     <img src="components/employee_modal/tanod_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
                         style="width: 120px; height: auto; z-index: 1;">
@@ -1864,14 +1700,17 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                     </div>
                 </div>
 
+                <!-- Thumbprint Section Below Left Content -->
                 <section style="margin-top: 20px; text-align: center;">
                     <div style="display: flex; justify-content: left; gap: 20px;">
+                        <!-- Left Thumb Box with Label Above -->
                         <div style="text-align: center; font-size:6px;" >
                             <p><strong>Left Thumb:</strong></p>
                             <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
                             </div>
                         </div>
 
+                        <!-- Right Thumb Box -->
                         <div style="text-align: center; font-size:6px;">
                             <p><strong>Right Thumb:</strong></p>
                             <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
@@ -1894,175 +1733,82 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
 
 
         `;
-        } else if (certificate.toLowerCase() === "beso application") {
-  printAreaContent = `
-    <html>
-      <head>
-        <link rel="stylesheet" href="css/form.css">
-        <link rel="stylesheet" href="css/print/print.css">
-        <link rel="stylesheet" href="css/print/oath.css">
-      </head>
-
-      <body>
-        <div class="container" id="printArea">
-
-          <header>
-            <div class="logo-header">
-              <?php if ($logo): ?>
+    }else if (certificate.toLowerCase() === "beso application") {
+                printAreaContent = `
+                    <html>
+                        <head>
+                            <link rel="stylesheet" href="css/form.css">
+                            <link rel="stylesheet" href="css/print/print.css">
+                        </head>
+                        <body>
+                        <div class="container" id="printArea">
+                    <header>
+                        <div class="logo-header"> <?php if ($logo): ?>
                 <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-              <?php endif; ?>
-              <div class="header-text header-center">
-                <h2><strong>Republic of the Philippines</strong></h2>
-                <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-                <h3><strong><?php echo $barangayName; ?></strong></h3>
-                <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-                <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-              </div>
-              <?php if ($cityLogo): ?>
-                <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo">
-              <?php endif; ?>
-            </div>
-          </header>
+            <?php else: ?>
+                <p>No active Barangay logo found.</p>
+            <?php endif; ?>
+                                        <div class="header-text">
+                                            <h2><strong>Republic of the Philippines</strong></h2>
+                                            <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
+                                            <h3><strong><?php echo $barangayName; ?></strong></h3>
+                                            <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
+                                            <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
+                                        </div>
+                            <?php if ($cityLogo): ?>
+                <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"    >
+            <?php else: ?>
+                <p>No active City/Municipality logo found.</p>
+            <?php endif; ?>
+                        </div>
+                                    <hr class="header-line">
+                                </header>
+                                <section class="barangay-certification">
+                                    <h4 style="text-align: center; font-size: 50px;"><strong>BARANGAY CERTIFICATION</strong></h4>
+                                    <p style="text-align: center; font-size: 18px; margin-top: -10px;">
+                                        <em>(First Time Jobseeker Assistance Act - RA 11261)</em>
+                                    </p>
+                                    <br>
+                                    <p>This is to certify that <strong><u>${fullname}</u></strong>, ${age} years old is a resident of 
+                                        <strong>${res_zone}</strong>, <strong>${res_street_address}</strong>, Bugo, Cagayan de Oro City for <strong>${(() => {
+                                            const start = new Date(residency_start);
+                                            const today = new Date();
+                                            let years = today.getFullYear() - start.getFullYear();
 
-          <hr class="header-line">
-          <div style="
-                display:flex;
-                justify-content:flex-end;
-                font-size:14px;
-                margin: 2px 0 10px 0;">
-            <div><strong>Barangay Certificate Number.:</strong> ${escapeHtml(seriesNum || '')}</div>
-          </div>          
+                                            // Adjust if current date hasn't reached the anniversary month/day yet
+                                            const m = today.getMonth() - start.getMonth();
+                                            if (m < 0 || (m === 0 && today.getDate() < start.getDate())) {
+                                                years--;
+                                            }
 
-          <section class="barangay-certification">
-            <h4 style="text-align: center; font-size: 50px;"><strong>BARANGAY CERTIFICATION</strong></h4>
-            <p style="text-align: center; font-size: 18px; margin-top: -10px;">
-              <em>(First Time Jobseeker Assistance Act - RA 11261)</em>
-            </p>
-
-            <p>This is to certify that <strong><u>${escapeHtml(fullname)}</u></strong>, ${escapeHtml(age)} years old is a resident of
-              <strong>${escapeHtml(res_zone)}</strong>, <strong>${escapeHtml(res_street_address)}</strong>, Bugo, Cagayan de Oro City for
-              <strong>${
-                (() => {
-                  const start = new Date(residency_start);
-                  const today = new Date();
-                  let years = today.getFullYear() - start.getFullYear();
-                  const m = today.getMonth() - start.getMonth();
-                  if (m < 0 || (m === 0 && today.getDate() < start.getDate())) years--;
-                  return years + (years === 1 ? " year" : " years");
-                })()
-              }</strong>, is <strong>qualified</strong> availee of <strong>RA 11261</strong> or the <strong>First Time Jobseeker Act of 2019</strong>.</p>
-
-            <p>Further certifies that the holder/bearer was informed of his/her rights, including the duties and responsibilities accorded by RA 11261 through the
-              <strong>Oath of Undertaking</strong> he/she has signed and executed in the presence of a Barangay Official.</p>
-
-            <p>This certification is issued upon the request of the above-named person for <strong>${escapeHtml(purpose)}</strong> purposes and is valid only until
-              <strong>${
-                (() => {
-                  const d = new Date();
-                  const valid = new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
-                  return valid.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-                })()
-              }</strong>.</p>
-
-            <p>Signed this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>,
-              at Barangay Bugo, Cagayan de Oro City.</p>
-          </section>
-
-          <br><br>
-
-          <div class="two-col" style="margin-bottom:18px;">
-            <section class="col-48" style="line-height:1.8;">
-              <p><em>Not valid without seal</em></p>
-            </section>
-            ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
-          </div>
-
-        </div> <div class="page-break"></div>
-
-        <div class="oath-page">
-          <div class="oath-inner">
-          <div class="oath-top-gap"></div>
-            <header>
-              <div class="oath-header">
-                <?php if ($logo): ?>
-                  <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-                <?php else: ?><span></span><?php endif; ?>
-
-                <div class="header-text">
-                  <h2><strong>REPUBLIC OF THE PHILIPPINES</strong></h2>
-                  <h3><strong>City of Cagayan de Oro</strong></h3>
-                  <h3><strong>BARANGAY BUGO</strong></h3>
-                  <h4><strong>OFFICE OF THE SANGGUNIANG BARANGAY</strong></h4>
-                </div>
-
-                <?php if ($cityLogo): ?>
-                  <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo">
-                <?php else: ?><span></span><?php endif; ?>
-              </div>
-            </header>
-
-            <hr class="oath-rule">
-
-            <section class="oath-wrap">
-              <div class="oath-title">OATH OF UNDERTAKING</div>
-
-              <p class="no-indent">
-                I, <strong>${escapeHtml(fullname)}</strong>, <strong>${escapeHtml(age)}</strong> years of age, resident of
-                <strong>Barangay BUGO</strong>, <strong>${escapeHtml(res_zone)}</strong>, Bugo, Cagayan de Oro City, availing the benefits of
-                <strong>Republic Act 11261</strong>, otherwise known as the <strong>First Time Jobseekers Act of 2019</strong>, do hereby declare,
-                agree and undertake to abide and be bound by the following:
-              </p>
-
-              <p class="clause">That this is the first time that I will actively look for a job, and therefore requesting that a Barangay Certification be issued in my favor to avail the benefits of the law.</p>
-              <p class="clause">That I am aware that the benefits and privileges under the said law shall be valid only for one (1) year from the date that the Barangay Certification is issued.</p>
-              <p class="clause">That I can avail the benefits of the law only once.</p>
-              <p class="clause">That I understand that my personal information shall be included in the Roster/List of First Time Jobseekers and will not be used for any unlawful purpose.</p>
-              <p class="clause">That I will inform and/or report to the Barangay personally, through text or other means, or through my family/relatives once I get employed.</p>
-              <p class="clause">That I am not a beneficiary of the JobStart Program under R.A. No. 10869 and other laws that give similar exemptions for the documents or transactions exempted under R.A. No. 11261.</p>
-              <p class="clause">That if issued the requested Certification, I will not use the same in any fraud, neither falsely help and/or assist in the fabrication of the said certification.</p>
-              <p class="clause">That this undertaking is made solely for the purpose of obtaining a Barangay Certification consistent with the objective of R.A. No. 11261 and not for any other purpose.</p>
-              <p class="clause">That I consent to the use of my personal information pursuant to the Data Privacy Act and other applicable laws, rules, and regulations.</p>
-
-              <br>
-              <p class="no-indent">
-                Signed this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong> in the City/Municipality of
-                <strong>Cagayan de Oro</strong> City.
-              </p>
-<div class="sig-row">
-  <div class="sig-box sig-left">
-    <div class="sig-line"></div>
-    <div class="sig-caption">Witnessed By:</div>
-    ${(() => {
-        // Use the witness name string passed into the function
-        const name = (assignedWitnessName || '').trim();
-        
-        // Use fallbacks if no witness was assigned
-        const displayName = name || 'ENGR. BELEN B. BASADRE'; // Default fallback name
-        // Determine position based on name, or default
-        const displayTitle = name ? 'Barangay Secretary' : 'Barangay Executive Secretary';
-        
-        return `
-          <div class="sig-name">${escapeHtml(displayName.toUpperCase())}</div>
-          <div class="sig-sub">${escapeHtml(displayTitle)}</div>
-        `;
-    })()}
-  </div>
-
-  <div class="sig-box sig-right">
-    <div class="sig-line"></div>
-    <div class="sig-caption">First Time Jobseekers</div>
-  </div>
-</div>
-
-
-    </section>
-        </div>
-      </div>
-
-    </body>
-  </html>
-  `;
-}else if (certificate.toLowerCase() === "cedula") {
+                                            return years + (years === 1 ? " year" : " years");
+                                        })()}</strong>, is <strong>qualified</strong> availee of <strong>RA 11261</strong> or the <strong>First Time Jobseeker act of 2019.</strong>
+                                    </p>
+                                    <p>Further certifies that the holder/bearer was informed of his/her rights, including the duties and responsibilities accorded by RA 11261 through the <strong>OATH UNDERTAKING</strong> he/she has signed and execute in the presence of our Barangay Official.</p>
+                                    <p>This certification is issued upon request of the above-named person for <strong>${purpose}</strong> purposes and is valid only until <strong>${(() => {
+                                        const issuedDate = new Date();
+                                        const validUntil = new Date(issuedDate.setFullYear(issuedDate.getFullYear() + 1));
+                                        return validUntil.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+                                    })()}</strong>.</p>
+                                    <br>
+                                    <p>Signed this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, 
+                                        at Barangay Bugo, Cagayan de Oro City.
+                                    </p>
+                                </section>
+                                <br>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
+                        <section style="width: 48%; line-height: 1.8;">
+                        <br>
+                        <br>    
+                        <p> Not valid without seal</p>
+                        </section>
+${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+                                </div>
+                            </div>
+                        </body>
+                    </html>
+                `;
+            }else if (certificate.toLowerCase() === "cedula") {
   // --- helpers ---
   const toNumericShort = d => {
     const dt = d ? new Date(d) : new Date();
@@ -2167,6 +1913,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
   </html>`;
 }
 
+
         // Open a new print window with the content
         const printWindow = window.open('', '_blank');
         printWindow.document.write(printAreaContent);
@@ -2175,25 +1922,17 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
 printWindow.onload = function () {
   const b = printWindow.document.body;
   b.classList.remove('page-a4','page-letter','page-long');
-  b.classList.add('page-long');       // ← use this for 8.5×13
+  b.classList.add('page-long');        // ← use this for 8.5×13
   printWindow.print();
 };
-
-
     }
-/* ====================== Helpers ====================== */
 const normStatus = s => (s || '').toLowerCase().replace(/[^a-z]/g, '');
 const isCedulaType = t => {
   const k = normStatus(t);
   return (k === 'cedula' || k === 'urgentcedula');
 };
 
-/* Strict step-locking for status dropdown
-   - pending          → only Approved / Rejected
-   - approved         → only Approved by Captain
-   - approvedcaptain  → only Released
-   - released/rejected→ freeze all
-*/
+/* --- NEW: strict step-locking for status dropdown --- */
 function lockStatusOptions(selectEl, currentStatusNorm){
   const q = v => selectEl.querySelector(`option[value="${v}"]`);
   const pendingOpt  = q('Pending');
@@ -2203,23 +1942,22 @@ function lockStatusOptions(selectEl, currentStatusNorm){
   const captainOpt  = q('ApprovedCaptain');
 
   // reset
-  [pendingOpt, approvedOpt, rejectedOpt, releasedOpt, captainOpt]
-    .forEach(o => o && (o.disabled = false));
+  [pendingOpt, approvedOpt, rejectedOpt, releasedOpt, captainOpt].forEach(o => o && (o.disabled = false));
 
-  // PENDING → only Approved & Rejected
+  // PENDING → only Approved & Rejected are enabled
   if (currentStatusNorm === 'pending') {
-    if (pendingOpt)  pendingOpt.disabled  = true;
-    if (approvedOpt) approvedOpt.disabled = false;
-    if (rejectedOpt) rejectedOpt.disabled = false;
-    if (captainOpt)  captainOpt.disabled  = true;
-    if (releasedOpt) releasedOpt.disabled = true;
+    if (pendingOpt)  pendingOpt.disabled  = true;   // can't re-choose
+    if (approvedOpt) approvedOpt.disabled = false;  // allowed
+    if (rejectedOpt) rejectedOpt.disabled = false;  // allowed
+    if (captainOpt)  captainOpt.disabled  = true;   // not yet
+    if (releasedOpt) releasedOpt.disabled = true;   // not yet
     return;
   }
 
   // base guard: Released only after ApprovedCaptain
   if (releasedOpt) releasedOpt.disabled = (currentStatusNorm !== 'approvedcaptain');
 
-  // APPROVED → only Approved by Captain
+  // APPROVED → only next step (Approved by Captain)
   if (currentStatusNorm === 'approved') {
     if (pendingOpt)  pendingOpt.disabled  = true;
     if (approvedOpt) approvedOpt.disabled = true;
@@ -2239,78 +1977,52 @@ function lockStatusOptions(selectEl, currentStatusNorm){
     return;
   }
 
-  // RELEASED or REJECTED → freeze all
+  // RELEASED or REJECTED → freeze
   if (currentStatusNorm === 'released' || currentStatusNorm === 'rejected') {
-    [pendingOpt, approvedOpt, rejectedOpt, releasedOpt, captainOpt]
-      .forEach(o => o && (o.disabled = true));
+    [pendingOpt, approvedOpt, rejectedOpt, releasedOpt, captainOpt].forEach(o => o && (o.disabled = true));
   }
 }
 
-/* =================== Page Script ===================== */
+
 let currentAppointmentType = '';
 let currentCedulaNumber    = '';
 
 document.addEventListener('DOMContentLoaded', () => {
   /* Cache DOM nodes used in the View Modal workflow */
-  const statusForm          = document.getElementById('statusUpdateForm');
-  const statusSelect        = document.getElementById('statusSelect');
-  const rejectionGroup      = document.getElementById('viewRejectionReasonGroup');
-  const cedulaGroup         = document.getElementById('viewCedulaNumberContainer');
-  const cedulaInput         = document.getElementById('viewCedulaNumber');
-  const assignGroup         = document.getElementById('assignKagawadGroup');
-  const assignSelect        = document.getElementById('assignKagawadSelect');
-  const assignWitnessGroup  = document.getElementById('assignWitnessGroup');
-  const assignWitnessSelect = document.getElementById('assignWitnessSelect');
+  const statusForm     = document.getElementById('statusUpdateForm');
+  const statusSelect   = document.getElementById('statusSelect');
+  const rejectionGroup = document.getElementById('viewRejectionReasonGroup');
+  const cedulaGroup    = document.getElementById('viewCedulaNumberContainer');
+  const cedulaInput    = document.getElementById('viewCedulaNumber');
+  const assignGroup    = document.getElementById('assignKagawadGroup');
+  const assignSelect   = document.getElementById('assignKagawadSelect');
 
-  /* ---------- VIEW MODAL: toggle fields when status changes ---------- */
   statusSelect.addEventListener('change', () => {
     const selected = statusSelect.value;
 
-    // Rejection textarea toggle
+    // Rejection textarea toggle (uses d-none)
     const showReject = (selected === 'Rejected');
-    if (rejectionGroup) {
-      rejectionGroup.classList.toggle('d-none', !showReject);
-      const rej = document.getElementById('viewRejectionReason');
-      if (rej) rej.required = showReject;
-    }
+    rejectionGroup.classList.toggle('d-none', !showReject);
+    document.getElementById('viewRejectionReason').required = showReject;
 
-    // Cedula number is required only if Released + appointment is a Cedula type
+    // Cedula number only for Released + Cedula types
     const showCedula = (selected === 'Released' && isCedulaType(currentAppointmentType));
-    if (cedulaGroup) {
-      cedulaGroup.classList.toggle('d-none', !showCedula);
-      if (cedulaInput) {
-        cedulaInput.required = showCedula;
-        if (!showCedula) cedulaInput.value = '';
-      }
-    }
+    cedulaGroup.classList.toggle('d-none', !showCedula);
+    cedulaInput.required = showCedula;
+    if (!showCedula) cedulaInput.value = '';
 
-    // Assign Kagawad only when setting ApprovedCaptain for NON-Cedula types
+    // Assign Kagawad only when ApprovedCaptain for NON-Cedula
     const showKag = (selected === 'ApprovedCaptain' && !isCedulaType(currentAppointmentType));
-    if (assignGroup) {
-      assignGroup.classList.toggle('d-none', !showKag);
-      if (assignSelect) {
-        if (showKag) assignSelect.setAttribute('required','required');
-        else { assignSelect.removeAttribute('required'); assignSelect.value = ''; }
-      }
-    }
-
-    // Assign Witness only when setting ApprovedCaptain for BESO
-    const showWitness = (selected === 'ApprovedCaptain' && normStatus(currentAppointmentType) === 'besoapplication');
-    if (assignWitnessGroup) {
-      assignWitnessGroup.classList.toggle('d-none', !showWitness);
-      if (assignWitnessSelect) {
-        if (showWitness) assignWitnessSelect.setAttribute('required','required');
-        else { assignWitnessSelect.removeAttribute('required'); assignWitnessSelect.value = ''; }
-      }
-    }
+    assignGroup.classList.toggle('d-none', !showKag);
+    if (showKag) assignSelect.setAttribute('required','required');
+    else { assignSelect.removeAttribute('required'); assignSelect.value = ''; }
   });
 
   /* ---------- VIEW MODAL: open & populate ---------- */
   document.querySelectorAll('[data-bs-target="#viewModal"]').forEach(button => {
     button.addEventListener('click', () => {
       const trackingNumber = button.dataset.trackingNumber || '';
-      const tnEl = document.getElementById('statusTrackingNumber');
-      if (tnEl) tnEl.value = trackingNumber;
+      document.getElementById('statusTrackingNumber').value = trackingNumber;
 
       fetch('./ajax/view_case_and_status.php?tracking_number=' + encodeURIComponent(trackingNumber))
         .then(res => res.json())
@@ -2333,14 +2045,11 @@ document.addEventListener('DOMContentLoaded', () => {
           currentAppointmentType = selectedAppt?.certificate || '';
           currentCedulaNumber    = selectedAppt?.cedula_number || '';
 
-          // Pre-fill witness name if it exists (BESO)
-          if (assignWitnessSelect) assignWitnessSelect.value = selectedAppt?.assigned_witness_name || '';
-
           // Trigger initial toggle state
           statusSelect.dispatchEvent(new Event('change'));
 
           // ----- Render Case History -----
-// ----- Render Case History (Updated with Participants, Action Taken & Remarks) -----
+          // ----- Render Case History (Updated with Participants, Action & Remarks) -----
           const container = document.getElementById('caseHistoryContainer');
           if (container) {
             if (data.cases && data.cases.length) {
@@ -2358,21 +2067,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cs.participants && cs.participants.length > 0) {
                     const listItems = cs.participants.map(p => {
                         
-                        // 1. Action Taken Line (from case_participants table)
+                        // 1. Action Taken Line (Hidden if empty)
                         const actionLine = p.action_taken 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-check2-circle me-1 text-success"></i><strong>Action:</strong> ${p.action_taken}
                                </div>` 
                             : '';
 
-                        // 2. Remarks Line (from case_participants table)
+                        // 2. Remarks Line (Hidden if empty)
                         const remarksLine = p.remarks 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-chat-left-text me-1 text-info"></i><strong>Remarks:</strong> ${p.remarks}
                                </div>` 
                             : '';
                         
-                        // Combine details with indentation
+                        // Only show the border/block if there is actually data to show
                         const detailsBlock = (actionLine || remarksLine) 
                             ? `<div class="ms-1 ps-3 border-start border-2 border-light mb-2">
                                  ${actionLine}
@@ -2457,8 +2166,8 @@ document.addEventListener('DOMContentLoaded', () => {
   statusForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const newStatus     = statusSelect.value;
-    const currentStatus = statusForm.dataset.currentStatusNorm || normStatus(statusForm.dataset.currentStatus || '');
+    const newStatus      = statusSelect.value;
+    const currentStatus  = statusForm.dataset.currentStatusNorm || normStatus(statusForm.dataset.currentStatus || '');
 
     // Require ApprovedCaptain before Released
     if (normStatus(newStatus) === 'released' && currentStatus !== 'approvedcaptain') {
@@ -2468,25 +2177,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Require Kagawad when moving to ApprovedCaptain (non-Cedula)
-    if (newStatus === 'ApprovedCaptain' && !isCedulaType(currentAppointmentType) && assignSelect && !assignSelect.value) {
+    if (newStatus === 'ApprovedCaptain' && !isCedulaType(currentAppointmentType) && !assignSelect.value) {
       await Swal.fire({ icon:'warning', title:'Assign Kagawad',
         text:'Please select a Kagawad before approving by Captain.' });
       assignSelect.focus();
       return;
     }
 
-    // Require Witness when moving to ApprovedCaptain (BESO)
-    if (newStatus === 'ApprovedCaptain' &&
-        normStatus(currentAppointmentType) === 'besoapplication' &&
-        assignWitnessSelect && !assignWitnessSelect.value.trim()) {
-      await Swal.fire({ icon:'warning', title:'Assign Witness',
-        text:'Please select a Witness (Secretary) for the BESO application.' });
-      assignWitnessSelect.focus();
-      return;
-    }
-
     // Require Cedula # when Releasing a Cedula appointment
-    if (newStatus === 'Released' && isCedulaType(currentAppointmentType) && cedulaInput && !cedulaInput.value.trim()) {
+    if (newStatus === 'Released' && isCedulaType(currentAppointmentType) && !cedulaInput.value.trim()) {
       await Swal.fire({ icon:'warning', title:'Cedula Number required',
         text:'Provide the Cedula Number before marking as Released.' });
       cedulaInput.focus();
@@ -2527,23 +2226,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const trackingNum  = String(button.getAttribute('data-tracking-number') || '');
       const cedulaNumber = String(button.getAttribute('data-cedula-number') || '');
 
-      const modalTracking = document.getElementById('modalTrackingNumber');
-      const modalCert     = document.getElementById('modalCertificate');
-      const modalCedNo    = document.getElementById('statusModalCedulaNumber');
-      if (modalTracking) modalTracking.value = trackingNum;
-      if (modalCert)     modalCert.value     = certificate;
-      if (modalCedNo)    modalCedNo.value    = cedulaNumber;
+      document.getElementById('modalTrackingNumber').value = trackingNum;
+      document.getElementById('modalCertificate').value    = certificate;
+      document.getElementById('statusModalCedulaNumber').value = cedulaNumber;
 
       const modalStatusSelect = document.getElementById('newStatus');
       const cedulaWrap        = document.getElementById('statusModalCedulaNumberContainer');
       const rejectWrap        = document.getElementById('statusModalRejectionReasonContainer');
 
       // If you kept the small modal Kagawad controls, wire them too:
-      const assignKagWrap = document.getElementById('statusModalAssignKagGroup');
-      const assignKagSel2 = document.getElementById('statusModalAssignKag');
+      const assignKagWrap     = document.getElementById('statusModalAssignKagGroup');
+      const assignKagSel2     = document.getElementById('statusModalAssignKag');
 
       const setModalToggles = () => {
-        const selectedStatus    = modalStatusSelect.value;
+        const selectedStatus = modalStatusSelect.value;
         const currentStatusNorm = (modalStatusSelect.getAttribute('data-current-status') || '')
           .toLowerCase().replace(/[^a-z]/g,'');
 
@@ -2551,11 +2247,14 @@ document.addEventListener('DOMContentLoaded', () => {
         lockStatusOptions(modalStatusSelect, currentStatusNorm);
 
         // Cedula field for Released + Cedula type
-        if (cedulaWrap) cedulaWrap.style.display =
-          (certificate.toLowerCase() === 'cedula' && selectedStatus === 'Released') ? 'block' : 'none';
+        if (certificate.toLowerCase() === 'cedula' && selectedStatus === 'Released') {
+          cedulaWrap.style.display = 'block';
+        } else {
+          cedulaWrap.style.display = 'none';
+        }
 
         // Rejection textarea
-        if (rejectWrap) rejectWrap.style.display = (selectedStatus === 'Rejected') ? 'block' : 'none';
+        rejectWrap.style.display = (selectedStatus === 'Rejected') ? 'block' : 'none';
 
         // Show Assign Kagawad only for ApprovedCaptain on non-Cedula
         if (assignKagWrap && assignKagSel2) {
@@ -2571,6 +2270,15 @@ document.addEventListener('DOMContentLoaded', () => {
       setModalToggles();
     });
   });
+
+  /* ---------- optional: view log helper ---------- */
+  window.logAppointmentView = function(residentId) {
+    fetch('./logs/logs_trig.php', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/x-www-form-urlencoded' },
+      body:`filename=3&viewedID=${encodeURIComponent(residentId)}`
+    }).catch(()=>{});
+  };
 
   /* ---------- badge coloring on the table ---------- */
   (function(){
@@ -2595,7 +2303,7 @@ document.addEventListener('DOMContentLoaded', () => {
   })();
 });
         </script>
-
-      
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        
     </body>
     </html>

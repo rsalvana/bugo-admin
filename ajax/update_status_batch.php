@@ -44,7 +44,7 @@ if (session_status() === PHP_SESSION_NONE) {
 $role         = $_SESSION['Role_Name']     ?? '';
 $employee_id  = (int)($_SESSION['employee_id'] ?? 0); // ✅ who performs the update
 
-if ($role !== 'Revenue Staff' && $role !== 'Admin') {
+if ($role !== 'Revenue Staff' && $role !== 'Admin' && $role !== 'indigency') {
     http_response_code(403);
     header('Content-Type: text/html; charset=UTF-8');
     require_once __DIR__ . '/../security/403.html';
