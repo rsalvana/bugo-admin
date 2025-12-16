@@ -264,30 +264,81 @@ $mysqli->close();
                            href="index_Admin.php?page=<?php echo urlencode(encrypt('admin_dashboard')); ?>">
                            <div class="sb-nav-link-icon"><i class="fas fa-tachometer-alt"></i></div> Dashboard
                         </a>
-                        <a class="nav-link nav-link-mobile <?php echo ($page === 'urgent_request') ? 'active' : ''; ?>"
-                           href="index_Admin.php?page=<?php echo urlencode(encrypt('urgent_request')); ?>">
-                           <div class="sb-nav-link-icon"><i class="fas fa-exclamation-circle"></i></div> On-Site Request
-                        </a>
-                        <a class="nav-link nav-link-mobile <?php echo ($page === 'view_appointments') ? 'active' : ''; ?>"
-                           href="index_Admin.php?page=<?php echo urlencode(encrypt('view_appointments')); ?>">
-                           <div class="sb-nav-link-icon"><i class="fas fa-exclamation-circle"></i></div> View Appointments
-                        </a>
 
-                        <a class="nav-link <?php echo in_array($page, ['barangay_official_list','certificate_list','time_slot','Zone_leaders','add_guidelines']) ? '' : 'collapsed'; ?>"
+                        <a class="nav-link <?php echo in_array($page, ['urgent_request','view_appointments']) ? '' : 'collapsed'; ?>"
+                           data-bs-toggle="collapse" data-bs-target="#revenueDepartment_nav_desktop">
+                           <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> Revenue Department
+                           <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                        </a>
+                        <div class="collapse <?php echo in_array($page, ['urgent_request','view_appointments']) ? 'show' : ''; ?>" id="revenueDepartment_nav_desktop">
+                           <nav class="sb-sidenav-menu-nested nav">
+                            <a class="nav-link <?php echo ($page === 'urgent_request') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('urgent_request')); ?>">On-Site Request</a>
+                            <a class="nav-link <?php echo ($page === 'view_appointments') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('view_appointments')); ?>">Appointment List</a>
+                           </nav>
+                        </div>
+
+                        <a class="nav-link <?php echo in_array($page, ['beso']) ? '' : 'collapsed'; ?>"
+                           data-bs-toggle="collapse" data-bs-target="#besoDepartment_nav_desktop">
+                           <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> BESO Department
+                           <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                        </a>
+                        <div class="collapse <?php echo in_array($page, ['beso']) ? 'show' : ''; ?>" id="besoDepartment_nav_desktop">
+                           <nav class="sb-sidenav-menu-nested nav">
+                            <a class="nav-link <?php echo ($page === 'beso') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('beso')); ?>">BESO List</a>
+                           </nav>
+                        </div>                                                   
+
+                        <a class="nav-link <?php echo in_array($page, ['case_list']) ? '' : 'collapsed'; ?>"
+                           data-bs-toggle="collapse" data-bs-target="#luponDepartment_nav_desktop">
+                           <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> Lupon Department
+                           <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                        </a>
+                        <div class="collapse <?php echo in_array($page, ['case_list']) ? 'show' : ''; ?>" id="luponDepartment_nav_desktop">
+                           <nav class="sb-sidenav-menu-nested nav">
+                            <a class="nav-link <?php echo ($page === 'case_list') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('case_list')); ?>">Case List</a>
+                           </nav>
+                        </div>   
+
+                        <a class="nav-link <?php echo in_array($page, ['event_list']) ? '' : 'collapsed'; ?>"
+                           data-bs-toggle="collapse" data-bs-target="#multimediaDepartment_nav_desktop">
+                           <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> Multimedia Department
+                           <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                        </a>
+                        <div class="collapse <?php echo in_array($page, ['event_list']) ? 'show' : ''; ?>" id="multimediaDepartment_nav_desktop">
+                           <nav class="sb-sidenav-menu-nested nav">
+                            <a class="nav-link <?php echo ($page === 'event_list') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('event_list')); ?>">Event List</a>
+                           </nav>
+                        </div>   
+
+                        <a class="nav-link <?php echo in_array($page, ['med_request','med_inventory','resident_info']) ? '' : 'collapsed'; ?>"
+                           data-bs-toggle="collapse" data-bs-target="#bhw_nav_desktop">
+                           <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> BHW Department
+                           <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
+                        </a>
+                        <div class="collapse <?php echo in_array($page, ['med_request','med_inventory','resident_info']) ? 'show' : ''; ?>" id="bhw_nav_desktop">
+                           <nav class="sb-sidenav-menu-nested nav">
+                            <a class="nav-link <?php echo ($page === 'med_request') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('med_request')); ?>">Request List</a>
+                            <a class="nav-link <?php echo ($page === 'resident_info') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('resident_info')); ?>">Resident List</a>        
+                            <a class="nav-link <?php echo ($page === 'med_inventory') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('med_inventory')); ?>">Medicine Inventory</a>
+                           </nav>
+                         </div>
+                          
+                        <a class="nav-link <?php echo in_array($page, ['official_info','barangay_official_list','certificate_list','time_slot','Zone_leaders','add_guidelines']) ? '' : 'collapsed'; ?>"
                            data-bs-toggle="collapse" data-bs-target="#barangay_official_nav_desktop">
                            <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> Barangay Information
                            <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
                         </a>
-                        <div class="collapse <?php echo in_array($page, ['barangay_official_list','certificate_list','time_slot','Zone_leaders','add_guidelines']) ? 'show' : ''; ?>" id="barangay_official_nav_desktop">
+                        <div class="collapse <?php echo in_array($page, ['official_info','barangay_official_list','certificate_list','time_slot','Zone_leaders','add_guidelines']) ? 'show' : ''; ?>" id="barangay_official_nav_desktop">
                            <nav class="sb-sidenav-menu-nested nav">
                             <a class="nav-link <?php echo ($page === 'barangay_official_list') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('barangay_official_list')); ?>">Official List</a>
+                            <a class="nav-link <?php echo ($page === 'official_info') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('official_info')); ?>">Employees</a>                        
                             <a class="nav-link <?php echo ($page === 'certificate_list') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('certificate_list')); ?>">Certificate List</a>
                             <a class="nav-link <?php echo ($page === 'time_slot') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('time_slot')); ?>">Time Slot List</a>
                             <a class="nav-link <?php echo ($page === 'Zone_leaders') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('Zone_leaders')); ?>">Add Zone Leader</a>
                             <a class="nav-link <?php echo ($page === 'add_guidelines') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('add_guidelines')); ?>">Add Guidelines</a>
                            </nav>
                         </div>
-
+                       
                         <a class="nav-link <?php echo in_array($page, ['feedbacks','announcements','faq']) ? '' : 'collapsed'; ?>"
                            data-bs-toggle="collapse" data-bs-target="#notice_desktop">
                            <div class="sb-nav-link-icon"><i class="fas fa-bullhorn"></i></div> Notice
@@ -312,33 +363,6 @@ $mysqli->close();
                             <a class="nav-link <?php echo ($page === 'residents_audit') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('residents_audit')); ?>">Residents Audit Logs</a>
                            </nav>
                         </div>
-
-                        <a class="nav-link <?php echo in_array($page, ['resident_info','official_info','beso','event_list','case_list']) ? '' : 'collapsed'; ?>"
-                           data-bs-toggle="collapse" data-bs-target="#master_files_desktop">
-                           <div class="sb-nav-link-icon"><i class="fas fa-folder"></i></div> Master Files
-                           <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
-                        </a>
-                        <div class="collapse <?php echo in_array($page, ['resident_info','official_info','beso','event_list','case_list']) ? 'show' : ''; ?>" id="master_files_desktop">
-                           <nav class="sb-sidenav-menu-nested nav">
-                            <a class="nav-link <?php echo ($page === 'resident_info') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('resident_info')); ?>">Resident List</a>
-                            <a class="nav-link <?php echo ($page === 'official_info') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('official_info')); ?>">Employees</a>
-                            <a class="nav-link <?php echo ($page === 'beso') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('beso')); ?>">BESO</a>
-                            <a class="nav-link <?php echo ($page === 'event_list') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('event_list')); ?>">Event List</a>
-                            <a class="nav-link <?php echo ($page === 'case_list') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('case_list')); ?>">Case List</a>
-                           </nav>
-                        </div>
-
-                        <a class="nav-link <?php echo in_array($page, ['med_request','med_inventory']) ? '' : 'collapsed'; ?>"
-                           data-bs-toggle="collapse" data-bs-target="#bhw_nav_desktop">
-                           <div class="sb-nav-link-icon"><i class="fas fa-columns"></i></div> BHW Department
-                           <div class="sb-sidenav-collapse-arrow"><i class="fas fa-angle-down"></i></div>
-                        </a>
-                        <div class="collapse <?php echo in_array($page, ['med_request','med_inventory']) ? 'show' : ''; ?>" id="bhw_nav_desktop">
-                           <nav class="sb-sidenav-menu-nested nav">
-                            <a class="nav-link <?php echo ($page === 'med_request') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('med_request')); ?>">Request List</a>
-                            <a class="nav-link <?php echo ($page === 'med_inventory') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('med_inventory')); ?>">Medicine Inventory</a>
-                           </nav>
-                         </div>
 
                         <a class="nav-link <?php echo ($page === 'reports') ? 'active' : 'collapsed'; ?>"
                            href="index_Admin.php?page=<?php echo urlencode(encrypt('reports')); ?>">
