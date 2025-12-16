@@ -1388,48 +1388,6 @@ else if (certificate === "Barangay Residency With Picture") {
       </html>
     `;
 }
-
-          <div class="header-text">
-            <h2><strong>Republic of the Philippines</strong></h2>
-            <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-            <h3><strong><?php echo $barangayName; ?></strong></h3>
-            <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-            <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-          </div>
-
-          <img src="${residentPhotoUrl}" alt="Resident Photo" class="photo-2x2" onerror="this.style.display='none'"/>
-        </div>
-      </header>
-                  <hr class="header-line">
-
-                  <section class="barangay-certification">
-                      <h4 style="text-align: center; font-size: 50px;"><strong>CERTIFICATION</strong></h4>
-                      <p>TO WHOM IT MAY CONCERN:</p><br>
-                      <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, is a resident of 
-                      <strong>${res_zone}</strong>, <strong>${res_street_address}</strong> Bugo, Cagayan de Oro City. He/She was born on <strong>${formattedBirthDate}</strong> at <strong>${birth_place}</strong>. 
-                      Stayed in Bugo, CDOC since <strong>${formattedResidencyStart}</strong> and up to present.</p>
-                      <br>
-                      <p>This Certification is issued upon the request of the above-mentioned person 
-                          for <strong>${purpose}</strong> only.</p>
-                      <br>
-                      <p>Issued this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
-                  </section>
-
-                  <br><br><br><br><br>
-
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
-                      <section style="width: 48%; line-height: 1.8;">
-                          <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
-                          <p><strong>Issued on:</strong> ${formattedIssuedOn}</p>
-                          <p><strong>Issued at:</strong> ${issued_at}</p>
-                      </section>
-        ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
-                  </div>
-              </div>
-          </body>
-      </html>
-    `;
-}
 else if (certificate === "Barangay Indigency") {
     printAreaContent = `
         <html>
