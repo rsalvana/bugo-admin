@@ -280,7 +280,10 @@ $mysqli->close();
                                 </a>
                                 <a class="nav-link <?php echo ($page === 'view_appointments') ? '' : 'collapsed'; ?>" href="index_indigency_staff.php?page=<?php echo urlencode(encrypt('view_appointments')); ?>">
                                 <div class="sb-nav-link-icon"><i class="fas fa-calendar-check"></i></div> View Appointments
-                                </a>                            
+                                </a>         
+                                <a class="nav-link <?php echo ($page === 'urgent_request') ? '' : 'collapsed'; ?>" href="index_indigency_staff.php?page=<?php echo urlencode(encrypt('urgent_request')); ?>">
+                                <div class="sb-nav-link-icon"><i class="fas fa-exclamation-circle"></i></div> On-Site Request
+                                </a>                                                   
                         </div>
                     </div>
                     <div class="sb-sidenav-footer">
@@ -319,6 +322,9 @@ switch ($decryptedPage) {
             case 'view_appointments':
                 include 'Modules/indigency_modules/view_appointments_indigency.php';
               break;
+            case 'urgent_request':
+                include 'Modules/indigency_modules/urgent_request.php';
+              break;              
               case 'add_announcement':
     include 'components/announcement/add_announcement.php';
     break;

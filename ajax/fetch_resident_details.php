@@ -6,7 +6,7 @@ session_start();
 
 $role = $_SESSION['Role_Name'] ?? '';
 
-if ($role !== 'Revenue Staff' && $role !== 'Admin' && $role !== 'BESO') {
+if ($role !== 'Revenue Staff' && $role !== 'Admin' && $role !== 'BESO' && $role !== 'indigency') {
     http_response_code(403);
     require_once __DIR__ . '/../security/403.html';
     exit;

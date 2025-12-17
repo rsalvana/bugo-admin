@@ -214,7 +214,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                             $redirect_page = enc_page('admin_dashboard'); break;                                            
                         case strpos($role_name, 'revenue') !== false:
                             $redirect_page = enc_revenue('admin_dashboard'); break;
-                        case strpos($role_name, 'Indigency') !== false:
+                        case strpos($role_name, 'indigency') !== false:
                             $redirect_page = enc_indigency('indigency_dashboard'); break;    
                         case strpos($role_name, 'lupon') !== false:
                             $redirect_page = enc_lupon('admin_dashboard'); break;
