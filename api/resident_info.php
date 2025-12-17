@@ -126,7 +126,7 @@ function sendCredentials(string $to, string $password): bool {
         $mail->Port        = 465;
         $mail->Timeout     = 12;
         $mail->SMTPAutoTLS = true;
-        $mail->SMTPOptions = [
+        $mail->SMTPOptions = [  
             'ssl' => [
                 'verify_peer'       => false,
                 'verify_peer_name'  => false,

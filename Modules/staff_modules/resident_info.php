@@ -1,5 +1,10 @@
 <?php
-ini_set('display_errors', 0);
+// Modules/staff_modules/resident_info.php
+
+// 1. Start Output Buffering to prevent unwanted text/warnings from breaking JSON
+ob_start();
+
+ini_set('display_errors', 0); // Hide errors from output (log them instead)
 ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
@@ -11,16 +16,34 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
+// FIX: Use __DIR__ to correctly locate files relative to this script
 require_once __DIR__ . '/../../include/connection.php';
 require_once __DIR__ . '/../../include/encryption.php';
 $mysqli = db_connection();
-include '../../class/session_timeout.php';
+
+// Fix path for session_timeout if needed, or suppress if included by parent
+if (file_exists(__DIR__ . '/../../class/session_timeout.php')) {
+    include __DIR__ . '/../../class/session_timeout.php';
+}
+
 date_default_timezone_set('Asia/Manila');
 
-require_once './logs/logs_trig.php';
+// Fix path for Logs
+if (file_exists(__DIR__ . '/../../logs/logs_trig.php')) {
+    require_once __DIR__ . '/../../logs/logs_trig.php';
+} elseif (file_exists('./logs/logs_trig.php')) {
+    require_once './logs/logs_trig.php';
+}
 $trigs = new Trigger();
 
-require 'vendor/autoload.php';
+// === CRITICAL FIX: Correct path to Vendor Autoload ===
+if (file_exists(__DIR__ . '/../../vendor/autoload.php')) {
+    require_once __DIR__ . '/../../vendor/autoload.php';
+} else {
+    // Fallback if vendor is in a different spot (adjust if necessary)
+    die("Error: vendor/autoload.php not found. Please check directory structure.");
+}
+
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -36,7 +59,260 @@ function generatePassword(int $len = 12): string {
     return substr($base, 0, $len);
 }
 
-/* ---- Standard SweetAlert + redirect helper ---- */
+function slugify_lower(string $s): string {
+    $t = @iconv('UTF-8','ASCII//TRANSLIT',$s);
+    if ($t === false) $t = $s;
+    $t = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '', $t ?? ''));
+    return $t !== '' ? $t : 'user';
+}
+
+function sendCredentials(string $to, string $password): bool {
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host        = 'mail.bugoportal.site';
+        $mail->SMTPAuth    = true;
+        $mail->Username    = 'admin@bugoportal.site';
+        $mail->Password    = 'Jayacop@100';
+        $mail->Port        = 465;
+        $mail->SMTPSecure  = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Timeout     = 12;
+        $mail->SMTPAutoTLS = true;
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer'       => false,
+                'verify_peer_name'  => false,
+                'allow_self_signed' => true,
+            ]
+        ];
+
+        $safeTo = htmlspecialchars($to, ENT_QUOTES, 'UTF-8');
+        $mail->setFrom('admin@bugoportal.site', 'Barangay Bugo');
+        $mail->addAddress($to);
+        $mail->addReplyTo('admin@bugoportal.site', 'Barangay Bugo');
+
+        $portalLink = 'https://bugoportal.site/';
+        $mail->isHTML(true);
+        $mail->Subject = 'Your Barangay Bugo Resident Portal Credentials';
+        $mail->Body    = "<p>Hi {$safeTo},</p>
+                          <p>Here are your Barangay Bugo portal login credentials:</p>
+                          <ul>
+                            <li><strong>Username:</strong> {$safeTo}</li>
+                            <li><strong>Password:</strong> {$password}</li>
+                          </ul>
+                          <p>Please log in and change your password.</p>
+                          <p><a href=\"{$portalLink}\">Open Resident Portal</a></p>
+                          <br><p>Thank you,<br>Barangay Bugo</p>";
+        
+        return $mail->send();
+    } catch (Exception $e) {
+        error_log("Mail error ({$to}): {$mail->ErrorInfo}");
+        return false;
+    }
+}
+
+if (!defined('SEND_EMAILS')) {
+    define('SEND_EMAILS', (getenv('SEND_EMAILS') ?: '1') === '1');
+}
+function sendCredentialsIfPresent(?string $to, string $password): void {
+    $to = trim((string)$to);
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) return;
+    if (!SEND_EMAILS) return;
+    sendCredentials($to, $password);
+}
+
+/* ======================================================================
+   AJAX HANDLERS (Batch Import Logic)
+   ====================================================================== */
+
+// 1. AJAX: Parse Excel File & Return Count (Preview)
+if (isset($_POST['action']) && $_POST['action'] === 'parse_excel_preview') {
+    ob_clean(); // Ensure no previous output
+    header('Content-Type: application/json');
+
+    try {
+        // CSRF Check
+        if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+            throw new Exception('CSRF token mismatch.');
+        }
+
+        if (!isset($_FILES['excel_file']['tmp_name']) || empty($_FILES['excel_file']['tmp_name'])) {
+            throw new Exception('No file uploaded.');
+        }
+
+        $spreadsheet = IOFactory::load($_FILES['excel_file']['tmp_name']);
+        $sheet = $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray();
+
+        // Remove header row (index 0)
+        array_shift($rows);
+
+        // Filter out completely empty rows
+        $validRows = [];
+        foreach ($rows as $r) {
+            // Check if at least first name or last name exists (Cols 0 and 1)
+            if (!empty($r[0]) || !empty($r[1])) {
+                $validRows[] = $r;
+            }
+        }
+
+        // Store rows in session to process one by one
+        $_SESSION['batch_import_data'] = $validRows;
+        
+        echo json_encode([
+            'status' => 'success', 
+            'total_rows' => count($validRows)
+        ]);
+    } catch (Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => 'Parse Error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+// 2. AJAX: Process Single Row (Called in loop by JS)
+if (isset($_POST['action']) && $_POST['action'] === 'process_single_row') {
+    ob_clean();
+    header('Content-Type: application/json');
+
+    try {
+        // CSRF Check
+        if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+            throw new Exception('CSRF token mismatch.');
+        }
+
+        $index = isset($_POST['index']) ? (int)$_POST['index'] : -1;
+        
+        if ($index < 0 || !isset($_SESSION['batch_import_data']) || !isset($_SESSION['batch_import_data'][$index])) {
+            throw new Exception('Invalid row index or session expired.');
+        }
+
+        $row = $_SESSION['batch_import_data'][$index];
+
+        // --- Mapping logic ---
+        $last_name    = sanitize_input($row[0] ?? 'N/A');
+        $first_name   = sanitize_input($row[1] ?? 'N/A');
+        $middle_name  = sanitize_input($row[2] ?? '');
+        $suffix_name  = sanitize_input($row[3] ?? '');
+        $res_zone     = sanitize_input($row[4] ?? 'ZONE N/A');
+        
+        $birth_raw = $row[5] ?? '2000-01-01';
+        if (is_numeric($birth_raw)) {
+            $birth_date = date('Y-m-d', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($birth_raw));
+        } else {
+            $birth_date = date('Y-m-d', strtotime((string)$birth_raw ?: '2000-01-01'));
+        }
+
+        $gender       = sanitize_input($row[6] ?? 'N/A');
+        $civil_status = sanitize_input($row[7] ?? 'N/A');
+        $occupation   = sanitize_input($row[8] ?? 'N/A');
+        $email        = strtolower(sanitize_input($row[9] ?? ''));
+
+        // Check Duplication: Email (Active only)
+        if ($email !== '') {
+            $du = $mysqli->prepare("SELECT id FROM residents WHERE email = ? AND resident_delete_status = 0 LIMIT 1");
+            $du->bind_param('s', $email);
+            $du->execute();
+            if ($du->get_result()->num_rows > 0) { 
+                $du->close();
+                echo json_encode(['status' => 'skipped', 'message' => 'Email already exists.']); 
+                exit; 
+            }
+            $du->close();
+        }
+
+        // Check Duplication: Name (Active only)
+        $chkName = $mysqli->prepare("SELECT id FROM residents WHERE first_name = ? AND last_name = ? AND resident_delete_status = 0 LIMIT 1");
+        $chkName->bind_param("ss", $first_name, $last_name);
+        $chkName->execute();
+        if ($chkName->get_result()->num_rows > 0) {
+             $chkName->close();
+             echo json_encode(['status' => 'skipped', 'message' => 'Resident name already exists.']);
+             exit;
+        }
+        $chkName->close();
+
+        // Defaults
+        $employee_id            = $_SESSION['employee_id'] ?? 0;
+        $zone_leader_id         = 0;
+        $raw_password           = generatePassword();
+        $password               = password_hash($raw_password, PASSWORD_DEFAULT);
+        $birth_place            = "N/A";
+        $residency_start        = date('Y-m-d');
+        $res_province           = 57;
+        $res_city               = 1229;
+        $res_barangay           = 32600;
+        $full_address           = $res_zone; 
+        $contact_number         = "0000000000";
+        $citizenship            = "N/A";
+        $religion               = "N/A";
+        $age                    = date_diff(date_create($birth_date), date_create('today'))->y;
+        $resident_delete_status = 0;
+        
+        // Username Generation
+        $base_username = slugify_lower($first_name . $last_name);
+        $username      = $base_username; 
+
+        // DB Insert
+        $insert_stmt = $mysqli->prepare(
+            "INSERT INTO residents (
+                employee_id, zone_leader_id, username, password, temp_password,
+                first_name, middle_name, last_name, suffix_name,
+                gender, civil_status, birth_date, residency_start, birth_place, age, contact_number, email,
+                res_province, res_city_municipality, res_barangay, res_zone, res_street_address, citizenship,
+                religion, occupation, resident_delete_status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        );
+
+        $insert_stmt->bind_param(
+            "iissssssssssssissiiisssssi",
+            $employee_id, $zone_leader_id, $username, $password, $raw_password,
+            $first_name, $middle_name, $last_name, $suffix_name,
+            $gender, $civil_status, $birth_date, $residency_start, $birth_place, $age,
+            $contact_number, $email, $res_province, $res_city, $res_barangay,
+            $res_zone, $full_address, $citizenship, $religion, $occupation, $resident_delete_status
+        );
+
+        if (!$insert_stmt->execute()) {
+             throw new Exception('DB Insert Error: ' . $insert_stmt->error);
+        }
+        
+        $new_resident_id = $mysqli->insert_id;
+        $insert_stmt->close();
+
+        // Handle Username Duplicates (Append ID if exists)
+        $check_dupe = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
+        $check_dupe->bind_param("si", $base_username, $new_resident_id);
+        $check_dupe->execute();
+        if ($check_dupe->get_result()->num_rows > 0) {
+            $final_username = $base_username . $new_resident_id;
+            $upd = $mysqli->prepare("UPDATE residents SET username = ? WHERE id = ?");
+            $upd->bind_param("si", $final_username, $new_resident_id);
+            $upd->execute();
+            $upd->close();
+        }
+        $check_dupe->close();
+
+        // Logs
+        global $trigs;
+        if(isset($trigs)) $trigs->isResidentBatchAdded(2, 1);
+
+        // Email
+        if ($email) {
+            sendCredentialsIfPresent($email, $raw_password);
+        }
+
+        echo json_encode(['status' => 'success']);
+
+    } catch (Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => 'Processing Error: ' . $e->getMessage()]);
+    }
+    exit;
+}
+
+// 4. Flush Buffer for HTML page load
+ob_end_flush();
+
+/* ---------------- Standard SweetAlert helper ---------------- */
 if (!function_exists('swal_and_redirect')) {
     function swal_and_redirect(string $icon, string $title, string $text, string $redirectUrl) {
         $title = addslashes($title);
@@ -53,60 +329,6 @@ if (!function_exists('swal_and_redirect')) {
         exit;
     }
 }
-
-function sendCredentials(string $to, string $password): void {
-    $mail = new PHPMailer(true);
-    try {
-        // Use cPanel mailbox
-        $mail->isSMTP();
-        $mail->Host        = 'mail.bugoportal.site';
-        $mail->SMTPAuth    = true;
-        $mail->Username    = 'admin@bugoportal.site';
-        $mail->Password    = 'Jayacop@100';
-        $mail->Port        = 465; // SSL
-        $mail->SMTPSecure  = PHPMailer::ENCRYPTION_SMTPS;
-        $mail->Timeout     = 12;
-        $mail->SMTPAutoTLS   = true;
-        $mail->SMTPKeepAlive = false;
-
-        // Relax TLS checks (common on shared hosting)
-        $mail->SMTPOptions = [
-            'ssl' => [
-                'verify_peer'     => false,
-                'verify_peer_name'  => false,
-                'allow_self_signed' => true,
-            ]
-        ];
-
-        $safeTo = htmlspecialchars($to, ENT_QUOTES, 'UTF-8');
-
-        $mail->setFrom('admin@bugoportal.site', 'Barangay Bugo');
-        $mail->addAddress($to);
-        $mail->addReplyTo('admin@bugoportal.site', 'Barangay Bugo');
-
-        $portalLink = 'https://bugoportal.site/';
-
-        $mail->isHTML(true);
-        $mail->Subject = 'Your Barangay Bugo Resident Portal Credentials';
-        $mail->Body    = "<p>Hi {$safeTo},</p>
-                          <p>Here are your Barangay Bugo portal login credentials:</p>
-                          <ul>
-                            <li><strong>Username:</strong> {$safeTo}</li>
-                            <li><strong>Password:</strong> {$password}</li>
-                          </ul>
-                          <p>Please log in and change your password.</p>
-                          <p><a href=\"{$portalLink}\">Open Resident Portal</a></p>
-                          <br><p>Thank you,<br>Barangay Bugo</p>";
-        $mail->AltBody = "Hi {$to},\n\nHere are your Barangay Bugo portal login credentials:\n"
-                        . "Username: {$to}\nPassword: {$password}\n\n"
-                        . "Please log in and change your password.\n\n{$portalLink}\n\nThank you,\nBarangay Bugo";
-
-        $mail->send();
-    } catch (Exception $e) {
-        error_log("Mail error ({$to}): {$mail->ErrorInfo}");
-    }
-}
-
 
 /* ---------------- List/Pagination ---------------- */
 
@@ -137,179 +359,7 @@ $baseUrl = $resbaseUrl;
 if ($page > $total_pages) { $page = 1; }
 $offset = ($page - 1) * $limit;
 
-/* ---- Username helpers for batch import ---- */
-function slugify_lower(string $s): string {
-    $t = @iconv('UTF-8','ASCII//TRANSLIT',$s);
-    if ($t === false) $t = $s;
-    $t = strtolower(preg_replace('/[^a-zA-Z0-9]+/', '', $t ?? ''));
-    return $t !== '' ? $t : 'user';
-}
-
-/* ---- Optional switch to disable outbound mail in staging ---- */
-if (!defined('SEND_EMAILS')) {
-    define('SEND_EMAILS', (getenv('SEND_EMAILS') ?: '1') === '1');
-}
-function sendCredentialsIfPresent(?string $to, string $password): void {
-    $to = trim((string)$to);
-    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) return;
-    if (!SEND_EMAILS) { error_log("SEND_EMAILS=0 (pretend sent to '{$to}')"); return; }
-    sendCredentials($to, $password);
-}
-
-/* ---------------- Excel Import ---------------- */
-
-if (isset($_POST['import_excel'])) {
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== ($_SESSION['csrf_token'] ?? '')) {
-        swal_and_redirect('error','Security Alert!','CSRF token mismatch.',$resbaseUrl);
-    }
-
-    if (!empty($_FILES['excel_file']['tmp_name'])) {
-        $file = $_FILES['excel_file']['tmp_name'];
-
-        try {
-            $spreadsheet = IOFactory::load($file);
-            $sheet = $spreadsheet->getActiveSheet();
-            $rows  = $sheet->toArray();
-
-            $processed_emails    = [];
-            $duplicate_emails    = [];
-            $processed_fullnames = [];
-            $duplicates_found    = false;
-
-            // Pass 1: find in-file duplicate emails
-            foreach ($rows as $i => $row) {
-                $email = strtolower(trim((string)($row[9] ?? '')));
-                if ($email === '') continue;
-                if (isset($processed_emails[$email])) {
-                    $duplicate_emails[] = $email;
-                    $duplicates_found = true;
-                }
-                $processed_emails[$email] = true;
-            }
-            
-            $insert_stmt = $mysqli->prepare(
-                "INSERT INTO residents (
-                    employee_id, zone_leader_id, username, password, temp_password,
-                    first_name, middle_name, last_name, suffix_name,
-                    gender, civil_status, birth_date, residency_start, birth_place, age, contact_number, email,
-                    res_province, res_city_municipality, res_barangay, res_zone, res_street_address, citizenship,
-                    religion, occupation, resident_delete_status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-            );
-            
-            $check_dupe_stmt = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
-            $update_user_stmt = $mysqli->prepare("UPDATE residents SET username = ? WHERE id = ?");
-
-            // Pass 2: insert rows
-            for ($i = 1; $i < count($rows); $i++) {
-                $row = $rows[$i];
-
-                $last_name     = sanitize_input($row[0] ?? 'N/A');
-                $first_name    = sanitize_input($row[1] ?? 'N/A');
-                $middle_name   = sanitize_input($row[2] ?? '');
-                $suffix_name   = sanitize_input($row[3] ?? '');
-                $res_zone      = sanitize_input($row[4] ?? 'ZONE N/A');
-
-                $birth_raw     = $row[5] ?? '2000-01-01';
-                if (is_numeric($birth_raw)) {
-                    $birth_date = date('Y-m-d', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($birth_raw));
-                } else {
-                    $birth_date = date('Y-m-d', strtotime((string)$birth_raw ?: '2000-01-01'));
-                }
-
-                $gender        = sanitize_input($row[6] ?? 'N/A');
-                $civil_status  = sanitize_input($row[7] ?? 'N/A');
-                $occupation    = sanitize_input($row[8] ?? 'N/A');
-                $email         = strtolower(trim((string)($row[9] ?? '')));
-
-                if ($email !== '' && in_array($email, $duplicate_emails, true)) continue;
-
-                $full_name_key = strtolower("$first_name $middle_name $last_name $suffix_name");
-                if (isset($processed_fullnames[$full_name_key])) continue;
-                $processed_fullnames[$full_name_key] = true;
-
-                if ($email !== '') {
-                    $du = $mysqli->prepare("SELECT id FROM residents WHERE email = ? AND resident_delete_status = 0 LIMIT 1");
-                    $du->bind_param('s', $email);
-                    $du->execute();
-                    if ($du->get_result()->num_rows > 0) { $duplicates_found = true; $du->close(); continue; }
-                    $du->close();
-                }
-
-                $base_username = slugify_lower($first_name . $last_name);
-                $username      = $base_username; 
-
-                $employee_id            = (int)($_SESSION['employee_id'] ?? 0);
-                $zone_leader_id         = 0;
-                $raw_password           = generatePassword();
-                $password               = password_hash($raw_password, PASSWORD_DEFAULT);
-                $birth_place            = "N/A";
-                $residency_start        = date('Y-m-d');
-                $res_province           = 57;
-                $res_city               = 1229;
-                $res_barangay           = 32600;
-                $full_address           = sanitize_input($row[4] ?? 'ZONE N/A N/A');
-                $contact_number         = "0000000000";
-                $citizenship            = "N/A";
-                $religion               = "N/A";
-                $age                    = date_diff(date_create($birth_date), date_create('today'))->y;
-                $resident_delete_status = 0;
-
-                $insert_stmt->bind_param(
-                    "iissssssssssssissiiisssssi",
-                    $employee_id, $zone_leader_id, $username, $password, $raw_password,
-                    $first_name, $middle_name, $last_name, $suffix_name,
-                    $gender, $civil_status, $birth_date, $residency_start, $birth_place, $age,
-                    $contact_number, $email, $res_province, $res_city, $res_barangay,
-                    $res_zone, $full_address, $citizenship, $religion, $occupation, $resident_delete_status
-                );
-                
-                if (!$insert_stmt->execute()) {
-                      $duplicates_found = true; 
-                      continue;
-                }
-
-                $new_resident_id = $mysqli->insert_id;
-
-                $final_username = $base_username;
-                $check_dupe_stmt->bind_param("si", $base_username, $new_resident_id);
-                $check_dupe_stmt->execute();
-                if ($check_dupe_stmt->get_result()->num_rows > 0) {
-                    $final_username = $base_username . $new_resident_id;
-                    $update_user_stmt->bind_param("si", $final_username, $new_resident_id);
-                    $update_user_stmt->execute();
-                }
-
-                $importedCount = count($processed_fullnames);
-                $trigs->isResidentBatchAdded(2, $importedCount);
-
-                sendCredentialsIfPresent($email, $raw_password);
-            }
-            
-            $insert_stmt->close();
-            $check_dupe_stmt->close();
-            $update_user_stmt->close();
-
-            if ($duplicates_found) {
-                swal_and_redirect(
-                    'warning',
-                    'Some rows skipped',
-                    'Some emails already belong to active residents or were duplicated in the file; those rows were skipped.',
-                    $resbaseUrl
-                );
-            } else {
-                swal_and_redirect('success','Success!','Residents imported successfully.',$resbaseUrl);
-            }
-
-        } catch (Exception $e) {
-            swal_and_redirect('error','Oops!',$e->getMessage(),$resbaseUrl);
-        }
-    }
-}
-
-
 /* ---------------- Manual Add (primary + family) ---------------- */
-
 if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
     if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== ($_SESSION['csrf_token'] ?? '')) {
         swal_and_redirect('error','Security Alert!','CSRF token mismatch. Operation blocked.',$resbaseUrl);
@@ -339,13 +389,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
     $occupation       = sanitize_input($_POST['occupation']);
     $employee_id      = $_SESSION['employee_id'];
 
-    // ===== NEW USERNAME LOGIC (Manual Add) =====
+    // Username Logic
     $base_username = slugify_lower($firstName . $lastName);
     $login_username = !empty($usernameField) ? strtolower($usernameField) : $base_username;
     if (empty($login_username)) {
         $login_username = $base_username;
     }
-    // ============================================
 
     $required = [$firstName, $lastName, $birthDate, $gender, $contactNumber, $res_zone, $res_street_address, $citizenship, $religion, $occupation];
     foreach ($required as $v) {
@@ -358,7 +407,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
         swal_and_redirect('error','Invalid Name','First and Last name must contain letters or numbers to generate a username.',$resbaseUrl);
     }
 
-    // Duplicate NAME (active only)
+    // Duplicate NAME
     $stmt = $mysqli->prepare("
         SELECT id FROM residents
         WHERE first_name = ? AND middle_name <=> ? AND last_name = ? AND suffix_name <=> ?
@@ -371,7 +420,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
     }
     $stmt->close();
 
-    // Duplicate EMAIL (active only)
+    // Duplicate EMAIL
     if (!empty($email)) {
         $stmt = $mysqli->prepare("SELECT id FROM residents WHERE email = ? AND resident_delete_status = 0 LIMIT 1");
         $stmt->bind_param("s", $email);
@@ -416,7 +465,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
         $primary_resident_id = $mysqli->insert_id;
         $trigs->isAdded(2, $primary_resident_id);
 
-        // ===== NEW USERNAME DUPLICATE CHECK (Manual Add) =====
+        // Username Duplication Fix
         $final_username = $login_username; 
         $check_stmt = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
         $check_stmt->bind_param("si", $login_username, $primary_resident_id);
@@ -430,8 +479,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
             $update_stmt->close();
         }
         $check_stmt->close();
-        // =======================================================
-
 
         /* ----- Family members (optional) ----- */
         $famPasswords = [];
@@ -479,7 +526,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
                 $fam_email       = filter_var($family_emails[$i] ?? '', FILTER_SANITIZE_EMAIL);
                 $fam_username_f  = sanitize_input($family_usernames[$i] ?? ''); 
                 
-                // ===== NEW USERNAME LOGIC (Child) =====
                 $fam_base_username = slugify_lower($fam_firstName . $fam_lastName);
                 $fam_login_username = !empty($fam_username_f) ? strtolower($fam_username_f) : $fam_base_username;
                 if (empty($fam_login_username)) { $fam_login_username = $fam_base_username; }
@@ -503,7 +549,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
                 $fam_password     = password_hash($fam_raw_password, PASSWORD_DEFAULT);
                 $famPasswords[$i] = ['email' => $fam_email, 'pass' => $fam_raw_password];
 
-                // Insert child
                 $fam_stmt = $mysqli->prepare(
                     "INSERT INTO residents (
                         employee_id, zone_leader_id, username, password, temp_password,
@@ -527,7 +572,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
                 $family_member_id = $mysqli->insert_id;
                 $trigs->isAdded(2, $family_member_id);
 
-                // ===== NEW USERNAME DUPLICATE CHECK (Child) =====
                 $fam_final_username = $fam_login_username;
                 $check_stmt_fam = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
                 $check_stmt_fam->bind_param("si", $fam_login_username, $family_member_id);
@@ -541,7 +585,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['firstName'])) {
                     $update_stmt_fam->close();
                 }
                 $check_stmt_fam->close();
-                // =================================================
 
                 if (!empty($fam_relationship)) {
                     $rel_stmt = $mysqli->prepare(
@@ -619,6 +662,7 @@ $stmt->execute();
 $result = $stmt->get_result();
 ?>
 
+<script>window.CSRF_TOKEN = "<?= $_SESSION['csrf_token'] ?>";</script>
 
 <script>
 // SLUGIFY HELPER FUNCTION
@@ -632,7 +676,6 @@ function slugify(text) {
     .replace(/-+$/, '');     // Trim - from end of text
 }
 
-// === NEW: SETUP USERNAME GENERATOR FOR A CHILD BLOCK ===
 function setupChildUsernameGenerator(container) {
   const firstNameInput = container.querySelector(".child-first-name");
   const lastNameInput = container.querySelector(".child-last-name");
@@ -657,8 +700,6 @@ function setupChildUsernameGenerator(container) {
   updateChildUsername(); 
 }
 
-// G-PROTEIN: The bug was here. Removed backslashes (\) from template literals.
-// ---------- Shared Template ----------
 function generateFamilyMemberFields(prefix) {
   return `
     <div class="row mb-3">
@@ -772,11 +813,17 @@ function generateFamilyMemberFields(prefix) {
 
 </div>
 
-<form action="" method="POST" enctype="multipart/form-data" class="mb-2">
-        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
-    <label for="excel_file" class="form-label">📂 Upload Excel File (Batch Residents)</label>
-    <input type="file" name="excel_file" id="excel_file" class="form-control mb-2" accept=".xlsx, .xls" required>
-    <button type="submit" name="import_excel" class="btn btn-primary">Import Residents</button>
+<form id="batchUploadForm" class="mb-2 p-3 border rounded bg-light">
+    <label for="excel_file" class="form-label fw-bold mb-1">
+        <i class="fa-solid fa-file-excel me-1 text-success"></i> Batch Upload Residents
+    </label>
+    <div class="input-group">
+        <input type="file" name="excel_file" id="excel_file" class="form-control" accept=".xlsx, .xls" required>
+        <button type="button" class="btn btn-primary" onclick="startBatchUpload()">
+            <i class="fas fa-upload"></i> Start Import
+        </button>
+    </div>
+    <small class="text-muted">Select an Excel file to upload multiple residents at once. Wait for progress bar.</small>
 </form>
 <form method="GET" action="index_barangay_staff.php" class="row g-2 mb-3">
   <input type="hidden" name="page" value="<?= $_GET['page'] ?? 'resident_info' ?>">
@@ -867,7 +914,30 @@ if ($result->num_rows > 0) {
 <?php include 'components/resident_modal/add_modal.php'; ?>
 <?php include 'components/resident_modal/link_modal.php'; ?>
 
-
+<div class="modal fade" id="batchProgressModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Batch Import Progress</h5>
+      </div>
+      <div class="modal-body text-center">
+        <h3 id="progressText" class="mb-3">Preparing...</h3>
+        
+        <div class="progress" style="height: 25px;">
+          <div id="batchProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+               role="progressbar" style="width: 0%">0%</div>
+        </div>
+        
+        <p id="progressDetail" class="mt-2 text-muted">Please wait, do not close this window.</p>
+        
+        <div id="uploadErrors" class="text-start mt-3 text-danger" style="display:none; max-height:100px; overflow-y:auto; font-size:0.85em;">
+            <strong>Errors:</strong><br>
+            <ul id="errorList"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 <script>
 (function () {
     const searchEl = document.getElementById('searchResidentInput');
@@ -912,33 +982,9 @@ if ($result->num_rows > 0) {
 })();
 </script>
 
-
-
-
-<div class="modal fade" id="batchUploadModal" tabindex="-1" aria-labelledby="batchUploadModalLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <form action="index_Admin.php?page=resident_info" method="POST" enctype="multipart/form-data">
-        <div class="modal-header">
-          <h5 class="modal-title" id="batchUploadModalLabel">Batch Upload Residents</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div class="mb-3">
-            <label for="excelFile" class="form-label">Upload Excel File (.xlsx)</label>
-            <input type="file" class="form-control" name="excelFile" accept=".xlsx" required>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="submit" class="btn btn-primary">Upload</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
 </div>
 <?php
-$baseUrl    = enc_encoder('resident_info'); // ✅ keep this
+$baseUrl    = enc_encoder('resident_info'); 
 $pageParam = ['page' => $_GET['page'] ?? 'resident_info'];
 $filters    = array_filter([
     'search'        => $_GET['search'] ?? '',
@@ -1013,6 +1059,112 @@ if ($end < $total_pages && ($end - $start) < $window * 2) {
   </ul>
 </nav>
 <script src="components/resident_modal/email.js"></script>
+
+<script>
+// ================== AJAX BATCH UPLOAD SCRIPT ==================
+async function startBatchUpload() {
+    const fileInput = document.getElementById('excel_file');
+    if (!fileInput.files.length) {
+        Swal.fire('Error', 'Please select a file first.', 'error');
+        return;
+    }
+
+    // 1. Show Modal
+    const modalEl = document.getElementById('batchProgressModal');
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+
+    const pText   = document.getElementById('progressText');
+    const pDetail = document.getElementById('progressDetail');
+    const pBar    = document.getElementById('batchProgressBar');
+    const errDiv  = document.getElementById('uploadErrors');
+    const errList = document.getElementById('errorList');
+    
+    // Reset UI
+    pText.innerText = "Analyzing file...";
+    pBar.style.width = "0%";
+    pBar.innerText = "0%";
+    errDiv.style.display = 'none';
+    errList.innerHTML = '';
+    
+    // 2. Upload File for Preview (Get Count)
+    const formData = new FormData();
+    formData.append('excel_file', fileInput.files[0]);
+    formData.append('csrf_token', window.CSRF_TOKEN);
+    formData.append('action', 'parse_excel_preview'); 
+
+    try {
+        // Updated Path: Point to the file location (relative to index_barangay_staff.php which is likely in root)
+        // If resident_info.php is in Modules/staff_modules/, we must call it there.
+        const response = await fetch('Modules/staff_modules/resident_info.php', { method: 'POST', body: formData });
+        
+        const data = await response.json();
+
+        if (data.status !== 'success') {
+            throw new Error(data.message || 'Failed to parse file.');
+        }
+
+        const totalRows = data.total_rows;
+        if (totalRows === 0) {
+            throw new Error('File appears to be empty or has no valid data.');
+        }
+
+        // 3. Start Loop
+        let successCount = 0;
+        let skipCount = 0;
+
+        for (let i = 0; i < totalRows; i++) {
+            pText.innerText = `Processing ${i + 1} of ${totalRows}`;
+            pDetail.innerText = `Importing row ${i + 1}...`;
+            
+            const pct = Math.round(((i) / totalRows) * 100);
+            pBar.style.width = `${pct}%`;
+            pBar.innerText = `${i}/${totalRows}`; 
+
+            const rowData = new FormData();
+            rowData.append('action', 'process_single_row');
+            rowData.append('index', i);
+            rowData.append('csrf_token', window.CSRF_TOKEN);
+
+            const rowRes = await fetch('Modules/staff_modules/resident_info.php', { method: 'POST', body: rowData });
+            const rowResult = await rowRes.json();
+
+            if (rowResult.status === 'success') {
+                successCount++;
+            } else if (rowResult.status === 'skipped') {
+                skipCount++;
+            } else {
+                errDiv.style.display = 'block';
+                const li = document.createElement('li');
+                li.innerText = `Row ${i+1}: ${rowResult.message}`;
+                errList.appendChild(li);
+            }
+        }
+
+        // 4. Finish
+        pBar.style.width = "100%";
+        pBar.innerText = "Done!";
+        pText.innerText = "Import Complete";
+        
+        setTimeout(() => {
+            modal.hide();
+            Swal.fire({
+                icon: 'success',
+                title: 'Batch Import Finished',
+                html: `Successfully imported: <b>${successCount}</b><br>Skipped (Duplicates/Errors): <b>${skipCount}</b>`,
+                allowOutsideClick: false
+            }).then(() => {
+                location.reload(); 
+            });
+        }, 1000);
+
+    } catch (error) {
+        modal.hide();
+        console.error(error);
+        Swal.fire('Import Failed', error.message + " (Check console for details)", 'error');
+    }
+}
+</script>
 
 <script>
 
@@ -1444,7 +1596,6 @@ function validatePrimaryBirthdateEl(el){
 function validateChildBirthdateEl(el){
   const v=(el.value||'').trim(); if(!v){ clearInvalid(el); return true; }
   if(v>ymdToday()){ setInvalid(el,'Birthdate cannot be in the future.'); return false; }
-  // Fixed typo here: ageFromYMYMD -> ageFromYMD
   if(ageFromYMD(v)>17){ setInvalid(el,'Family member must be 17 years old or below.'); return false; }
   clearInvalid(el); return true;
 }
@@ -1457,14 +1608,14 @@ function validateResidencyStartEl(el){
 // ================== DELEGATED BINDINGS ==================
 document.addEventListener('input', (e)=>{
   const t=e.target;
-  if(t.matches('input[name="birthDate"]'))        validatePrimaryBirthdateEl(t);
+  if(t.matches('input[name="birthDate"]'))          validatePrimaryBirthdateEl(t);
   if(t.matches('input[name="residency_start"]')) validateResidencyStartEl(t);
   if(t.matches('input[name$="_birthDate[]"]'))    validateChildBirthdateEl(t);
 }, true);
 
 document.addEventListener('change', (e)=>{
   const t=e.target;
-  if(t.matches('input[name="birthDate"]'))        validatePrimaryBirthdateEl(t);
+  if(t.matches('input[name="birthDate"]'))          validatePrimaryBirthdateEl(t);
   if(t.matches('input[name="residency_start"]')) validateResidencyStartEl(t);
   if(t.matches('input[name$="_birthDate[]"]'))    validateChildBirthdateEl(t);
 }, true);
@@ -1549,23 +1700,6 @@ function toggleRestriction(residentId){
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <?php
-// Handle Batch Import Alert
-if (isset($batch_import_message)) {
-    echo "<script>
-        Swal.fire({
-            icon: '" . $batch_import_icon . "',
-            title: '" . ($batch_import_icon === 'success' ? 'Success!' : 'Oops!') . "',
-            text: '" . addslashes($batch_import_message) . "',
-            confirmButtonColor: '" . ($batch_import_icon === 'success' ? '#3085d6' : '#d33') . "'
-        }).then(() => {
-            if ('" . $batch_import_icon . "' === 'success') {
-                window.location.href = '{$baseUrl}';
-            }
-        });
-    </script>";
-}
-
-// Handle Form SUCCESS Alert
 if (isset($form_success)) {
     echo "<script>
         Swal.fire({
@@ -1579,7 +1713,6 @@ if (isset($form_success)) {
     </script>";
 }
 
-// Handle Form ERROR Alert
 if (isset($form_error)) {
     echo "<script>
         Swal.fire({
