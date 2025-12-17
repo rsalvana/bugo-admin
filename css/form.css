@@ -46,10 +46,11 @@ body {
     color: #000;}
 
 .header-line {
-    height: 3px; /* Thinner horizontal line */
+    height: 2px; /* Thinner horizontal line */
     background-color: #000; /* Black line */
     border: none;
-    margin-bottom: 20px;
+    margin-top: -30px;    /* Pulls the line UP. Try -5px, -10px, or -20px */
+    margin-bottom: 10px;  
 }
 
 /* Certification Section */
@@ -201,12 +202,15 @@ p span {
         display: none;
     }
     /* Ensure header line is visible */
-    .header-line {
-        display: block; /* Make sure it shows up in print */
-        border: 0;
-        border-top: 2px solid #000; /* Adjust the line thickness and color */
-        margin: 20px 0; /* Add some space above and below the line */
-    }
+.header-line {
+    display: block;
+    border: 0;
+    border-top: 2px solid #000;
+    
+    /* CHANGE HERE */
+    margin-top: -30px;    /* Pulls the line UP. Try -5px, -10px, or -20px */
+    margin-bottom: 10px;  
+}
     
 
     /* Page setup for different paper sizes */
@@ -259,6 +263,9 @@ p span {
 
     .header-text h2, .header-text h3 {
         font-size: 22pt; /* Adjust header text size */
+    }
+    .header-text p {
+        font-size: 10pt; /* Adjust header text size */
     }
     .header-text h2 {
         font-size: 22pt; /* Ensure font size is appropriate */

@@ -1195,20 +1195,47 @@ function printAppointment(
   /* ======================= BARANGAY INDIGENCY WITH PICTURE ======================= */
   if (certificate === "Barangay Indigency With Picture") {
     printAreaContent = `
-<html>
-  <head>
-    <link rel="stylesheet" href="css/form.css">
-    <link rel="stylesheet" href="css/print/print.css">
-  </head>
-  <body>
-    <div class="container" id="printArea">
-      <header>
-        <div class="logo-header">
+    <html>
+      <head>
+        <link rel="stylesheet" href="css/form.css">
+        <link rel="stylesheet" href="css/print/print.css">
+        
+        <style>
+            /* 1. UPDATED CSS: Set layers properly */
+            .container { 
+                position: relative; 
+            }
+            .watermark-logo {
+                position: absolute;
+                top: 57%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 65%;
+                opacity: 0.20;
+                z-index: 0;   /* Sits above paper, behind text */
+                pointer-events: none;
+            }
+            /* 2. IMPORTANT: Force text and images to sit ON TOP */
+            header, section, .two-col, .photo-2x2, .footer {
+                position: relative;
+                z-index: 2;
+            }
+        </style>
+      </head>
+      <body>
+        <div class="container" id="printArea">
+        
           <?php if ($logo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-          <?php else: ?>
-            <p>No active Barangay logo found.</p>
+              <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
           <?php endif; ?>
+
+          <header>
+            <div class="logo-header">
+              <?php if ($logo): ?>
+                <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
+              <?php else: ?>
+                <p>No active Barangay logo found.</p>
+              <?php endif; ?>
 
           <div class="header-text">
             <h2><strong>Republic of the Philippines</strong></h2>
@@ -1218,7 +1245,6 @@ function printAppointment(
             <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
           </div>
 
-          <!-- Resident photo -->
           <img src="${residentPhotoUrl}" alt="Resident Photo" class="photo-2x2" onerror="this.style.display='none'"/>
         </div>
       </header>
@@ -1242,14 +1268,12 @@ function printAppointment(
       <br><br><br><br><br>
 
       <div class="two-col" style="margin-bottom:18px;">
-        <!-- Left column: cedula info -->
         <section class="col-48" style="line-height:1.8;">
           <p><strong>Community Tax No.:</strong> ${escapeHtml(cedula_number)}</p>
           <p><strong>Issued on:</strong> ${issued_on ? new Date(issued_on).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}) : ''}</p>
           <p><strong>Issued at:</strong> ${escapeHtml(issued_at)}</p>
         </section>
 
-        <!-- Right column: dynamic signatory with overlay signature -->
         ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
       </div>
     </div>
@@ -1335,33 +1359,61 @@ else if (certificate === "Barangay Residency With Picture") {
     `;
 }
 else if (certificate === "Barangay Indigency") {
-            printAreaContent = `
-                <html>
-                    <head>
-                        <link rel="stylesheet" href="css/form.css">
-                        <link rel="stylesheet" href="css/print/print.css">
-                    </head>
-                    <body>
-                        <div class="container" id="printArea">
-                            <header>
-                    <div class="logo-header"> <?php if ($logo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-        <?php else: ?>
-            <p>No active Barangay logo found.</p>
-        <?php endif; ?>
-                                    <div class="header-text">
-                                        <h2><strong>Republic of the Philippines</strong></h2>
-                                        <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-                                        <h3><strong><?php echo $barangayName; ?></strong></h3>
-                                        <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-                                        <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-                                    </div>
+    printAreaContent = `
+        <html>
+            <head>
+                <link rel="stylesheet" href="css/form.css">
+                <link rel="stylesheet" href="css/print/print.css">
+                
+                <style>
+                    /* 1. UPDATED CSS: Uses z-index 0 to ensure it stays visible */
+                    .container { 
+                        position: relative; 
+                    }
+                    .watermark-logo {
+                        position: absolute;
+                        top: 60%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 57%;
+                        opacity: 0.20; /* Adjust transparency here */
+                        z-index: 0;   /* Changed from -1 to 0 to prevent hiding */
+                        pointer-events: none;
+                    }
+                    /* Ensure text sits on top of the watermark */
+                    header, section, .two-col, .footer {
+                        position: relative;
+                        z-index: 2;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container" id="printArea">
+                
+                    <?php if ($logo): ?>
+                        <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+                    <?php endif; ?>
+
+                    <header>
+                        <div class="logo-header"> 
+                            <?php if ($logo): ?>
+                                <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
+                            <?php else: ?>
+                                <p>No active Barangay logo found.</p>
+                            <?php endif; ?>
+                                <div class="header-text">
+                                    <h2><strong>Republic of the Philippines</strong></h2>
+                                    <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
+                                    <h3><strong><?php echo $barangayName; ?></strong></h3>
+                                    <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
+                                    <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
+                                </div>
                         <?php if ($cityLogo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"    >
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"   >
         <?php else: ?>
             <p>No active City/Municipality logo found.</p>
         <?php endif; ?>
-                    </div>
+                      </div>
                             </header>
                             <hr class="header-line">
                             <section class="barangay-certification">
@@ -1388,14 +1440,14 @@ else if (certificate === "Barangay Indigency") {
                                 <p><strong>Issued on:</strong> ${new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
                                 <p><strong>Issued at:</strong> ${issued_at}</p>
                     </section>
-        ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+${renderSignatorySection(isCaptainSignatory, assignedKagName)}
 
                             </div>
                         </div>
                     </body>
                 </html>
             `;
-        } else if (certificate === "Barangay Residency") {
+        }else if (certificate === "Barangay Residency") {
     const formattedBirthDate = birth_date ? new Date(birth_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
     const formattedResidencyStart = residency_start ? new Date(residency_start).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
     const formattedIssuedOn = issued_on ? new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : 'N/A';
