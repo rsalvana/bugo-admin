@@ -155,6 +155,75 @@ if (isset($_POST['update_status'], $_POST['tracking_number'], $_POST['new_status
     $cedula_number    = trim($_POST['cedula_number'] ?? '');
     $rejection_reason = trim($_POST['rejection_reason'] ?? '');
 
+    // 👇👇👇 INSERT THIS BLOCK STARTING HERE 👇👇👇
+    /* -----------------------------------------------------------
+       1. NEW BLOCKING LOGIC: CHECK FOR NON-APPEARANCE
+       ----------------------------------------------------------- */
+    // A. Identify the resident ID first
+    $resIdQuery = "
+        SELECT res_id FROM schedules WHERE tracking_number = ?
+        UNION SELECT res_id FROM cedula WHERE tracking_number = ?
+        UNION SELECT res_id FROM urgent_request WHERE tracking_number = ?
+        UNION SELECT res_id FROM urgent_cedula_request WHERE tracking_number = ?
+        LIMIT 1
+    ";
+    $stmtRes = $mysqli->prepare($resIdQuery);
+    $stmtRes->bind_param("ssss", $tracking_number, $tracking_number, $tracking_number, $tracking_number);
+    $stmtRes->execute();
+    $resResult = $stmtRes->get_result();
+    $resRow = $resResult->fetch_assoc();
+    $stmtRes->close();
+
+    if ($resRow) {
+        $resident_id = $resRow['res_id'];
+
+        // B. Get Resident Name
+        $nameQ = $mysqli->prepare("SELECT first_name, last_name FROM residents WHERE id = ?");
+        $nameQ->bind_param("i", $resident_id);
+        $nameQ->execute();
+        $resInfo = $nameQ->get_result()->fetch_assoc();
+        $nameQ->close();
+
+        if ($resInfo) {
+            $fname = trim($resInfo['first_name']);
+            $lname = trim($resInfo['last_name']);
+            
+            // C. Check case_participants for 'Respondent' AND 'Non-Appearance'
+            $blockSql = "
+                SELECT COUNT(*) as count 
+                FROM case_participants 
+                WHERE LOWER(first_name) = LOWER(?) 
+                  AND LOWER(last_name) = LOWER(?) 
+                  AND role = 'Respondent' 
+                  AND action_taken = 'Non-Appearance'
+            ";
+            
+            $blockStmt = $mysqli->prepare($blockSql);
+            $blockStmt->bind_param("ss", $fname, $lname);
+            $blockStmt->execute();
+            $blockRes = $blockStmt->get_result()->fetch_assoc();
+            $blockStmt->close();
+
+            if ($blockRes['count'] > 0) {
+                echo "<script>
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Action Blocked',
+                        text: 'Cannot update status. This resident is marked as a Respondent with Non-Appearance in a pending case.',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        window.location = '" . enc_revenue('view_appointments') . "';
+                    });
+                </script>";
+                exit; // STOP EXECUTION HERE
+            }
+        }
+    }
+    /* ---------------- END BLOCKING LOGIC ---------------- */
+    // 👆👆👆 INSERT END 👆👆👆
+
+    // ... existing code (checkUrgentCedula, duplicate checks, etc.) ...
+    
     // Is this an urgent cedula?
     $checkUrgentCedula = $mysqli->prepare("SELECT COUNT(*) FROM urgent_cedula_request WHERE tracking_number = ?");
     $checkUrgentCedula->bind_param("s", $tracking_number);
@@ -2173,6 +2242,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ---------- VIEW MODAL: open & populate ---------- */
+  /* ---------- VIEW MODAL: open & populate ---------- */
   document.querySelectorAll('[data-bs-target="#viewModal"]').forEach(button => {
     button.addEventListener('click', () => {
       const trackingNumber = button.dataset.trackingNumber || '';
@@ -2202,8 +2272,61 @@ document.addEventListener('DOMContentLoaded', () => {
           // Trigger initial toggle state
           statusSelect.dispatchEvent(new Event('change'));
 
+          /* -------------------------------------------------------------
+             NEW FRONTEND BLOCKING LOGIC
+             ------------------------------------------------------------- */
+          const saveBtn = document.getElementById('saveStatusBtn');
+          let isBlocked = false;
+
+          // Reset UI
+          if (saveBtn) {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save Status';
+              saveBtn.classList.remove('btn-secondary');
+              saveBtn.classList.add('btn-success');
+          }
+          
+          // Remove old alert
+          const existingAlert = document.getElementById('blockAlert');
+          if(existingAlert) existingAlert.remove();
+
+          // Check fetched cases
+          if (data.cases && data.cases.length > 0) {
+            data.cases.forEach(c => {
+               if(c.participants && c.participants.length > 0) {
+                   c.participants.forEach(p => {
+                       const role = (p.role || '').trim();
+                       const action = (p.action_taken || '').trim();
+                       if (role === 'Respondent' && action === 'Non-Appearance') {
+                           isBlocked = true;
+                       }
+                   });
+               }
+            });
+          }
+
+          // Apply visual block
+          if (isBlocked && saveBtn) {
+              saveBtn.disabled = true;
+              saveBtn.classList.remove('btn-success');
+              saveBtn.classList.add('btn-secondary');
+              saveBtn.innerHTML = '<i class="bi bi-lock-fill"></i> BLOCKED (Non-Appearance)';
+
+              const alertHTML = `
+                <div id="blockAlert" class="alert alert-danger d-flex align-items-center mt-3" role="alert">
+                  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2"></i>
+                  <div>
+                    <strong>Action Forbidden:</strong> This resident has a "Non-Appearance" record as a Respondent. Status updates are disabled.
+                  </div>
+                </div>
+              `;
+              const formContainer = document.querySelector('#statusUpdateForm .sticky-action');
+              if(formContainer) formContainer.insertAdjacentHTML('beforebegin', alertHTML);
+          }
+          /* ------------------------------------------------------------- */
+
+
           // ----- Render Case History -----
-          // ----- Render Case History (Updated with Participants, Action & Remarks) -----
           const container = document.getElementById('caseHistoryContainer');
           if (container) {
             if (data.cases && data.cases.length) {
@@ -2220,27 +2343,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 let participantsHtml = '';
                 if (cs.participants && cs.participants.length > 0) {
                     const listItems = cs.participants.map(p => {
-                        
-                        // 1. Action Taken Line (Hidden if empty)
                         const actionLine = p.action_taken 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-check2-circle me-1 text-success"></i><strong>Action:</strong> ${p.action_taken}
                                </div>` 
                             : '';
-
-                        // 2. Remarks Line (Hidden if empty)
                         const remarksLine = p.remarks 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-chat-left-text me-1 text-info"></i><strong>Remarks:</strong> ${p.remarks}
                                </div>` 
                             : '';
-                        
-                        // Only show the border/block if there is actually data to show
                         const detailsBlock = (actionLine || remarksLine) 
-                            ? `<div class="ms-1 ps-3 border-start border-2 border-light mb-2">
-                                 ${actionLine}
-                                 ${remarksLine}
-                               </div>` 
+                            ? `<div class="ms-1 ps-3 border-start border-2 border-light mb-2">${actionLine}${remarksLine}</div>` 
                             : '';
 
                         return `

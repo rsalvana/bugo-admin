@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" type="image/png" href="/assets/logo/logo.png">
   <!-- Match your 2FA dark card UI -->
-  <link rel="stylesheet" href="/auth/assets/cp_2fa.css">
+  <link rel="stylesheet" href="/bugo-admin/auth/assets/cp_2fa.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
@@ -126,7 +126,7 @@ Swal.fire({
   timer: 1800,
   showConfirmButton: false
 }).then(() => {
-  window.location.href = '/index.php';
+  window.location.href = '../index.php';
 });
 </script>
 <?php endif; ?>

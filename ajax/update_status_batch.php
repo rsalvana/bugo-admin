@@ -92,6 +92,55 @@ if (!($row = $result->fetch_assoc())) {
 $res_id = (int)$row['res_id'];
 $date   = $row['appt_date'] ?? null;
 
+/* ------------------------------------------------------------------
+   NEW: Check for Non-Appearance Respondent Logic
+   Prevents status update if resident is a Respondent with Non-Appearance
+-------------------------------------------------------------------*/
+$hasNonAppearanceCase = function (int $resId) use ($mysqli): bool {
+    if ($resId <= 0) return false;
+
+    // Get resident name
+    $st = $mysqli->prepare("SELECT first_name, last_name, IFNULL(middle_name, ''), IFNULL(suffix_name, '') FROM residents WHERE id = ? LIMIT 1");
+    $st->bind_param("i", $resId);
+    $st->execute();
+    $st->bind_result($f, $l, $m, $s);
+    if (!$st->fetch()) { $st->close(); return false; }
+    $st->close();
+
+    $f = trim((string)$f);
+    $l = trim((string)$l);
+    // $m = trim((string)$m); // middle name sometimes omitted in participants table, primarily match F/L
+
+    // Check case_participants for Respondent + Non-Appearance
+    // Using LOWER for case-insensitive comparison
+    $sql = "
+        SELECT COUNT(*) as cnt 
+        FROM case_participants 
+        WHERE LOWER(TRIM(first_name)) = LOWER(?) 
+          AND LOWER(TRIM(last_name))  = LOWER(?) 
+          AND role = 'Respondent' 
+          AND action_taken = 'Non-Appearance'
+    ";
+    
+    $st2 = $mysqli->prepare($sql);
+    $st2->bind_param("ss", $f, $l);
+    $st2->execute();
+    $res2 = $st2->get_result();
+    $cnt = (int)($res2->fetch_assoc()['cnt'] ?? 0);
+    $st2->close();
+
+    return $cnt > 0;
+};
+
+// Execute the check immediately after finding the resident ID
+if ($hasNonAppearanceCase($res_id)) {
+    echo json_encode([
+        'success' => false, 
+        'message' => 'Cannot update status: This resident is marked as a Respondent with "Non-Appearance" in a pending case.'
+    ]);
+    exit;
+}
+
 /**
  * Helper to build BESO skip condition (revenue staff cannot touch "BESO Application")
  */
@@ -231,9 +280,9 @@ if ($new_status === 'Released') {
 
             // Count rows that would be affected AND are NOT in ApprovedCaptain
             $sqlChk = "SELECT COUNT(*) AS bad
-                       FROM {$table}
-                       WHERE res_id = ? AND {$dateCol} = ? {$skipBeso}
-                         AND COALESCE({$statusCol}, '') <> 'ApprovedCaptain'";
+                        FROM {$table}
+                        WHERE res_id = ? AND {$dateCol} = ? {$skipBeso}
+                          AND COALESCE({$statusCol}, '') <> 'ApprovedCaptain'";
             $st = $mysqli->prepare($sqlChk);
             $st->bind_param("is", $res_id, $date);
             $st->execute();
@@ -576,8 +625,8 @@ $email_query = "
            END AS certificate
     FROM residents r
     LEFT JOIN cedula c                 ON r.id = c.res_id                 AND c.tracking_number  = ?
-    LEFT JOIN urgent_cedula_request uc ON r.id = uc.res_id                 AND uc.tracking_number = ?
-    LEFT JOIN urgent_request ur        ON r.id = ur.res_id                 AND ur.tracking_number = ?
+    LEFT JOIN urgent_cedula_request uc ON r.id = uc.res_id                AND uc.tracking_number = ?
+    LEFT JOIN urgent_request ur        ON r.id = ur.res_id                AND ur.tracking_number = ?
     LEFT JOIN schedules s              ON r.id = s.res_id                 AND s.tracking_number  = ?
     WHERE r.id = ?
     LIMIT 1

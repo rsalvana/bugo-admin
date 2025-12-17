@@ -1,13 +1,15 @@
 <?php
-// auth/forgot_password.php  (adjust path if different)
+// auth/forgot_password.php
 declare(strict_types=1);
 
 if (!isset($_SESSION)) session_start();
 
+// Adjust these paths if your file structure is different locally
 require_once __DIR__ . '/../include/connection.php';
 $mysqli = db_connection();
 
-require_once __DIR__ . '/../vendor/autoload.php'; // PHPMailer
+require_once __DIR__ . '/../vendor/autoload.php'; // Ensure PHPMailer is installed via Composer
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -17,6 +19,7 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
     $email = trim($_POST['email']);
 
+    // Check if email exists in database
     $stmt = $mysqli->prepare("SELECT employee_id FROM employee_list WHERE employee_email = ?");
     $stmt->bind_param("s", $email);
     $stmt->execute();
@@ -26,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
         $stmt->bind_result($employee_id);
         $stmt->fetch();
 
-        // 6-digit code with BUGO- prefix
+        // Generate 6-digit code
         $code = 'BUGO-' . str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
         $_SESSION['fp_employee_id'] = (int)$employee_id;
@@ -35,19 +38,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
 
         $mail = new PHPMailer(true);
         try {
-            // ── cPanel SMTP (bugoportal) ─────────────────────────────────────
-            $mail->isSMTP();
-            $mail->Host          = 'mail.bugoportal.site';
-            $mail->SMTPAuth      = true;
-            $mail->Username      = 'admin@bugoportal.site';
-            $mail->Password      = 'Jayacop@100';
-            $mail->Port          = 465;
-            $mail->SMTPSecure    = PHPMailer::ENCRYPTION_SMTPS; // SSL (465)
-            $mail->SMTPAutoTLS   = true;
-            $mail->SMTPKeepAlive = false;
-            $mail->Timeout       = 12;
+            // ── GMAIL SMTP CONFIGURATION (LOCAL) ─────────────────────────────
+            
+            // Uncomment the next line if you need to see connection errors in the browser
+            // $mail->SMTPDebug = 2; 
 
-            // TEMP: relax TLS checks if cert CN doesn't match yet
+            $mail->isSMTP();
+            $mail->Host       = 'smtp.gmail.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = 'jayacop9@gmail.com';
+            
+            // REPLACE THIS WITH YOUR 16-CHAR GOOGLE APP PASSWORD
+            // Do NOT use your normal Gmail login password.
+            // Go to Google Account > Security > 2-Step Verification > App Passwords
+            $mail->Password   = 'fsls ywyv irfn ctyc'; 
+
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // TLS implies port 587
+            $mail->Port       = 587; 
+
+            // ── SSL CERTIFICATE BYPASS (FOR LOCALHOST) ───────────────────────
+            // This prevents "SCREAM: stream_socket_enable_crypto(): SSL operation failed"
             $mail->SMTPOptions = [
                 'ssl' => [
                     'verify_peer'       => false,
@@ -56,8 +66,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
                 ]
             ];
 
-            $mail->setFrom('admin@bugoportal.site', 'Barangay Bugo');
+            // ── EMAIL CONTENT ────────────────────────────────────────────────
+            $mail->setFrom('jayacop9@gmail.com', 'Barangay Bugo Admin');
             $mail->addAddress($email);
+            
             $mail->isHTML(true);
             $mail->Subject = 'Password Reset Code';
             $mail->Body    = 'Your password reset code is: <strong>' . htmlspecialchars($code, ENT_QUOTES, 'UTF-8') . '</strong>';
@@ -65,13 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
 
             $mail->send();
 
-            // Use a flag so the UI can show SweetAlert then redirect
             $success = 'Verification code sent. Please check your email.';
         } catch (Exception $e) {
             $error = 'Email error: ' . $mail->ErrorInfo;
         }
     } else {
-        // Don’t reveal which emails exist (optional): keep message generic if you prefer
+        // Email not found in DB
         $error = 'Email not found.';
     }
 
@@ -87,8 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" type="image/png" href="/assets/logo/logo.png">
 
-  <!-- Reuse the same dark card styling as your 2FA screens -->
-  <link rel="stylesheet" href="/auth/assets/cp_2fa.css">
+  <link rel="stylesheet" href="/bugo-admin/auth/assets/cp_2fa.css">
 
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
@@ -110,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['email'])) {
     timerProgressBar: true,
     showConfirmButton: false
   }).then(() => {
-    // Go to verification step
+    // Redirect to the code verification page
     location.href = 'verify_code.php';
   });
 </script>
@@ -157,9 +167,12 @@ function onSend(form) {
   const btn = document.getElementById('sendBtn');
   const text = document.getElementById('btnText');
   const spin = document.getElementById('btnSpinner');
+  
+  // Disable button to prevent double-send
   btn.disabled = true;
   text.textContent = 'Sending…';
   spin.style.display = 'inline-block';
+  
   return true; // allow submit
 }
 </script>

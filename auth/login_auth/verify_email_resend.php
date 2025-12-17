@@ -1,13 +1,23 @@
 <?php
+// auth/login_auth/verify_email_resend.php
 declare(strict_types=1);
-session_start();
 
+// Start session if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Adjust paths to go up TWO levels (../../) to find include/vendor
 require_once __DIR__ . '/../../include/connection.php';
-require_once __DIR__ . '/../../vendor/autoload.php'; // PHPMailer
-use PHPMailer\PHPMailer\PHPMailer;
+require_once __DIR__ . '/../../vendor/autoload.php'; 
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// 1. Security Check: User must be in the "pending OTP" state
 if (empty($_SESSION['email_otp_pending'])) {
-    header('Location: /index.php');
+    // If accessed directly, send them to login
+    header('Location: ../../index.php');
     exit;
 }
 
@@ -15,7 +25,7 @@ $mysqli = db_connection();
 $ctx    = $_SESSION['email_otp_pending'];
 $empId  = (int)$ctx['employee_id'];
 
-// Fetch fresh email + name from DB
+// 2. Fetch fresh email from DB
 $q = $mysqli->prepare("
   SELECT employee_email,
          COALESCE(NULLIF(TRIM(CONCAT(employee_fname,' ',employee_lname)),''), employee_username) AS employee_name
@@ -24,22 +34,23 @@ $q = $mysqli->prepare("
 ");
 $q->bind_param('i', $empId);
 $q->execute();
-$r  = $q->get_result();
-$u  = $r->fetch_assoc();
+$r = $q->get_result();
+$u = $r->fetch_assoc();
 $q->close();
 
+// If no email found, redirect back with error
 if (!$u || !filter_var($u['employee_email'], FILTER_VALIDATE_EMAIL)) {
     $_SESSION['resend_error'] = 'Cannot resend — invalid email on file.';
-    header('Location: /auth/login_auth/verify_email.php');
+    header('Location: verify_email.php'); 
     exit;
 }
 
-// New OTP
+// 3. Generate New OTP
 $code      = (string)random_int(100000, 999999);
 $code_hash = password_hash($code, PASSWORD_DEFAULT);
 $expires   = (new DateTime('+5 minutes'))->format('Y-m-d H:i:s');
 
-// Save
+// 4. Save to DB
 $ins = $mysqli->prepare("
   INSERT INTO employee_email_otp (employee_id, code_hash, expires_at)
   VALUES (?, ?, ?)
@@ -48,85 +59,59 @@ $ins->bind_param('iss', $empId, $code_hash, $expires);
 $ins->execute();
 $ins->close();
 
-// --- Mail sender helper (same as your reference) ---
-function send_2fa_mail(string $toEmail, string $toName, string $code): void {
-  $mailboxUser = 'admin@bugoportal.site';
-  $mailboxPass = 'Jayacop@100';
-  $smtpHost    = 'mail.bugoportal.site';
+// 5. Send Email via Gmail (UPDATED SETTINGS)
+$toEmail = $u['employee_email'];
+$toName  = $u['employee_name'];
 
-  $safeName = htmlspecialchars($toName ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-  $safeCode = htmlspecialchars($code ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-
-  $buildMessage = function(PHPMailer $m) use ($toEmail, $safeName, $safeCode, $mailboxUser) {
-    $m->setFrom($mailboxUser, 'Barangay Bugo');
-    $m->addAddress($toEmail, $safeName);
-    $m->addBCC($mailboxUser);
-    $m->isHTML(true);
-    $m->Subject = 'Barangay Bugo 2FA Code';
-    $m->Body = "<p>Hello <strong>{$safeName}</strong>,</p>
-                <p>Your verification code is:</p>
-                <h2 style='color:#0d6efd;'>{$safeCode}</h2>
-                <p>This code is valid for 5 minutes.</p>
-                <br><p>Thank you,<br>Barangay Bugo Portal</p>";
-    $m->AltBody  = "Your verification code is: {$safeCode}\nThis code is valid for 5 minutes.";
-    $m->CharSet  = 'UTF-8';
-    $m->Hostname = 'bugoportal.site';
-    $m->Sender   = $mailboxUser;
-    $m->addReplyTo($mailboxUser, 'Barangay Bugo');
-  };
-
-  $attempt = function(string $mode, int $port) use ($smtpHost, $mailboxUser, $mailboxPass, $buildMessage) {
-    $mail = new PHPMailer(true);
+$mail = new PHPMailer(true);
+try {
+    // ── GMAIL SMTP CONFIGURATION ─────────────────────────────────────────────
     $mail->isSMTP();
-    $mail->Host          = $smtpHost;
-    $mail->SMTPAuth      = true;
-    $mail->Username      = $mailboxUser;
-    $mail->Password      = $mailboxPass;
-    $mail->Port          = $port;
-    $mail->Timeout       = 10;
-    $mail->SMTPAutoTLS   = true;
-    $mail->SMTPKeepAlive = false;
+    $mail->Host       = 'smtp.gmail.com';
+    $mail->SMTPAuth   = true;
+    $mail->Username   = 'jayacop9@gmail.com';
+    
+    // 🔴 PASTE YOUR 16-CHAR GOOGLE APP PASSWORD HERE
+    $mail->Password   = 'fsls ywyv irfn ctyc'; 
 
+    $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; // TLS (Port 587)
+    $mail->Port       = 587;
+    
+    // SSL Bypass (Required for Localhost/XAMPP)
     $mail->SMTPOptions = [
-      'ssl' => [
-        'verify_peer'       => false,
-        'verify_peer_name'  => false,
-        'allow_self_signed' => true,
-      ]
+        'ssl' => [
+            'verify_peer'       => false,
+            'verify_peer_name'  => false,
+            'allow_self_signed' => true,
+        ]
     ];
 
-    if ($mode === 'ssl') {
-      $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
-    } else {
-      $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-    }
+    // Email Content
+    $mail->setFrom('jayacop9@gmail.com', 'Barangay Bugo Admin');
+    $mail->addAddress($toEmail, $toName);
+    $mail->isHTML(true);
+    $mail->Subject = 'Barangay Bugo 2FA Code';
+    $mail->Body    = "
+        <p>Hello <strong>" . htmlspecialchars($toName) . "</strong>,</p>
+        <p>Your new verification code is:</p>
+        <h2 style='color:#0d6efd;'>" . $code . "</h2>
+        <p>This code is valid for 5 minutes.</p>
+        <br><p>Thank you,<br>Barangay Bugo Portal</p>
+    ";
+    $mail->AltBody = "Your verification code is: {$code}";
 
-    $buildMessage($mail);
     $mail->send();
-  };
 
-  error_log("2FA: resending code={$code} to {$toEmail}");
+    $_SESSION['resend_success'] = true;
 
-  try {
-    $attempt('ssl', 465);
-  } catch (\Throwable $e1) {
-    try {
-      $attempt('tls', 587);
-    } catch (\Throwable $e2) {
-      try {
-        $fallback = new PHPMailer(true);
-        $fallback->isMail();
-        $buildMessage($fallback);
-        $fallback->send();
-      } catch (\Throwable $e3) {
-        throw new \RuntimeException('Unable to send verification email right now.');
-      }
-    }
-  }
+} catch (Exception $e) {
+    // Log the actual error for debugging
+    error_log("Resend Error: " . $mail->ErrorInfo);
+    $_SESSION['resend_error'] = "Unable to send verification email.";
 }
-// Send it
-send_2fa_mail($u['employee_email'], $u['employee_name'] ?? '', $code);
 
-$_SESSION['resend_success'] = true;
-header('Location: /auth/login_auth/verify_email.php');
+// 6. Redirect back to the verification page
+// Since both files are in 'login_auth', we just use the filename
+header('Location: verify_email.php');
 exit;
+?>

@@ -130,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="UTF-8">
   <title>Email Verification</title>
-  <link rel="icon" type="image/png" href="/assets/logo/logo.png">
+  <link rel="icon" type="image/png" href="/bugo-admin/assets/logo/logo.png">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <style>
 :root {
@@ -205,7 +205,7 @@ body {
 <body>
   <div class="card">
     <div class="header">
-      <img src="/assets/logo/logo.png" class="logo" alt="Logo">
+      <img src="/bugo-admin/assets/logo/logo.png" class="logo" alt="Logo">
       <div class="title">Email verification</div>
     </div>
     <div class="sub">We sent a 6-digit code to your email. Enter it below to continue.</div>
@@ -253,7 +253,7 @@ body {
     </form>
 
     <!-- Hidden resend form to preserve POST to your endpoint -->
-    <form id="resendForm" method="post" action="/auth/login_auth/verify_email_resend.php" style="display:none;"></form>
+    <form id="resendForm" method="post" action="/bugo-admin/auth/login_auth/verify_email_resend.php" style="display:none;"></form>
   </div>
 
   <script>
