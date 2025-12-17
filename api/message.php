@@ -38,8 +38,10 @@ if ($action) {
                     ORDER BY unread_count DESC, MAX(sm.created_at) DESC";
             $stmt = $mysqli->prepare($sql);
         } else {
-            // SEARCH MODE: Search ALL residents (even those without messages)
-            $searchTerm = "%$search%";
+            // SEARCH MODE: Search ALL residents
+            // FIX: Removed the leading '%' so it matches ONLY the start of the name
+            $searchTerm = "$search%"; 
+            
             $sql = "SELECT 
                         r.id, 
                         CONCAT(r.first_name, ' ', r.last_name) as name, 
@@ -51,7 +53,7 @@ if ($action) {
                         ) as unread_count
                     FROM residents r
                     WHERE r.first_name LIKE ? OR r.last_name LIKE ?
-                    LIMIT 20"; // Limit results for performance
+                    LIMIT 20"; 
             $stmt = $mysqli->prepare($sql);
             $stmt->bind_param("ss", $searchTerm, $searchTerm);
         }
@@ -486,10 +488,6 @@ if ($action) {
         // Clear chat area for loading state
         const chatBox = document.getElementById('admin-chat-box');
         chatBox.innerHTML = '<div class="empty-state"><i class="fas fa-circle-notch fa-spin text-primary opacity-25 fa-3x mb-3"></i></div>';
-        
-        // Clear search to show full list again? (Optional - keeping search active is usually better)
-        // document.getElementById('userSearch').value = '';
-        // currentSearchTerm = '';
         
         fetchUsers(currentSearchTerm); // Refresh list to update active state
         fetchChat();  
