@@ -1,4 +1,9 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> <!--mao ni e dugang kada page -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 
 <div class="container my-5">
     <h1 class="text-center mb-5 fw-bold text-dark">Indigency Staff Dashboard</h1>
@@ -52,6 +57,34 @@
 </div>
 
 <script>
+// --- LOGOUT FUNCTION (Added) ---
+// This makes the "Logout" link in your navbar work
+function confirmLogout() {
+    Swal.fire({
+        title: 'Are you sure?',
+        text: "You will be logged out.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Yes, logout'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            Swal.fire({
+                title: 'Logging out...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            setTimeout(() => {
+                window.location.href = "logout.php";
+            }, 1000);
+        }
+    });
+    return false;
+}
+
 document.addEventListener("DOMContentLoaded", function() {
     // 2. FETCH DATA FROM YOUR BACKEND
     fetch('dashboard/dashboard_indigency.php')
@@ -60,15 +93,12 @@ document.addEventListener("DOMContentLoaded", function() {
           return response.json();
       })
       .then(data => {
-          console.log("Dashboard Data Loaded:", data); // Debugging check
-
           // 3. UPDATE NUMBER CARDS
-          // Note: 'total', 'urgent', 'pending' match the keys in your PHP backend response
           if(document.getElementById('totalIndigencyApp')) 
               document.getElementById('totalIndigencyApp').textContent = data.total ?? 0;
           
           if(document.getElementById('todayRequests')) 
-              document.getElementById('todayRequests').textContent = data.urgent ?? 0; // Backend sends 'urgent' for today
+              document.getElementById('todayRequests').textContent = data.urgent ?? 0; 
           
           if(document.getElementById('pendingAppointments')) 
               document.getElementById('pendingAppointments').textContent = data.pending ?? 0;
@@ -91,11 +121,10 @@ document.addEventListener("DOMContentLoaded", function() {
           if(document.getElementById('genderChart')) {
               const ctx = document.getElementById('genderChart').getContext('2d');
               
-              // Prevent duplicate charts if re-loaded
               if (window.myGenderChart) { window.myGenderChart.destroy(); }
 
               window.myGenderChart = new Chart(ctx, {
-                  type: 'doughnut', // 'pie' or 'doughnut' look best
+                  type: 'doughnut', 
                   data: {
                       labels: Object.keys(data.genderData || {'Male':0, 'Female':0}),
                       datasets: [{
@@ -116,7 +145,6 @@ document.addEventListener("DOMContentLoaded", function() {
       })
       .catch(err => {
           console.error("Dashboard Error:", err);
-          // Optional: Show error on screen
           if(document.getElementById('totalIndigencyApp')) document.getElementById('totalIndigencyApp').innerText = "Err";
       });
 });

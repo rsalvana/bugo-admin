@@ -76,7 +76,7 @@ if (isset($_POST['logout']) && $_POST['logout'] === 'true') {
 
 $mysqli->close();
 
-// --- FIX: DETERMINE CURRENT PAGE FOR ACTIVE STATE ---
+// --- DETERMINE CURRENT PAGE FOR ACTIVE STATE ---
 $page = 'bhw_dashboard'; // Default page
 if (isset($_GET['page'])) {
     $decrypted = decrypt($_GET['page']);
@@ -133,7 +133,7 @@ if (isset($_GET['page'])) {
         .sb-sidenav .nav-link.active {
             background-color: rgba(255, 255, 255, 0.1); /* Subtle highlight */
             color: #fff !important;
-            border-left: 4px solid #0d6efd; /* Blue identifier line on the left */
+            border-left: 4px solid #0d6efd; /* Blue identifier line */
             font-weight: 600;
         }
         .sb-sidenav .nav-link.active .sb-nav-link-icon {
@@ -207,7 +207,7 @@ if (isset($_GET['page'])) {
         <ul class="navbar-nav ms-auto me-3 me-lg-4 align-items-center">
             
             <li class="nav-item dropdown me-3">
-                <a class="nav-link dropdown-toggle" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <a class="nav-link" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <div class="icon-wrapper">
                         <i class="bi bi-bell-fill fs-5 text-white"></i>
                         <span id="notif-badge" class="notification-badge badge rounded-pill bg-danger" style="display: none;">0</span>
@@ -317,7 +317,6 @@ if (isset($_GET['page'])) {
                         require_once __DIR__ . '/include/connection.php';
                         $mysqli = db_connection();
                           
-                        // Use $page variable determined at the top
                         switch ($page) {
                             case 'bhw_dashboard':
                                 include 'Modules/bhw_modules/bhw_dashboard.php';

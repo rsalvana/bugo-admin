@@ -70,7 +70,21 @@ $result = $stmt->get_result();
 ?>
 
 <style>
-    /* Card Glass Effect */
+   
+   /* Add inside your <style> tag */
+.document-frame {
+    background-color: #ffffff;
+    padding: 0.5rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    display: inline-block; /* Keeps the white box wrapping the image tightly */
+}
+   
+   
+   
+   
+   /* Card Glass Effect */
     .card-glass {
         background: linear-gradient(145deg, #ffffff 0%, #f3f5f9 100%);
         border: 1px solid rgba(255,255,255,0.8);
@@ -367,15 +381,29 @@ $result = $stmt->get_result();
 </div>
 
 <div class="modal fade" id="imgModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content bg-transparent border-0 shadow-none">
-            <div class="modal-header border-0 p-0 mb-2">
-                <h5 class="modal-title text-white" id="img_title">Image</h5>
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4 shadow-lg overflow-hidden">
+            
+            <div class="modal-header bg-dark text-white py-3">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-file-earmark-medical-fill me-2 fs-5"></i>
+                    <h6 class="modal-title fw-bold" id="img_title">Document Viewer</h6>
+                </div>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body p-0 text-center">
-                <img id="view_img_src" src="" class="img-fluid rounded-4 shadow-lg" style="max-height: 85vh;">
+
+            <div class="modal-body bg-light text-center p-4">
+                <div class="document-frame">
+                    <img id="view_img_src" src="" class="img-fluid rounded-2" style="max-height: 70vh; object-fit: contain;">
+                </div>
             </div>
+
+            <div class="modal-footer bg-white border-top-0 justify-content-center py-3">
+                <button type="button" class="btn btn-secondary rounded-pill px-5 fw-bold shadow-sm" data-bs-dismiss="modal">
+                    Close Viewer
+                </button>
+            </div>
+
         </div>
     </div>
 </div>

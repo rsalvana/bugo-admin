@@ -207,7 +207,7 @@ if (isset($_GET['page'])) {
         <ul class="navbar-nav ms-auto me-3 me-lg-4 align-items-center">
             
             <li class="nav-item dropdown me-3">
-                <a class="nav-link dropdown-toggle" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <a class="nav-link" href="#" id="notifDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <div class="icon-wrapper">
                         <i class="bi bi-bell-fill fs-5 text-white"></i>
                         <span id="notif-badge" class="notification-badge badge rounded-pill bg-danger" style="display: none;">0</span>
@@ -304,10 +304,10 @@ if (isset($_GET['page'])) {
                 <main id="main" class="main">
                     <section class="section"> 
                         <?php
+                        // Page Routing Logic
                         require_once __DIR__ . '/include/connection.php';
                         $mysqli = db_connection();
                           
-                        // Use $page variable determined at the top
                         switch ($page) {
                             case 'liason_dashboard':
                                 include 'Modules/liason_modules/liason_dashboard.php';
@@ -344,6 +344,7 @@ if (isset($_GET['page'])) {
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
     
     <script>
+    // --- SIDEBAR TOGGLE LOGIC ---
     document.addEventListener('DOMContentLoaded', function () {
         const btn = document.getElementById('sidebarToggle');
         const nav = document.getElementById('layoutSidenav_nav');
@@ -391,6 +392,7 @@ if (isset($_GET['page'])) {
         return false;
     }
 
+    // --- NOTIFICATION SYSTEM (Liaison Only) ---
     document.addEventListener('DOMContentLoaded', function() {
         let lastCount = 0; 
         let tempHidden = false; 
@@ -440,6 +442,7 @@ if (isset($_GET['page'])) {
         setInterval(checkLiasonNotifications, 5000);
     });
 
+    // --- Table Responsiveness Helper ---
     document.addEventListener('DOMContentLoaded', function () {
         function wrapTables() {
             const main = document.querySelector('main .section, main');
