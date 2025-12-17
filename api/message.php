@@ -17,39 +17,64 @@ if ($action) {
     header('Content-Type: application/json');
     $mysqli = db_connection();
 
-    // 1. FETCH USERS (With Profile Picture)
+    // 1. FETCH USERS (Search Capable)
     if ($action === 'fetch_users') {
-        $sql = "SELECT 
-                    r.id, 
-                    CONCAT(r.first_name, ' ', r.last_name) as name, 
-                    r.profile_picture, 
-                    (SELECT COUNT(*) 
-                     FROM support_messages 
-                     WHERE resident_id = r.id 
-                       AND admin_read = 0
-                    ) as unread_count
-                FROM residents r
-                JOIN support_messages sm ON sm.resident_id = r.id
-                GROUP BY r.id
-                ORDER BY unread_count DESC, MAX(sm.created_at) DESC";
+        $search = trim($_POST['search'] ?? '');
+        
+        if ($search === '') {
+            // DEFAULT: Show only users with existing conversation history
+            $sql = "SELECT 
+                        r.id, 
+                        CONCAT(r.first_name, ' ', r.last_name) as name, 
+                        r.profile_picture, 
+                        (SELECT COUNT(*) 
+                         FROM support_messages 
+                         WHERE resident_id = r.id 
+                           AND admin_read = 0
+                        ) as unread_count
+                    FROM residents r
+                    JOIN support_messages sm ON sm.resident_id = r.id
+                    GROUP BY r.id
+                    ORDER BY unread_count DESC, MAX(sm.created_at) DESC";
+            $stmt = $mysqli->prepare($sql);
+        } else {
+            // SEARCH MODE: Search ALL residents
+            // FIX: Removed the leading '%' so it matches ONLY the start of the name
+            $searchTerm = "$search%"; 
+            
+            $sql = "SELECT 
+                        r.id, 
+                        CONCAT(r.first_name, ' ', r.last_name) as name, 
+                        r.profile_picture,
+                        (SELECT COUNT(*) 
+                         FROM support_messages 
+                         WHERE resident_id = r.id 
+                           AND admin_read = 0
+                        ) as unread_count
+                    FROM residents r
+                    WHERE r.first_name LIKE ? OR r.last_name LIKE ?
+                    LIMIT 20"; 
+            $stmt = $mysqli->prepare($sql);
+            $stmt->bind_param("ss", $searchTerm, $searchTerm);
+        }
 
-        $result = $mysqli->query($sql);
+        $stmt->execute();
+        $result = $stmt->get_result();
         
         $users = [];
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                $img = null;
-                if (!empty($row['profile_picture'])) {
-                    $img = 'data:image/jpeg;base64,' . base64_encode($row['profile_picture']);
-                }
-
-                $users[] = [
-                    'id' => $row['id'],
-                    'name' => $row['name'],
-                    'image' => $img, 
-                    'unread' => (int)$row['unread_count']
-                ];
+        while ($row = $result->fetch_assoc()) {
+            // Convert BLOB to Base64
+            $img = null;
+            if (!empty($row['profile_picture'])) {
+                $img = 'data:image/jpeg;base64,' . base64_encode($row['profile_picture']);
             }
+
+            $users[] = [
+                'id' => $row['id'],
+                'name' => $row['name'],
+                'image' => $img, 
+                'unread' => (int)$row['unread_count']
+            ];
         }
         
         echo json_encode($users);
@@ -61,11 +86,13 @@ if ($action) {
         $residentId = (int)($_POST['resident_id'] ?? 0);
         
         if ($residentId > 0) {
+            // Mark messages as read
             $stmt = $mysqli->prepare("UPDATE support_messages SET admin_read = 1 WHERE resident_id = ? AND admin_read = 0");
             $stmt->bind_param("i", $residentId);
             $stmt->execute();
             $stmt->close();
 
+            // Get messages
             $stmt = $mysqli->prepare("SELECT sent_by, message, created_at FROM support_messages WHERE resident_id = ? ORDER BY created_at ASC");
             $stmt->bind_param("i", $residentId);
             $stmt->execute();
@@ -137,10 +164,10 @@ if ($action) {
             display: flex;
             overflow: hidden;
             border: 1px solid rgba(0,0,0,0.03);
-            position: relative; /* Essential for mobile positioning */
+            position: relative;
         }
 
-        /* --- SIDEBAR (USER LIST) --- */
+        /* --- SIDEBAR --- */
         .sidebar {
             width: 350px;
             border-right: 1px solid #f0f0f0;
@@ -158,8 +185,26 @@ if ($action) {
             flex-shrink: 0;
         }
         .sidebar-header h5 {
-            font-weight: 700; color: #4e73df; margin: 0;
+            font-weight: 700; color: #4e73df; margin: 0 0 15px 0;
             display: flex; align-items: center; gap: 10px;
+        }
+        
+        /* SEARCH BAR STYLE */
+        .search-container { position: relative; }
+        .search-input {
+            width: 100%;
+            padding: 10px 15px 10px 35px;
+            border-radius: 20px;
+            border: 1px solid #e3e6f0;
+            background-color: #f8f9fc;
+            outline: none;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .search-input:focus { background-color: #fff; border-color: #4e73df; box-shadow: 0 0 0 3px rgba(78,115,223,0.1); }
+        .search-icon {
+            position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+            color: #b0b3b8; font-size: 0.9rem;
         }
 
         .user-list {
@@ -181,9 +226,12 @@ if ($action) {
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .avatar-initial {
+            width: 45px; height: 45px; border-radius: 50%;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white; display: flex; align-items: center; justify-content: center;
             font-weight: 700; font-size: 1.1rem;
+            margin-right: 15px; flex-shrink: 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
         .user-details { flex-grow: 1; min-width: 0; }
@@ -212,7 +260,6 @@ if ($action) {
         .chat-header-title { font-weight: 700; font-size: 1.1rem; color: #333; }
         .status-indicator { font-size: 0.8rem; color: #1cc88a; font-weight: 600; display: flex; align-items: center; gap: 5px; }
 
-        /* BACK BUTTON (Mobile Only) */
         .back-btn { 
             display: none; font-size: 1.2rem; color: #5a5c69; 
             margin-right: 15px; cursor: pointer; padding: 5px;
@@ -267,10 +314,10 @@ if ($action) {
 
         /* --- RESPONSIVE MOBILE STYLES --- */
         @media (max-width: 992px) {
-            .chat-wrapper { height: 80vh; } /* Adjust for mobile browser bars */
+            .chat-wrapper { height: 80vh; } 
             
             .sidebar {
-                width: 100%; /* Full width on mobile */
+                width: 100%; 
                 height: 100%;
                 border-right: none;
             }
@@ -279,17 +326,15 @@ if ($action) {
                 position: absolute;
                 top: 0; left: 0;
                 width: 100%; height: 100%;
-                transform: translateX(100%); /* Hide off-screen right */
+                transform: translateX(100%); 
                 z-index: 10;
                 background: #fff;
             }
 
-            /* When active, slide in */
             .chat-view.mobile-active {
                 transform: translateX(0);
             }
 
-            /* Show back button on mobile */
             .back-btn { display: block; }
         }
     </style>
@@ -301,6 +346,10 @@ if ($action) {
         <div class="sidebar">
             <div class="sidebar-header">
                 <h5><i class="fa-solid fa-comments"></i> Inquiries</h5>
+                <div class="search-container">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="userSearch" class="search-input" placeholder="Search residents..." onkeyup="handleSearch()">
+                </div>
             </div>
             <div id="users-container" class="user-list">
                 <div class="text-center p-4 text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading...</div>
@@ -311,7 +360,6 @@ if ($action) {
             <div class="chat-header">
                 <div class="d-flex align-items-center" style="gap: 10px;">
                     <i class="fas fa-arrow-left back-btn" onclick="closeChat()"></i>
-                    
                     <div id="headerAvatarContainer"></div>
                     <div class="chat-header-title" id="chatHeader">Select a resident</div>
                 </div>
@@ -343,15 +391,31 @@ if ($action) {
     let currentResidentId = null;
     let usersInterval = null;
     let chatInterval = null;
+    let searchTimeout = null;
+    let currentSearchTerm = '';
 
     fetchUsers();
-    usersInterval = setInterval(fetchUsers, 3000); 
+    // Poll for users every 3s (stops polling if searching to avoid overwriting results)
+    usersInterval = setInterval(() => {
+        if(currentSearchTerm === '') fetchUsers();
+    }, 3000); 
+    
     chatInterval = setInterval(fetchChat, 2000); 
 
+    // Handle Search Input (Debounce)
+    function handleSearch() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            currentSearchTerm = document.getElementById('userSearch').value.trim();
+            fetchUsers(currentSearchTerm);
+        }, 300); // 300ms delay
+    }
+
     // 1. Fetch Users
-    async function fetchUsers() {
+    async function fetchUsers(search = '') {
         const formData = new FormData();
         formData.append('action', 'fetch_users');
+        if(search) formData.append('search', search);
 
         try {
             const res = await fetch(API_URL, { method: 'POST', body: formData });
@@ -360,7 +424,7 @@ if ($action) {
             
             const container = document.getElementById('users-container');
             if(users.length === 0) {
-                container.innerHTML = '<div class="text-center p-4 text-muted small">No active inquiries.</div>';
+                container.innerHTML = `<div class="text-center p-4 text-muted small">${search ? 'No residents found.' : 'No active inquiries.'}</div>`;
                 return;
             }
 
@@ -372,7 +436,7 @@ if ($action) {
                 
                 let avatarHtml = user.image 
                     ? `<img src="${user.image}" class="avatar" alt="Pic">`
-                    : `<div class="avatar avatar-initial">${initial}</div>`;
+                    : `<div class="avatar-initial">${initial}</div>`;
 
                 let badgeHtml = '';
                 if (count > 0 && user.id != currentResidentId) {
@@ -380,6 +444,7 @@ if ($action) {
                     badgeHtml = `<div class="badge-count">${display}</div>`;
                 }
                 
+                // Escape simple quotes for the onclick function
                 const safeName = user.name.replace(/'/g, "\\'");
                 const safeImage = user.image ? user.image : ''; 
 
@@ -388,7 +453,7 @@ if ($action) {
                         ${avatarHtml}
                         <div class="user-details">
                             <div class="user-name">${user.name}</div>
-                            <div class="user-preview">Click to view chat</div>
+                            <div class="user-preview">${search ? 'Click to message' : 'Click to view chat'}</div>
                         </div>
                         ${badgeHtml}
                     </div>
@@ -405,7 +470,7 @@ if ($action) {
         selectUser(id, name, imageUrl);
     }
 
-    // 2. Select User (Logic Updated for Mobile)
+    // 2. Select User
     function selectUser(id, name, imageUrl) {
         currentResidentId = id;
         
@@ -420,17 +485,17 @@ if ($action) {
         // --- MOBILE: SLIDE IN CHAT ---
         document.getElementById('chatViewLayer').classList.add('mobile-active');
         
+        // Clear chat area for loading state
         const chatBox = document.getElementById('admin-chat-box');
         chatBox.innerHTML = '<div class="empty-state"><i class="fas fa-circle-notch fa-spin text-primary opacity-25 fa-3x mb-3"></i></div>';
         
-        fetchUsers(); 
+        fetchUsers(currentSearchTerm); // Refresh list to update active state
         fetchChat();  
     }
 
-    // --- NEW: CLOSE CHAT (Mobile) ---
     function closeChat() {
         document.getElementById('chatViewLayer').classList.remove('mobile-active');
-        currentResidentId = null; // Optional: Deselect user when going back
+        currentResidentId = null;
     }
 
     // 3. Fetch Chat
@@ -455,7 +520,7 @@ if ($action) {
         const chatBox = document.getElementById('admin-chat-box');
         
         if (messages.length === 0) {
-            chatBox.innerHTML = '<div class="empty-state"><p>No messages yet.</p></div>';
+            chatBox.innerHTML = '<div class="empty-state"><i class="fas fa-comment-dots empty-icon"></i><p>No messages yet. Say hello!</p></div>';
             return;
         }
 
@@ -472,10 +537,13 @@ if ($action) {
             `;
         });
         
+        // Only update DOM if content changed to prevent scrolling glitches
         if (chatBox.innerHTML !== html) {
+             // Check if user was at bottom
              const wasAtBottom = (chatBox.scrollHeight - chatBox.scrollTop <= chatBox.clientHeight + 150);
              chatBox.innerHTML = html;
-             if (wasAtBottom || chatBox.innerHTML.includes('fa-spin')) {
+             // Auto scroll to bottom on first load or if already at bottom
+             if (wasAtBottom || chatBox.innerHTML.includes('fa-circle-notch')) {
                  chatBox.scrollTop = chatBox.scrollHeight;
              }
         }
@@ -494,6 +562,7 @@ if ($action) {
         
         if(chatBox.querySelector('.empty-state')) chatBox.innerHTML = '';
 
+        // Optimistic UI update
         chatBox.insertAdjacentHTML('beforeend', `
             <div class="msg admin" id="temp-${tempId}" style="opacity:0.7">
                 ${escapeHtml(msg)}
