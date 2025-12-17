@@ -17,16 +17,18 @@ if ($action) {
     header('Content-Type: application/json');
     $mysqli = db_connection();
 
-    // 1. FETCH USERS (Search Capable)
+    // 1. FETCH USERS (Now with Online Status Logic)
     if ($action === 'fetch_users') {
         $search = trim($_POST['search'] ?? '');
         
+        // Logic to determine Online Status (Active in last 2 minutes)
+        // We fetch last_activity column
         if ($search === '') {
-            // DEFAULT: Show only users with existing conversation history
             $sql = "SELECT 
                         r.id, 
                         CONCAT(r.first_name, ' ', r.last_name) as name, 
                         r.profile_picture, 
+                        r.last_activity,
                         (SELECT COUNT(*) 
                          FROM support_messages 
                          WHERE resident_id = r.id 
@@ -38,14 +40,12 @@ if ($action) {
                     ORDER BY unread_count DESC, MAX(sm.created_at) DESC";
             $stmt = $mysqli->prepare($sql);
         } else {
-            // SEARCH MODE: Search ALL residents
-            // FIX: Removed the leading '%' so it matches ONLY the start of the name
             $searchTerm = "$search%"; 
-            
             $sql = "SELECT 
                         r.id, 
                         CONCAT(r.first_name, ' ', r.last_name) as name, 
                         r.profile_picture,
+                        r.last_activity,
                         (SELECT COUNT(*) 
                          FROM support_messages 
                          WHERE resident_id = r.id 
@@ -62,18 +62,31 @@ if ($action) {
         $result = $stmt->get_result();
         
         $users = [];
+        $currentTime = time();
+        
         while ($row = $result->fetch_assoc()) {
-            // Convert BLOB to Base64
+            // IMAGE PROCESSING
             $img = null;
             if (!empty($row['profile_picture'])) {
                 $img = 'data:image/jpeg;base64,' . base64_encode($row['profile_picture']);
+            }
+
+            // ONLINE STATUS CALCULATION
+            $isOnline = false;
+            if (!empty($row['last_activity'])) {
+                $lastActiveTime = strtotime($row['last_activity']);
+                // If active within last 2 minutes (120 seconds), consider online
+                if (($currentTime - $lastActiveTime) <= 10) {
+                    $isOnline = true;
+                }
             }
 
             $users[] = [
                 'id' => $row['id'],
                 'name' => $row['name'],
                 'image' => $img, 
-                'unread' => (int)$row['unread_count']
+                'unread' => (int)$row['unread_count'],
+                'online' => $isOnline // Send boolean to frontend
             ];
         }
         
@@ -86,13 +99,11 @@ if ($action) {
         $residentId = (int)($_POST['resident_id'] ?? 0);
         
         if ($residentId > 0) {
-            // Mark messages as read
             $stmt = $mysqli->prepare("UPDATE support_messages SET admin_read = 1 WHERE resident_id = ? AND admin_read = 0");
             $stmt->bind_param("i", $residentId);
             $stmt->execute();
             $stmt->close();
 
-            // Get messages
             $stmt = $mysqli->prepare("SELECT sent_by, message, created_at FROM support_messages WHERE resident_id = ? ORDER BY created_at ASC");
             $stmt->bind_param("i", $residentId);
             $stmt->execute();
@@ -148,7 +159,7 @@ if ($action) {
         .chat-wrapper {
             background-color: #f0f2f5; 
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            height: 85vh; /* Desktop Height */
+            height: 85vh; 
             width: 100%;
             display: flex;
             justify-content: center;
@@ -216,13 +227,16 @@ if ($action) {
             display: flex; align-items: center; padding: 12px 15px; margin-bottom: 5px;
             border-radius: 12px; cursor: pointer; transition: all 0.2s ease;
             border: 1px solid transparent;
+            position: relative; /* For positioning status dot */
         }
         .user-item:hover { background-color: #f8f9fc; }
         .user-item.active { background-color: #eef2ff; border-color: #e0e7ff; }
 
+        .avatar-wrapper { position: relative; margin-right: 15px; flex-shrink: 0; }
+
         .avatar {
             width: 45px; height: 45px; border-radius: 50%;
-            object-fit: cover; margin-right: 15px; flex-shrink: 0;
+            object-fit: cover; 
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
         .avatar-initial {
@@ -230,9 +244,21 @@ if ($action) {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white; display: flex; align-items: center; justify-content: center;
             font-weight: 700; font-size: 1.1rem;
-            margin-right: 15px; flex-shrink: 0;
             box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
+        
+        /* ONLINE STATUS DOT */
+        .status-dot {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+        }
+        .status-online { background-color: #2ecc71; } /* Green */
+        .status-offline { background-color: #95a5a6; } /* Gray */
 
         .user-details { flex-grow: 1; min-width: 0; }
         .user-name { font-weight: 600; font-size: 0.95rem; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -258,7 +284,10 @@ if ($action) {
         .header-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid #e3e6f0; }
         .header-avatar-initial { width: 40px; height: 40px; border-radius: 50%; background: #4e73df; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
         .chat-header-title { font-weight: 700; font-size: 1.1rem; color: #333; }
-        .status-indicator { font-size: 0.8rem; color: #1cc88a; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+        
+        .header-status-text { font-size: 0.8rem; margin-left: 10px; font-weight: 600; }
+        .text-online { color: #2ecc71; }
+        .text-offline { color: #95a5a6; }
 
         .back-btn { 
             display: none; font-size: 1.2rem; color: #5a5c69; 
@@ -361,10 +390,10 @@ if ($action) {
                 <div class="d-flex align-items-center" style="gap: 10px;">
                     <i class="fas fa-arrow-left back-btn" onclick="closeChat()"></i>
                     <div id="headerAvatarContainer"></div>
-                    <div class="chat-header-title" id="chatHeader">Select a resident</div>
-                </div>
-                <div class="status-indicator" id="onlineStatus" style="display: none;">
-                    <i class="fas fa-circle" style="font-size: 8px;"></i>
+                    <div>
+                        <div class="chat-header-title" id="chatHeader">Select a resident</div>
+                        <div id="headerStatusText" class="header-status-text"></div>
+                    </div>
                 </div>
             </div>
 
@@ -393,12 +422,15 @@ if ($action) {
     let chatInterval = null;
     let searchTimeout = null;
     let currentSearchTerm = '';
+    
+    // Store user data to update header status easily
+    let usersCache = {}; 
 
     fetchUsers();
-    // Poll for users every 3s (stops polling if searching to avoid overwriting results)
+    // Poll for users every 5s
     usersInterval = setInterval(() => {
         if(currentSearchTerm === '') fetchUsers();
-    }, 3000); 
+    }, 5000); 
     
     chatInterval = setInterval(fetchChat, 2000); 
 
@@ -429,11 +461,19 @@ if ($action) {
             }
 
             let html = '';
+            usersCache = {}; // Reset cache
+
             users.forEach(user => {
+                usersCache[user.id] = user; // Store for easy access
+
                 const isActive = (user.id == currentResidentId) ? 'active' : '';
                 const initial = user.name ? user.name.charAt(0).toUpperCase() : '?';
                 const count = parseInt(user.unread || 0);
+                const isOnline = user.online === true;
                 
+                // Dot Color
+                const dotClass = isOnline ? 'status-online' : 'status-offline';
+
                 let avatarHtml = user.image 
                     ? `<img src="${user.image}" class="avatar" alt="Pic">`
                     : `<div class="avatar-initial">${initial}</div>`;
@@ -444,22 +484,29 @@ if ($action) {
                     badgeHtml = `<div class="badge-count">${display}</div>`;
                 }
                 
-                // Escape simple quotes for the onclick function
                 const safeName = user.name.replace(/'/g, "\\'");
                 const safeImage = user.image ? user.image : ''; 
 
                 html += `
                     <div class="user-item ${isActive}" onclick="handleUserClick(${user.id}, '${safeName}')" data-image="${safeImage}">
-                        ${avatarHtml}
+                        <div class="avatar-wrapper">
+                            ${avatarHtml}
+                            <div class="status-dot ${dotClass}"></div>
+                        </div>
                         <div class="user-details">
                             <div class="user-name">${user.name}</div>
-                            <div class="user-preview">${search ? 'Click to message' : 'Click to view chat'}</div>
+                            <div class="user-preview">${isOnline ? 'Active now' : (search ? 'Click to message' : 'Click to view chat')}</div>
                         </div>
                         ${badgeHtml}
                     </div>
                 `;
             });
             container.innerHTML = html;
+
+            // If a user is currently selected, update their status in header immediately
+            if(currentResidentId && usersCache[currentResidentId]) {
+                updateHeaderStatus(usersCache[currentResidentId].online);
+            }
 
         } catch(e) { console.error(e); }
     }
@@ -480,7 +527,11 @@ if ($action) {
 
         document.getElementById('headerAvatarContainer').innerHTML = headerImgHtml;
         document.getElementById('chatHeader').innerHTML = name;
-        document.getElementById('onlineStatus').style.display = 'flex';
+        
+        // Update Status Text in Header
+        if(usersCache[id]) {
+            updateHeaderStatus(usersCache[id].online);
+        }
         
         // --- MOBILE: SLIDE IN CHAT ---
         document.getElementById('chatViewLayer').classList.add('mobile-active');
@@ -491,6 +542,17 @@ if ($action) {
         
         fetchUsers(currentSearchTerm); // Refresh list to update active state
         fetchChat();  
+    }
+
+    function updateHeaderStatus(isOnline) {
+        const statusEl = document.getElementById('headerStatusText');
+        if(isOnline) {
+            statusEl.innerHTML = '<i class="fas fa-circle" style="font-size:8px; vertical-align:middle;"></i> Active Now';
+            statusEl.className = 'header-status-text text-online';
+        } else {
+            statusEl.innerHTML = 'Offline';
+            statusEl.className = 'header-status-text text-offline';
+        }
     }
 
     function closeChat() {
