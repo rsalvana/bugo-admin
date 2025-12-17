@@ -159,6 +159,8 @@ $result = $stmt->get_result();
     <div class="filter-card p-4 mb-4">
         <form method="GET" action="index_bhw.php" class="row g-3 align-items-center">
             <input type="hidden" name="page" value="<?= encrypt('med_inventory') ?>">
+
+            
             
             <div class="col-12 mb-1">
                 <small class="text-uppercase fw-bold text-primary tracking-wide"><i class="bi bi-funnel-fill me-1"></i> Stock Filters</small>

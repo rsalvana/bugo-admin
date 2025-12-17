@@ -12,9 +12,9 @@ require_once './include/encryption.php';
 require_once  './include/redirects.php';
 
 // Disable caching
-header("Cache-Control: no-cache, no-store, must-revalidate"); // HTTP 1.1.
-header("Pragma: no-cache"); // HTTP 1.0.
-header("Expires: 0"); // Proxies.
+header("Cache-Control: no-cache, no-store, must-revalidate"); 
+header("Pragma: no-cache"); 
+header("Expires: 0"); 
 
 // Redirect to login if not authenticated
 if (!isset($_SESSION['username']) || $mysqli->connect_error) {
@@ -83,12 +83,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
 }
 
 $barangayInfoSql = "SELECT
-                                bm.city_municipality_name,
-                                b.barangay_name
-                            FROM barangay_info bi
-                            LEFT JOIN city_municipality bm ON bi.city_municipality_id = bm.city_municipality_id
-                            LEFT JOIN barangay b ON bi.barangay_id = b.barangay_id
-                            WHERE bi.id = 1";
+                            bm.city_municipality_name,
+                            b.barangay_name
+                        FROM barangay_info bi
+                        LEFT JOIN city_municipality bm ON bi.city_municipality_id = bm.city_municipality_id
+                        LEFT JOIN barangay b ON bi.barangay_id = b.barangay_id
+                        WHERE bi.id = 1";
 $barangayInfoResult = $mysqli->query($barangayInfoSql);
 
 if ($barangayInfoResult->num_rows > 0) {
@@ -122,52 +122,52 @@ $mysqli->close();
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
- 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
- 
+  
   <title>LGU BUGO - Admin</title>
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
- 
+  
   <link rel="stylesheet" href="css/form.css">
   <link href="css/styles.css" rel="stylesheet" />
   <link rel="stylesheet" href="assets/css/form_print.css">
 
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> <!--mao ni e dugang kada page -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+      <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
   <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-
-  <!--<link rel="stylesheet" href="css/responsive.css">-->
-
   <link rel="icon" type="image/png" href="assets/logo/logo.png">
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-  <!--<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>-->
-  
-    <link href="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/style.min.css" rel="stylesheet" />
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.6/umd/popper.min.js"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-  <link href="css/styles.css" rel="stylesheet" />
-  <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-  <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
 
   <style>
-       body.sb-nav-fixed #layoutSidenav_content { padding-top: 56px; }
+      
+      /* Add this to your existing <style> block */
 
-       /* === ADMIN/LOGOUT DROPDOWN FIX START === */
-       /* This ensures the top-right profile dropdown is clickable
-           CORRECTED SELECTOR to include .me-4 */
+.dropdown-menu {
+    z-index: 9999 !important; /* Forces menu above all charts and cards */
+}
+
+.sb-topnav {
+    z-index: 1040 !important; /* Ensures the top navbar itself is high up */
+}
+      
+      body.sb-nav-fixed #layoutSidenav_content { padding-top: 56px; }
+
+       /* ✅ FIXED: Ensure Modals appear on top of everything */
+       .modal { z-index: 1055 !important; }
+       .modal-backdrop { z-index: 1050 !important; }
+
        .sb-topnav ul.navbar-nav.ms-auto.me-4 {
-         position: relative !important; /* Required for z-index */
-         z-index: 1050 !important;   /* Higher than nav/sidebar */
+         position: relative !important; 
+         z-index: 1050 !important;   
        }
-       /* === ADMIN/LOGOUT DROPDOWN FIX END === */
 
        @media (max-width: 992px) {
          #layoutSidenav { display: block !important; }
@@ -198,146 +198,97 @@ $mysqli->close();
          }
          .row > [class*="col-"] { min-width: 0 !important; }
 
-         /* === DROPDOWN Z-INDEX FIX START === */
-         /* This tells the filter card to stack "on top" of other content */
          #reqFilters, 
          form.card,
          .card[data-filters] { 
-          position: relative; /* Ensures z-index is applied */
-          z-index: 10;        /* Lifts this card (and its children) up */
+          position: relative; 
+          z-index: 10;        
          }
-         /* === DROPDOWN Z-INDEX FIX END === */
 
-         /* === DROPDOWN SIZE & HEIGHT FIX START === */
-         /* Force dropdown items back to a normal font size on mobile */
          .dropdown-menu .dropdown-item {
-          font-size: 1rem !important; /* 16px. Use !important to override custom styles */
-          padding: 0.5rem 1rem !important; /* Add normal padding */
+          font-size: 1rem !important; 
+          padding: 0.5rem 1rem !important; 
          }
-         /* Limit the height of the dropdown menu itself and make it scrollable */
          .dropdown-menu {
-          max-height: 250px !important; /* Adjust this value as needed */
+          max-height: 250px !important; 
           overflow-y: auto !important;
          }
-         /* === DROPDOWN SIZE & HEIGHT FIX END === */
 
-         /* === BUTTON TOOLBAR FIX START === */
-         /* Targets toolbars with buttons (like Add Event) */
          .btn-toolbar,
          .card-header .btn-group,
-         /* Be more specific to avoid filter forms */
          div.text-end > .btn-group {
           display: flex !important;
-          flex-wrap: wrap !important; /* Allow wrapping */
+          flex-wrap: wrap !important; 
           justify-content: flex-start !important;
           gap: 0.5rem;
          }
          .btn-toolbar .btn,
          .card-header .btn-group .btn,
          div.text-end > .btn-group .btn {
-          width: auto !important; /* Let buttons be normal width */
+          width: auto !important; 
           flex-grow: 0 !important;
          }
-         /* === BUTTON TOOLBAR FIX END === */
 
-         /* === TABLE COLUMN FIX START === */
-         /* Force tables to display as tables (not stacked blocks)
-            This allows the .table-responsive wrapper to add horizontal scroll */
          main .section table {
-          display: table !important; /* Force display as table */
-          width: 100% !important; /* Make table fill the scroll wrapper */
-          /* INCREASED min-width AGAIN for wider tables like Cases */
-          min-width: 900px !important; /* Force a min-width to ensure scroll */
-          table-layout: auto !important; /* Revert from fixed to let columns size naturally */
+          display: table !important; 
+          width: 100% !important; 
+          min-width: 900px !important; 
+          table-layout: auto !important; 
          }
-         main .section table thead {
-          display: table-header-group !important; /* Force display as header group */
-         }
-         main .section table tbody {
-          display: table-row-group !important; /* Force display as body group */
-         }
-         main .section table tr {
-          display: table-row !important; /* Force display as row */
-         }
+         main .section table thead { display: table-header-group !important; }
+         main .section table tbody { display: table-row-group !important; }
+         main .section table tr { display: table-row !important; }
          main .section table th,
          main .section table td {
-          display: table-cell !important; /* Force display as cell */
-          width: auto !important; /* Let cell determine its own width */
-          /* REVERT to nowrap to enable horizontal scroll */
+          display: table-cell !important; 
+          width: auto !important; 
           white-space: nowrap !important;
-          word-break: normal !important; /* Revert */
-          overflow-wrap: normal !important; /* Revert */
-          vertical-align: middle !important; /* Keep cells aligned */
+          word-break: normal !important; 
+          overflow-wrap: normal !important; 
+          vertical-align: middle !important; 
          }
-         /* Hide any stacked-table labels that might still be showing */
-         main .section table td::before {
-          display: none !important;
-         }
-         /* === TABLE COLUMN FIX END === */
+         main .section table td::before { display: none !important; }
 
-         
-         
-         
-         
-         /* === TABLE SCROLL FIX (REVISED) === */
-         /* Your JS file automatically wraps tables in a <div>
-            with the class '.table-responsive'.
-            This CSS rule ensures that div is ALWAYS scrollable
-            on mobile, overriding any other styles. */
          .table-responsive {
              overflow-x: auto !important;
              -webkit-overflow-scrolling: touch !important;
          }
-         /* === TABLE SCROLL FIX END === */
-         
-         
-         
-         
 
-         /* === ARCHIVE PAGE FIX START === */
-         /* Force Archive nav-tabs (Residents, Employees) to be side-by-side */
          .nav-tabs {
           display: flex !important;
-          flex-wrap: wrap !important; /* Allow wrapping on very small screens */
+          flex-wrap: wrap !important; 
          }
          .nav-tabs .nav-item {
-          width: auto !important; /* Let tabs be their natural width */
+          width: auto !important; 
           flex-grow: 0 !important;
          }
          
-         /* Force action buttons (Restore, Delete) inside tables to be side-by-side */
          main .section table td .btn-group {
           display: flex !important;
-          flex-wrap: nowrap !important; /* Keep buttons on one line */
-          gap: 0.5rem; /* Add spacing */
+          flex-wrap: nowrap !important; 
+          gap: 0.5rem; 
          }
          main .section table td .btn-group .btn {
-          width: auto !important; /* Let buttons be their natural width */
+          width: auto !important; 
          }
-         /* === ARCHIVE PAGE FIX END === */
 
-         /* === ZONE LEADERS FIX START === */
-         /* Assuming each leader entry is a div/li with specific classes or structure */
-         /* Adjust the selector '.zone-leader-entry' if your HTML uses a different class */
          .zone-leader-entry, 
-         /* Add other relevant selectors if needed, e.g., list items */
          .list-group-item.zone-leader { 
           display: flex !important;
-          flex-wrap: wrap !important; /* Allow wrapping if needed on very small screens */
-          justify-content: space-between !important; /* Space out items */
-          align-items: center !important; /* Align items vertically */
-          gap: 0.5rem; /* Add some space */
+          flex-wrap: wrap !important; 
+          justify-content: space-between !important; 
+          align-items: center !important; 
+          gap: 0.5rem; 
          }
          .zone-leader-entry > *,
          .list-group-item.zone-leader > * {
-          flex-basis: auto !important; /* Allow items to take natural width */
-          margin-bottom: 0 !important; /* Remove any bottom margin causing stacking */
+          flex-basis: auto !important; 
+          margin-bottom: 0 !important; 
          }
-         /* === ZONE LEADERS FIX END === */
        }
   </style>
  
-  </head>
+ </head>
 <body class="sb-nav-fixed">
     <nav class="sb-topnav navbar navbar-expand navbar-dark bg-dark">
         <a class="navbar-brand ps-3" > <?php if ($logo): ?>
@@ -428,7 +379,7 @@ $mysqli->close();
                            <nav class="sb-sidenav-menu-nested nav">
                             <a class="nav-link <?php echo ($page === 'beso') ? 'active' : ''; ?>" href="index_Admin.php?page=<?php echo urlencode(encrypt('beso')); ?>">BESO List</a>
                            </nav>
-                        </div>                                                   
+                        </div>                                  
 
                         <a class="nav-link <?php echo in_array($page, ['case_list']) ? '' : 'collapsed'; ?>"
                            data-bs-toggle="collapse" data-bs-target="#luponDepartment_nav_desktop">
@@ -534,8 +485,7 @@ $mysqli->close();
 <?php
 require_once __DIR__ . '/include/connection.php';
 $mysqli = db_connection();
-// $decryptedPage variable is already set at the top of the file
-switch ($page) { // Use the $page variable
+switch ($page) { 
   case 'admin_home':
   case 'homepage': include 'api/homepage.php'; break;
   case 'admin_dashboard': include 'api/admin_dashboard.php'; break;
@@ -574,16 +524,15 @@ switch ($page) { // Use the $page variable
   case 'add_announcement': include 'components/announcement/add_announcement.php'; break;
   case 'med_inventory': include 'Modules/bhw_modules/med_inventory.php'; break;
   case 'med_request': include 'Modules/bhw_modules/med_request.php'; break;
+  case 'load_bhw_inventory_report.php': include 'Modules/bhw_modules/load_report/load_bhw_inventory_report.php'; break;
+  case 'load_bhw_request_report.php': include 'Modules/bhw_modules/load_report/load_bhw_request_report.php'; break;
+
   default: echo "<div class='alert alert-danger'>Invalid or missing page.</div>"; break;
 }
 ?>
 
-
-
 </section>
-
 </main>
-
                 </main>
                 <footer class="py-4 bg-light mt-auto">
                     <div class="container-fluid px-4">
@@ -600,11 +549,24 @@ switch ($page) { // Use the $page variable
             </div>
         </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/scripts.js"></script>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/simple-datatables@7.1.2/dist/umd/simple-datatables.min.js" crossorigin="anonymous"></script>
     
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. DYNAMICALLY FIX SEARCH FORM URL
+        // This finds the form that points to 'index_bhw.php' and redirects it to 'index_Admin.php'
+        const bhwForm = document.querySelector('form[action="index_bhw.php"]');
+        if(bhwForm) {
+            bhwForm.action = "index_Admin.php";
+            console.log("Auto-corrected search form URL for Admin panel.");
+        }
+    });
+    </script>
+
     <script>
     function confirmLogout() {
         Swal.fire({
@@ -624,7 +586,6 @@ switch ($page) { // Use the $page variable
                         Swal.showLoading();
                     }
                 });
-                // Slight delay so loading is visible
                 setTimeout(() => {
                     window.location.href = "logout.php";
                 }, 1000);
@@ -636,7 +597,6 @@ switch ($page) { // Use the $page variable
     
     <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // === This is your NEW mobile toggle logic (preserved) ===
         const btn = document.getElementById('sidebarToggle');
         const nav = document.getElementById('layoutSidenav_nav');
         
@@ -656,7 +616,6 @@ switch ($page) { // Use the $page variable
             });
         }
 
-        // === This is your NEW table-wrapping logic (preserved) ===
         const main = document.querySelector('main .section, main');
         if (main) {
             main.querySelectorAll('table').forEach(t => {
@@ -668,103 +627,6 @@ switch ($page) { // Use the $page variable
                 }
             });
         }
-        
-        
-        // === This is your OLD sidebar dropdown logic (RESTORED) ===
-        // --- COLLAPSE POLYFILL (supports Bootstrap 4/5 & prevents double-handling) ---
-        const TOGGLER_SEL = '[data-bs-toggle="collapse"], [data-toggle="collapse"]';
-
-        // restore open sections from localStorage
-        try {
-            const saved = JSON.parse(localStorage.getItem('sb-sidenav-sections') || '{}');
-            Object.entries(saved).forEach(([id, open]) => {
-                const el = document.getElementById(id);
-                // Check if it's NOT already open from PHP
-                if (el && open && !el.classList.contains('show')) {
-                   // el.classList.add('show'); // We let the PHP handle the initial 'show'
-                }
-            });
-        } catch (e) {}
-
-        // Function to save the state
-        const persist = () => {
-            const map = {};
-            document.querySelectorAll('.sb-sidenav .collapse[id]').forEach(c => map[c.id] = c.classList.contains('show'));
-            localStorage.setItem('sb-sidenav-sections', JSON.stringify(map));
-        };
-
-        // helper: resolve target from bs4/bs5 attrs or href "#id"
-        const getTarget = (el) => {
-            const sel = el.getAttribute('data-bs-target') || el.getAttribute('data-target') || el.getAttribute('href');
-            if (!sel || !sel.startsWith('#')) return null;
-            return document.querySelector(sel);
-        };
-
-        // Find all sidebar collapse toggles
-        document.querySelectorAll(TOGGLER_SEL).forEach(link => {
-            const target = getTarget(link);
-            // Only act on toggles that point to a valid element
-            if (!target) return;
-            // Only act on toggles inside the sidebar
-            if (!link.closest('.sb-sidenav')) return; 
-
-            // initial a11y/state
-            link.setAttribute('role', 'button');
-            if (target.id) link.setAttribute('aria-controls', target.id);
-            const initOpen = target.classList.contains('show');
-            link.setAttribute('aria-expanded', String(initOpen));
-            link.classList.toggle('collapsed', !initOpen);
-
-            // This is the click handler that does all the work
-            const act = (ev) => {
-                // Stop Bootstrap's default click handler
-                ev.preventDefault();
-                ev.stopPropagation(); 
-
-                const isOpen = target.classList.contains('show');
-
-                // close ALL other sections (this is the accordion behavior)
-                document.querySelectorAll('.sb-sidenav .collapse.show').forEach(c => {
-                    if (c !== target) c.classList.remove('show');
-                });
-                document.querySelectorAll(TOGGLER_SEL).forEach(t => {
-                    const tar = getTarget(t);
-                    if (!tar || tar === target || !t.closest('.sb-sidenav')) return;
-                    t.setAttribute('aria-expanded', 'false');
-                    t.classList.add('collapsed');
-                });
-
-                // toggle current (clicking the same header will CLOSE it)
-                target.classList.toggle('show', !isOpen);
-                link.setAttribute('aria-expanded', String(!isOpen));
-                link.classList.toggle('collapsed', isOpen);
-
-                persist(); // Save state to localStorage
-            };
-
-            link.addEventListener('click', act, true); // capture to beat BS handlers
-            link.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') act(e);
-            });
-        });
-
-        // NO LONGER NEEDED because PHP handles it, but we persist state
-        // ensure the group containing the current .active link is open on first load
-        document.querySelectorAll('.sb-sidenav .nav-link.active').forEach(a => {
-            const grp = a.closest('.collapse');
-            if (grp && grp.classList.contains('show')) {
-                 const trigger = document.querySelector(
-                     `${TOGGLER_SEL}[data-bs-target="#${grp.id}"], ${TOGGLER_SEL}[data-target="#${grp.id}"], ${TOGGLER_SEL}[href="#${grp.id}"]`
-                 );
-                 if (trigger) {
-                     trigger.setAttribute('aria-expanded','true');
-                     trigger.classList.remove('collapsed');
-                 }
-                 persist(); // Save the initial state
-             }
-        });
-        // === END OF RESTORED SCRIPT ===
-        
     });
     </script>
     <script>
