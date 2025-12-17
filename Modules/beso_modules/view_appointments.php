@@ -1014,11 +1014,37 @@ function printAppointment(
           <link rel="stylesheet" href="css/form.css">
           <link rel="stylesheet" href="css/print/print.css">
           <link rel="stylesheet" href="css/print/oath.css">
+          <style>
+            /* 1. WATERMARK CSS */
+            .container { 
+                position: relative; 
+            }
+            .watermark-logo {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                
+                /* RESIZE HERE: Change 600px to whatever size you want */
+                width: 70%; 
+                
+                opacity: 0.15; /* Transparency */
+                z-index: 9999; /* Forces it to stay on top */
+                pointer-events: none;
+            }
+             /* 2. FONT CHANGE: Set to Courier New */
+            body, p, div, span, h2, h3, h4, strong, u {
+                font-family: "Courier New", Courier, monospace !important; 
+            }
+                 
+        </style>
         </head>
 
         <body>
           <div class="container" id="printArea">
-
+          <?php if ($logo): ?>
+              <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+          <?php endif; ?>
             <header>
               <div class="logo-header">
                 <?php if ($logo): ?>
@@ -1047,8 +1073,8 @@ function printAppointment(
             </div>    
 
             <section class="barangay-certification">
-              <h4 style="text-align: center; font-size: 50px;"><strong>BARANGAY CERTIFICATION</strong></h4>
-              <p style="text-align: center; font-size: 18px; margin-top: -10px;">
+              <h4 style="text-align: center; font-size: 40px;margin-top: -10px;"><strong>BARANGAY CERTIFICATION</strong></h4>
+              <p style="text-align: center; font-size: 18px; margin-top: -20px;">
                 <em>(First Time Jobseeker Assistance Act - RA 11261)</em>
               </p>
 
@@ -1080,8 +1106,6 @@ function printAppointment(
               <p>Signed this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>,
                 at Barangay Bugo, Cagayan de Oro City.</p>
             </section>
-
-            <br><br>
 
             <div class="two-col" style="margin-bottom:18px;">
               <section class="col-48" style="line-height:1.8;">

@@ -1211,10 +1211,10 @@ function printAppointment(
             }
             .watermark-logo {
                 position: absolute;
-                top: 70%;
+                top: 57%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                width: 80%;
+                width: 65%;
                 opacity: 0.20;
                 z-index: 0;   /* Sits above paper, behind text */
                 pointer-events: none;
@@ -1317,10 +1317,10 @@ else if (certificate === "Barangay Residency With Picture") {
       }
       .watermark-logo {
           position: absolute;
-          top: 70%;
+          top:57%;
           left: 50%;
           transform: translate(-50%, -50%);
-          width: 80%;
+          width: 60%;
           opacity: 0.20;
           z-index: 0;   /* Sits above paper, behind text */
           pointer-events: none;
@@ -1402,10 +1402,10 @@ else if (certificate === "Barangay Indigency") {
                     }
                     .watermark-logo {
                         position: absolute;
-                        top: 70%;
+                        top: 60%;
                         left: 50%;
                         transform: translate(-50%, -50%);
-                        width: 80%;
+                        width: 57%;
                         opacity: 0.20; /* Adjust transparency here */
                         z-index: 0;   /* Changed from -1 to 0 to prevent hiding */
                         pointer-events: none;
@@ -1496,10 +1496,10 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                     }
                     .watermark-logo {
                         position: absolute;
-                        top: 70%;
+                        top: 60%;
                         left: 50%;
                         transform: translate(-50%, -50%);
-                        width: 80%;
+                        width: 57%;
                         opacity: 0.20; 
                         z-index: 0;   /* Sits above the white paper background */
                         pointer-events: none;
@@ -1570,7 +1570,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
             </body>
         </html>
     `;
-}else if (certificate === "Barangay Clearance") {
+} else if (certificate === "Barangay Clearance") {
     printAreaContent = `
     <html>
     <head>
@@ -1578,21 +1578,20 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
         <link rel="stylesheet" href="css/print/clearance.css">
         
         <style>
-            /* 1. UPDATED CSS: Position the watermark */
             .container { 
                 position: relative; 
             }
             .watermark-logo {
                 position: absolute;
-                top: 70%;
+                top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
-                width: 80%;
-                opacity: 0.20;
-                z-index: 0;
+                width: 65%;  /* Resize as needed */
+                opacity: 0.15; /* Transparency */
+                z-index: 9999; /* Forces it to stay on top */
                 pointer-events: none;
             }
-            /* 2. IMPORTANT: Force the text and side-by-side columns to sit ON TOP */
+            /* Ensure text sections are relative for proper stacking */
             header, .side-by-side, section, .footer {
                 position: relative;
                 z-index: 2;
@@ -1615,88 +1614,25 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                     <?php else: ?>
                         <p>No active Barangay logo found.</p>
                     <?php endif; ?>
-                                <div class="header-text">
-                                    <h2><strong>Republic of the Philippines</strong></h2>
-                                    <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-                                    <h3><strong><?php echo $barangayName; ?></strong></h3>
-                                    <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-                                    <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-                                </div>
-                        <?php if ($cityLogo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"   >
-        <?php else: ?>
-            <p>No active City/Municipality logo found.</p>
-        <?php endif; ?>
-                      </div>
-                                <hr class="header-line">
-                            </header>
-                            <section class="barangay-certification">
-                                <h4 style="text-align: center;font-size: 50px;"><strong>CERTIFICATION</strong></h4><br>
-                                <p>TO WHOM IT MAY CONCERN:</p>
-                                <br>
-                                <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, is a resident of 
-                                <strong>${res_zone}</strong>,<strong>${res_street_address}</strong>, Bugo, Cagayan de Oro City.</p>
-                                <br>
-                                <p>This certify further that according to and as reported by ___________________________________ 
-                                    he/she has been at the said area since <strong>${new Date(residency_start).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</strong> up to present.</p>
-                                <br>
-                                <p>This certification is issued upon the request of the above-mentioned person for 
-                                    <strong>${purpose}</strong>.</p>
-                                <br>
-                            <p>Issued this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
-                            </section>
-                            <br>
-                            <br>
-                            <br>
-                            <br>
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
-                    <section style="width: 48%; line-height: 1.8;">
-                        <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
-                                <p><strong>Issued on:</strong> ${new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                <p><strong>Issued at:</strong> ${issued_at}</p>
-                    </section>
-+ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
-                            </div>
-                        </div>
-                    </body>
-                </html>
-            `;
-        } else if (certificate === "Barangay Clearance") {
-        printAreaContent = `
-        <html>
-        <head>
-            <link rel="stylesheet" href="css/clearance.css">
-            <link rel="stylesheet" href="css/print/clearance.css">
-        </head>
-        <body>
-            <div class="container" id="printArea">
-            <br>
-            <br>
-                <header>
-                    <div class="logo-header"> <?php if ($logo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-        <?php else: ?>
-            <p>No active Barangay logo found.</p>
-        <?php endif; ?>
-                        <div class="header-text" style="text-align: center;">
-                            <h2><strong>Republic of the Philippines</strong></h2>
-                            <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-                            <h3><strong><?php echo $barangayName; ?></strong></h3>
-                            <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-                            <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-                        </div>
-                        <?php if ($cityLogo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"   >
-        <?php else: ?>
-            <p>No active City/Municipality logo found.</p>
-        <?php endif; ?>
+                    <div class="header-text" style="text-align: center;">
+                        <h2><strong>Republic of the Philippines</strong></h2>
+                        <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
+                        <h3><strong><?php echo $barangayName; ?></strong></h3>
+                        <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
+                        <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
                     </div>
+                    <?php if ($cityLogo): ?>
+                        <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo">
+                    <?php else: ?>
+                        <p>No active City/Municipality logo found.</p>
+                    <?php endif; ?>
+                </div>
 
-                    <section style="text-align: center; margin-top: 10px;">
-                        <hr class="header-line" style="border: 1px solid black; margin-top: 10px;">
-                        <h2 style="font-size: 30px;"><strong>BARANGAY CLEARANCE</strong></h2>
-                        <br>
-                    </section>
+                <section style="text-align: center; margin-top: 10px;">
+                    <hr class="header-line" style="border: 1px solid black; margin-top: 10px;">
+                    <h2 style="font-size: 30px;"><strong>BARANGAY CLEARANCE</strong></h2>
+                    <br>
+                </section>
                 <section style="display: flex; justify-content: space-between; margin-top: 10px;">
                     <div style="flex: 1;"></div>
                     <div style="text-align: right; flex: 1;">
@@ -1709,145 +1645,133 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                         </p>
                     </div>
                 </section>
-                </header>
+            </header>
 
-                <div class="side-by-side">
-                    <div class="left-content">
-    <div class="council-box">
-        <h1><?php echo htmlspecialchars($councilTerm); ?><sup>th</sup> COUNCIL</h1><br>
-        <div class="official-title">
-            <?php
-            // Display Punong Barangay first
-            foreach ($officials as $official) {
-                if ($official['position'] == 'Punong Barangay') {
-                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
-                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
-                    break;
-                }
-            }
-
-            // Display 1st, 2nd, and 3rd Kagawads
-            for ($i = 1; $i <= 3; $i++) {
-                foreach ($officials as $official) {
-                    if ($official['position'] == $i . 'st Kagawad' || $official['position'] == $i . 'nd Kagawad' || $official['position'] == $i . 'rd Kagawad') {
-                        echo '<span>' . htmlspecialchars($official['position']) . '</span>';
-                        echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
-                    }
-                }
-            }
-
-            // Display 4th to 7th Kagawads
-            for ($i = 4; $i <= 7; $i++) {
-                foreach ($officials as $official) {
-                    if ($official['position'] == $i . 'th Kagawad') {
-                        echo '<span>' . htmlspecialchars($official['position']) . '</span>';
-                        echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
-                    }
-                }
-            }
-
-            // Display SK Chairman
-            foreach ($officials as $official) {
-                if ($official['position'] == 'SK Chairman') {
-                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
-                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
-                    break;
-                }
-            }
-
-            // Display Barangay Secretary
-            foreach ($officials as $official) {
-                if ($official['position'] == 'Barangay Secretary') {
-                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
-                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
-                    break;
-                }
-            }
-
-            // Display Treasurer
-            foreach ($officials as $official) {
-                if ($official['position'] == 'Treasurer') {
-                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
-                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
-                    break;
-                }
-            }
-            ?>
-        </div>
-    </div>
-</div>
-                    <div class="right-content">
-                        <p>TO WHOM IT MAY CONCERN:</p>
-                        <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, legal age, <strong>${civil_status}</strong>. 
-                        Filipino citizen, is a resident of Barangay Bugo, this City, particularly in <strong>${res_zone}</strong>, <strong>${res_street_address}</strong>.</p><br>
-                        <p>FURTHER CERTIFIES that the above-named person is known to be a person of good moral character and reputation as far as this office is concerned.
-                        He/She has no pending case filed and blottered before this office.</p><br>
-                        <p>This certification is being issued upon the request of the above-named person, in connection with his/her desire <strong>${purpose}</strong>.</p><br>
-
-                        <p>Given this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
-                        <br>
-                        <div style="text-align: center; font-size: 15px;" >
-                            <u><strong>${fullname}</strong></u>
-                            <p>AFFIANT SIGNATURE</p>
-                        </div>
-
-<div style="display: flex; justify-content: space-between; margin-top: 10px;">
-    <section style="width: 48%; position: relative;">
-        <?php if ($lupon_official): ?>
-            <p><strong>As per records (LUPON TAGAPAMAYAPA):</strong></p>
-            <p>Brgy. Case #: ___________________________</p>
-            <p>Certified by: <U><strong><?php echo htmlspecialchars($lupon_official); ?></strong></U></p>
-            <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
-                    <img src="components/employee_modal/lupon_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
-                        style="width: 120px; height: auto; z-index: 1;">
-                </div>
-            <p>Date: <?php echo date('F j, Y'); ?></p>
-        <?php endif; ?>
-    </section>
-
-    <section style="width: 48%; position: relative;">
-        <?php if ($barangay_tanod_official): ?>
-            <p><strong>As per records (BARANGAY TANOD):</strong></p>
-            <p>Brgy. Tanod Remarks: _____________________</p>
-            <p>Certified by: <U><strong><?php echo htmlspecialchars($barangay_tanod_official); ?></strong></U></p>
-            <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
-                    <img src="components/employee_modal/tanod_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
-                        style="width: 120px; height: auto; z-index: 1;">
-                </div>
-            <p>Date: <?php echo date('F j, Y'); ?></p>
-        <?php endif; ?>
-    </section>
-</div>
-                        
-                    </div>
-                </div>
-
-                <section style="margin-top: 20px; text-align: center;">
-                    <div style="display: flex; justify-content: left; gap: 20px;">
-                        <div style="text-align: center; font-size:6px;" >
-                            <p><strong>Left Thumb:</strong></p>
-                            <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
-                            </div>
-                        </div>
-
-                        <div style="text-align: center; font-size:6px;">
-                            <p><strong>Right Thumb:</strong></p>
-                            <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
-                            </div>
+            <div class="side-by-side">
+                <div class="left-content">
+                    <div class="council-box">
+                        <h1><?php echo htmlspecialchars($councilTerm); ?><sup>th</sup> COUNCIL</h1><br>
+                        <div class="official-title">
+                            <?php
+                            foreach ($officials as $official) {
+                                if ($official['position'] == 'Punong Barangay') {
+                                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
+                                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
+                                    break;
+                                }
+                            }
+                            for ($i = 1; $i <= 3; $i++) {
+                                foreach ($officials as $official) {
+                                    if ($official['position'] == $i . 'st Kagawad' || $official['position'] == $i . 'nd Kagawad' || $official['position'] == $i . 'rd Kagawad') {
+                                        echo '<span>' . htmlspecialchars($official['position']) . '</span>';
+                                        echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
+                                    }
+                                }
+                            }
+                            for ($i = 4; $i <= 7; $i++) {
+                                foreach ($officials as $official) {
+                                    if ($official['position'] == $i . 'th Kagawad') {
+                                        echo '<span>' . htmlspecialchars($official['position']) . '</span>';
+                                        echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
+                                    }
+                                }
+                            }
+                            foreach ($officials as $official) {
+                                if ($official['position'] == 'SK Chairman') {
+                                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
+                                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
+                                    break;
+                                }
+                            }
+                            foreach ($officials as $official) {
+                                if ($official['position'] == 'Barangay Secretary') {
+                                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
+                                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
+                                    break;
+                                }
+                            }
+                            foreach ($officials as $official) {
+                                if ($official['position'] == 'Treasurer') {
+                                    echo '<span>' . htmlspecialchars($official['position']) . '</span>';
+                                    echo '<strong><u>' . htmlspecialchars($official['name']) . '</u></strong>';
+                                    break;
+                                }
+                            }
+                            ?>
                         </div>
                     </div>
-                </section>
+                </div>
+                <div class="right-content">
+                    <p>TO WHOM IT MAY CONCERN:</p>
+                    <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, legal age, <strong>${civil_status}</strong>. 
+                    Filipino citizen, is a resident of Barangay Bugo, this City, particularly in <strong>${res_zone}</strong>, <strong>${res_street_address}</strong>.</p><br>
+                    <p>FURTHER CERTIFIES that the above-named person is known to be a person of good moral character and reputation as far as this office is concerned.
+                    He/She has no pending case filed and blottered before this office.</p><br>
+                    <p>This certification is being issued upon the request of the above-named person, in connection with his/her desire <strong>${purpose}</strong>.</p><br>
 
-                <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-                    <section style="width: 48%; line-height: 1.8; margin-top: 35px;">
-                        <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
-                                <p><strong>Issued on:</strong> ${new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                <p><strong>Issued at:</strong> ${issued_at}</p>
-                    </section>
-${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+                    <p>Given this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
+                    <br>
+                    <div style="text-align: center; font-size: 15px;" >
+                        <u><strong>${fullname}</strong></u>
+                        <p>AFFIANT SIGNATURE</p>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px;">
+                        <section style="width: 48%; position: relative;">
+                            <?php if ($lupon_official): ?>
+                                <p><strong>As per records (LUPON TAGAPAMAYAPA):</strong></p>
+                                <p>Brgy. Case #: ___________________________</p>
+                                <p>Certified by: <U><strong><?php echo htmlspecialchars($lupon_official); ?></strong></U></p>
+                                <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
+                                    <img src="components/employee_modal/lupon_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
+                                        style="width: 120px; height: auto; z-index: 1;">
+                                </div>
+                                <p>Date: <?php echo date('F j, Y'); ?></p>
+                            <?php endif; ?>
+                        </section>
+
+                        <section style="width: 48%; position: relative;">
+                            <?php if ($barangay_tanod_official): ?>
+                                <p><strong>As per records (BARANGAY TANOD):</strong></p>
+                                <p>Brgy. Tanod Remarks: _____________________</p>
+                                <p>Certified by: <U><strong><?php echo htmlspecialchars($barangay_tanod_official); ?></strong></U></p>
+                                <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
+                                    <img src="components/employee_modal/tanod_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
+                                        style="width: 120px; height: auto; z-index: 1;">
+                                </div>
+                                <p>Date: <?php echo date('F j, Y'); ?></p>
+                            <?php endif; ?>
+                        </section>
+                    </div>
                 </div>
             </div>
-        </body>
+
+            <section style="margin-top: 20px; text-align: center;">
+                <div style="display: flex; justify-content: left; gap: 20px;">
+                    <div style="text-align: center; font-size:6px;" >
+                        <p><strong>Left Thumb:</strong></p>
+                        <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
+                        </div>
+                    </div>
+
+                    <div style="text-align: center; font-size:6px;">
+                        <p><strong>Right Thumb:</strong></p>
+                        <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <section style="width: 48%; line-height: 1.8; margin-top: 35px;">
+                    <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
+                    <p><strong>Issued on:</strong> ${new Date(issued_on).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p><strong>Issued at:</strong> ${issued_at}</p>
+                </section>
+                ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+            </div>
+        </div>
+    </body>
     </html>
 
 
@@ -1859,10 +1783,39 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
         <link rel="stylesheet" href="css/form.css">
         <link rel="stylesheet" href="css/print/print.css">
         <link rel="stylesheet" href="css/print/oath.css">
+
+        <style>
+            /* 1. WATERMARK CSS */
+            .container { 
+                position: relative; 
+            }
+            .watermark-logo {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                
+                /* RESIZE HERE: Change 600px to whatever size you want */
+                width: 70%; 
+                
+                opacity: 0.15; /* Transparency */
+                z-index: 9999; /* Forces it to stay on top */
+                pointer-events: none;
+            }
+             /* 2. FONT CHANGE: Set to Courier New */
+            body, p, div, span, h2, h3, h4, strong, u {
+                font-family: "Courier New", Courier, monospace !important; 
+            }
+                 
+        </style>
       </head>
 
       <body>
         <div class="container" id="printArea">
+
+          <?php if ($logo): ?>
+              <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+          <?php endif; ?>
 
           <header>
             <div class="logo-header">
@@ -1881,7 +1834,6 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
               <?php endif; ?>
             </div>
           </header>
-
           <hr class="header-line">
           <div style="
                 display:flex;
@@ -1892,8 +1844,8 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
           </div>          
 
           <section class="barangay-certification">
-            <h4 style="text-align: center; font-size: 50px;"><strong>BARANGAY CERTIFICATION</strong></h4>
-            <p style="text-align: center; font-size: 18px; margin-top: -10px;">
+            <h4 style="text-align: center; font-size: 50px; margin-top: -10px;"><strong>BARANGAY CERTIFICATION</strong></h4>
+            <p style="text-align: center; font-size: 18px; margin-top: -20px;">
               <em>(First Time Jobseeker Assistance Act - RA 11261)</em>
             </p>
 
@@ -1926,7 +1878,6 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
               at Barangay Bugo, Cagayan de Oro City.</p>
           </section>
 
-          <br><br>
 
           <div class="two-col" style="margin-bottom:18px;">
             <section class="col-48" style="line-height:1.8;">
