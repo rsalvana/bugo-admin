@@ -155,6 +155,71 @@ if (isset($_POST['update_status'], $_POST['tracking_number'], $_POST['new_status
     $cedula_number    = trim($_POST['cedula_number'] ?? '');
     $rejection_reason = trim($_POST['rejection_reason'] ?? '');
 
+    /* -----------------------------------------------------------
+       1. NEW BLOCKING LOGIC: CHECK FOR NON-APPEARANCE
+       ----------------------------------------------------------- */
+    // A. Identify the resident ID first
+    $resIdQuery = "
+        SELECT res_id FROM schedules WHERE tracking_number = ?
+        UNION SELECT res_id FROM cedula WHERE tracking_number = ?
+        UNION SELECT res_id FROM urgent_request WHERE tracking_number = ?
+        UNION SELECT res_id FROM urgent_cedula_request WHERE tracking_number = ?
+        LIMIT 1
+    ";
+    $stmtRes = $mysqli->prepare($resIdQuery);
+    $stmtRes->bind_param("ssss", $tracking_number, $tracking_number, $tracking_number, $tracking_number);
+    $stmtRes->execute();
+    $resResult = $stmtRes->get_result();
+    $resRow = $resResult->fetch_assoc();
+    $stmtRes->close();
+
+    if ($resRow) {
+        $resident_id = $resRow['res_id'];
+
+        // B. Get Resident Name
+        $nameQ = $mysqli->prepare("SELECT first_name, last_name FROM residents WHERE id = ?");
+        $nameQ->bind_param("i", $resident_id);
+        $nameQ->execute();
+        $resInfo = $nameQ->get_result()->fetch_assoc();
+        $nameQ->close();
+
+        if ($resInfo) {
+            $fname = trim($resInfo['first_name']);
+            $lname = trim($resInfo['last_name']);
+            
+            // C. Check case_participants for 'Respondent' AND 'Non-Appearance'
+            $blockSql = "
+                SELECT COUNT(*) as count 
+                FROM case_participants 
+                WHERE LOWER(first_name) = LOWER(?) 
+                  AND LOWER(last_name) = LOWER(?) 
+                  AND role = 'Respondent' 
+                  AND action_taken = 'Non-Appearance'
+            ";
+            
+            $blockStmt = $mysqli->prepare($blockSql);
+            $blockStmt->bind_param("ss", $fname, $lname);
+            $blockStmt->execute();
+            $blockRes = $blockStmt->get_result()->fetch_assoc();
+            $blockStmt->close();
+
+            if ($blockRes['count'] > 0) {
+                echo "<script>
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Action Blocked',
+                        text: 'Cannot update status. This resident is marked as a Respondent with Non-Appearance in a pending case.',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        window.location = 'index_indigency_staff.php?page=" . urlencode(encrypt('view_appointments')) . "';
+                    });
+                </script>";
+                exit; // STOP EXECUTION HERE
+            }
+        }
+    }
+    /* ---------------- END BLOCKING LOGIC ---------------- */
+
     // Is this an urgent cedula?
     $checkUrgentCedula = $mysqli->prepare("SELECT COUNT(*) FROM urgent_cedula_request WHERE tracking_number = ?");
     $checkUrgentCedula->bind_param("s", $tracking_number);
@@ -432,7 +497,7 @@ $unionSql = "
     s.assignedKagName AS assigned_kag_name
   FROM schedules s
   JOIN residents r ON s.res_id = r.id
-  LEFT JOIN cedula         c  ON c.res_id = r.id
+  LEFT JOIN cedula          c  ON c.res_id = r.id
   LEFT JOIN employee_list  el ON el.employee_id = s.employee_id
   LEFT JOIN employee_roles er ON er.Role_Id     = el.Role_id
   WHERE s.appointment_delete_status = 0
@@ -488,7 +553,7 @@ $unionSql = "
     u.assignedKagName AS assigned_kag_name
   FROM urgent_request u
   JOIN residents r ON u.res_id = r.id
-  LEFT JOIN cedula                c  ON c.res_id  = r.id AND c.cedula_status  = 'Approved'
+  LEFT JOIN cedula                 c  ON c.res_id  = r.id AND c.cedula_status  = 'Approved'
   LEFT JOIN urgent_cedula_request uc ON uc.res_id = r.id AND uc.cedula_status = 'Approved'
   LEFT JOIN employee_list         el ON el.employee_id = u.employee_id
   LEFT JOIN employee_roles        er ON er.Role_Id     = el.Role_id
@@ -595,7 +660,7 @@ $off = "SELECT b.position, r.first_name, r.middle_name, r.last_name, b.status
           AND b.position NOT LIKE '%Barangay Tanod%'
           AND b.position NOT LIKE '%Barangay Police%'
         ORDER BY FIELD(b.position,'Punong Barangay','Kagawad','Kagawad','Kagawad','Kagawad','Kagawad','Kagawad',
-                       'Kagawad','SK Chairman','Secretary','Treasurer')";
+                        'Kagawad','SK Chairman','Secretary','Treasurer')";
 $offresult = $mysqli->query($off);
 $officials = [];
 if ($offresult && $offresult->num_rows > 0) {
@@ -691,7 +756,7 @@ if ($barangayContactResult && $barangayContactResult->num_rows > 0) {
 }
 
 /* -------- $filtered_appointments now holds the rows to render.
-           $total_pages is consistent; hide pagination if $total_pages == 1 -------- */
+            $total_pages is consistent; hide pagination if $total_pages == 1 -------- */
 
 ?>
 <?php
@@ -733,10 +798,8 @@ if ($stmtCap = $mysqli->prepare("
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="css/styles.css">
         <link rel="stylesheet" href="css/ViewApp/ViewApp.css" />
-                        <!-- SweetAlert2 CSS -->
-        <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+                        <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 
-        <!-- SweetAlert2 JS -->
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     </head>
     <div class="container my-4 app-shell">
@@ -745,7 +808,6 @@ if ($stmtCap = $mysqli->prepare("
       <span class="small text-muted d-none d-md-inline">Manage filters, search, and quick actions</span>
     </div>
 
-    <!-- Filters -->
     <div class="card card-filter mb-3 shadow-sm">
       <div class="card-body py-3">
         <form method="GET" action="index_indigency_staff.php" class="row g-2 align-items-end">
@@ -788,9 +850,7 @@ if ($stmtCap = $mysqli->prepare("
 
 <div class="card shadow-sm">
   <div class="card-body table-shell">
-    <div class="table-edge">               <!-- keeps rounded corners -->
-      <div class="table-scroll">           <!-- becomes the scroller -->
-        <table class="table table-hover align-middle mb-0" id="appointmentsTable">
+    <div class="table-edge">                <div class="table-scroll">           <table class="table table-hover align-middle mb-0" id="appointmentsTable">
           <thead class="table-head sticky-top">
             <tr>
               <th style="width: 200px;">Full Name</th>
@@ -833,8 +893,7 @@ else: ?>
     </div>
   </div>
 </div>
- <!-- Windowed Pagination -->
-  <?php
+ <?php
     // Build preserved query string excluding pagenum
     $pageBase = 'index_indigency_staff.php?page=' . urlencode(encrypt('view_appointments'));
     $params = $_GET; unset($params['pagenum']);
@@ -858,7 +917,6 @@ else: ?>
   <nav aria-label="Page navigation" class="mt-3">
     <ul class="pagination justify-content-end pagination-soft mb-0">
 
-      <!-- First -->
       <?php if ($page <= 1): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -875,7 +933,6 @@ else: ?>
         </li>
       <?php endif; ?>
 
-      <!-- Previous -->
       <?php if ($page <= 1): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -892,24 +949,20 @@ else: ?>
         </li>
       <?php endif; ?>
 
-      <!-- Left ellipsis -->
       <?php if ($start > 1): ?>
         <li class="page-item disabled"><span class="page-link">…</span></li>
       <?php endif; ?>
 
-      <!-- Windowed numbers -->
       <?php for ($i = $start; $i <= $end; $i++): ?>
         <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
           <a class="page-link" href="<?= $pageBase . $qs . '&pagenum=' . $i; ?>"><?= $i; ?></a>
         </li>
       <?php endfor; ?>
 
-      <!-- Right ellipsis -->
       <?php if ($end < $total_pages): ?>
         <li class="page-item disabled"><span class="page-link">…</span></li>
       <?php endif; ?>
 
-      <!-- Next -->
       <?php if ($page >= $total_pages): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -926,7 +979,6 @@ else: ?>
         </li>
       <?php endif; ?>
 
-      <!-- Last -->
       <?php if ($page >= $total_pages): ?>
         <li class="page-item disabled">
           <span class="page-link" aria-disabled="true">
@@ -945,8 +997,7 @@ else: ?>
 
     </ul>
   </nav>
- <!-- View Appointment Modal (enhanced) -->
-<div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
+ <div class="modal fade" id="viewModal" tabindex="-1" aria-labelledby="viewModalLabel" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content modal-elev rounded-4">
       <div class="modal-header modal-accent rounded-top-4">
@@ -962,7 +1013,6 @@ else: ?>
 
       <div class="modal-body p-0">
         <div class="p-4 content-grid">
-          <!-- Case history -->
           <section class="card soft-card">
             <div class="card-header soft-card-header">
               <span class="section-title"><i class="bi bi-journal-check"></i> Case History</span>
@@ -974,7 +1024,6 @@ else: ?>
             </div>
           </section>
 
-          <!-- Same day -->
           <section class="card soft-card grid-col-2">
             <div class="card-header soft-card-header">
               <span class="section-title"><i class="bi bi-calendar-week"></i> Appointments on This Day</span>
@@ -986,7 +1035,6 @@ else: ?>
             </div>
           </section>
 
-          <!-- Update form -->
           <section class="card soft-card grid-col-2">
             <div class="card-header soft-card-header d-flex justify-content-between align-items-center">
               <span class="section-title"><i class="bi bi-arrow-repeat"></i> Update Status</span>
@@ -1008,7 +1056,6 @@ else: ?>
                     </select>
                   </div>
 
-                  <!-- NEW: Assign Kagawad (hidden until ApprovedCaptain is selected) -->
                   <div class="col-12 col-md-6 d-none" id="assignKagawadGroup">
                     <label class="form-label">Assign Kagawad (required for Approved by Captain)</label>
                     <select class="form-select" name="assigned_kagawad_id" id="assignKagawadSelect">
@@ -1061,7 +1108,6 @@ else: ?>
     </div>
   </div>
 </div>
-  <!-- Status Change Modal -->
   <div class="modal fade" id="statusModal" tabindex="-1" aria-labelledby="statusModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-sm">
       <form method="POST" action="">
@@ -1081,8 +1127,7 @@ else: ?>
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Released">Released</option>
-                <!--<option value="ApprovedCaptain">ApprovedCaptain</option>-->
-              </select>
+                </select>
             </div>
 
         <div class="mb-3" id="statusModalCedulaNumberContainer" style="display:none;">
@@ -1145,11 +1190,9 @@ function renderSignatorySection(isCaptain /* ignored */, assignedKagName){
   "
 >
 
-      <!-- PB always -->
       <h5 class="pb-name"><u><strong>${pbNm}</strong></u></h5>
       <p class="auth-title">PUNONG BARANGAY</p>
 
-      <!-- Always show "By the authority…" block -->
       <div class="authority-note"><strong>By the authority of the Punong Barangay</strong></div>
       <div class="auth">
         <h6 class="auth-name"><u><strong>${escapeHtml(kag || 'Authorized Kagawad')}</strong></u></h6>
@@ -1187,7 +1230,7 @@ function printAppointment(
     if (d===2||d===22)        return `${d}ⁿᵈ`;
     if (d===3||d===23)        return `${d}ʳᵈ`;
     return `${d}ᵗʰ`;
-  })(day);
+   })(day);
 
   // If you echoed CAPTAIN_EMPLOYEE_ID from PHP earlier, it's available here.
   const isCaptainSignatory = Number(signatoryEmployeeId) === Number((typeof CAPTAIN_EMPLOYEE_ID!=='undefined'?CAPTAIN_EMPLOYEE_ID:0));
@@ -1324,7 +1367,6 @@ else if (certificate === "Barangay Residency With Picture") {
             <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
           </div>
 
-          <!-- Resident photo (square 2x2) -->
           <img src="${residentPhotoUrl}" alt="Resident Photo" class="photo-2x2" onerror="this.style.display='none'"/>
         </div>
       </header>
@@ -1409,7 +1451,7 @@ else if (certificate === "Barangay Indigency") {
                                     <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
                                 </div>
                         <?php if ($cityLogo): ?>
-            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"   >
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"    >
         <?php else: ?>
             <p>No active City/Municipality logo found.</p>
         <?php endif; ?>
@@ -1457,9 +1499,36 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
             <head>
                 <link rel="stylesheet" href="css/form.css">
                 <link rel="stylesheet" href="css/print/print.css">
+                
+                <style>
+                    /* 2. ADD THIS STYLE: Ensures Watermark is visible */
+                    .container { 
+                        position: relative; 
+                    }
+                    .watermark-logo {
+                        position: absolute;
+                        top: 60%;
+                        left: 50%;
+                        transform: translate(-50%, -50%);
+                        width: 57%;
+                        opacity: 0.20; 
+                        z-index: 0;   /* Sits above the white paper background */
+                        pointer-events: none;
+                    }
+                    /* Ensure text sits on top of the watermark */
+                    header, section, .footer, .two-col {
+                        position: relative;
+                        z-index: 2;
+                    }
+                </style>
             </head>
             <body>
                 <div class="container" id="printArea">
+                
+                    <?php if ($logo): ?>
+                        <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+                    <?php endif; ?>
+
                     <header>
                         <div class="logo-header">
                             <?php if ($logo): ?>
@@ -1506,7 +1575,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                             <p><strong>Issued on:</strong> ${formattedIssuedOn}</p>
                             <p><strong>Issued at:</strong> ${issued_at}</p>
                         </section>
-${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+                        ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                     </div>
                 </div>
             </body>
@@ -1560,6 +1629,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                             <br>
                             <br>
                             <br>
+                            <br>
                         <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
                     <section style="width: 48%; line-height: 1.8;">
                         <p><strong>Community Tax No.:</strong> ${cedula_number}</p>
@@ -1579,7 +1649,6 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                         ?>
                         <h5><u><strong><?php echo htmlspecialchars($punong_barangay); ?></strong></u></h5>
                         <p>Punong Barangay</p>
-                        <!-- e-Signature Image -->
                         <img src="components/employee_modal/show_esignature.php?t=<?=time()?>"  alt="Punong Barangay e-Signature" style="width: 150px; height: auto; margin-top: 10px;">
                     </section>
                             </div>
@@ -1588,18 +1657,18 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                 </html>
             `;
         }  else if (certificate === "Barangay Clearance") {
-        printAreaContent = `
-        <html>
-        <head>
-            <link rel="stylesheet" href="css/clearance.css">
-            <link rel="stylesheet" href="css/print/clearance.css">
-        </head>
-        <body>
-            <div class="container" id="printArea">
-            <br>
-            <br>
-                <header>
-                    <div class="logo-header"> <?php if ($logo): ?>
+    printAreaContent = `
+    <html>
+    <head>
+        <link rel="stylesheet" href="css/clearance.css">
+        <link rel="stylesheet" href="css/print/clearance.css">
+    </head>
+    <body>
+        <div class="container" id="printArea">
+        <br>
+        <br>
+            <header>
+                <div class="logo-header"> <?php if ($logo): ?>
             <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
         <?php else: ?>
             <p>No active Barangay logo found.</p>
@@ -1702,7 +1771,6 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
         </div>
     </div>
 </div>
-                    <!-- Right Section: Certification Text -->
                     <div class="right-content">
                         <p>TO WHOM IT MAY CONCERN:</p>
                         <p>THIS IS TO CERTIFY that <strong>${fullname}</strong>, legal age, <strong>${civil_status}</strong>. 
@@ -1711,8 +1779,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                         He/She has no pending case filed and blottered before this office.</p><br>
                         <p>This certification is being issued upon the request of the above-named person, in connection with his/her desire <strong>${purpose}</strong>.</p><br>
 
-                        <!-- New Section Added Below -->
-                            <p>Given this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
+                        <p>Given this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, at Barangay Bugo, Cagayan de Oro City.</p>
                         <br>
                         <div style="text-align: center; font-size: 15px;" >
                             <u><strong>${fullname}</strong></u>
@@ -1725,8 +1792,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
             <p><strong>As per records (LUPON TAGAPAMAYAPA):</strong></p>
             <p>Brgy. Case #: ___________________________</p>
             <p>Certified by: <U><strong><?php echo htmlspecialchars($lupon_official); ?></strong></U></p>
-            <!-- e-Signature for Lupon Official positioned over the name -->
-                <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
+            <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
                     <img src="components/employee_modal/lupon_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
                         style="width: 120px; height: auto; z-index: 1;">
                 </div>
@@ -1739,7 +1805,6 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
             <p><strong>As per records (BARANGAY TANOD):</strong></p>
             <p>Brgy. Tanod Remarks: _____________________</p>
             <p>Certified by: <U><strong><?php echo htmlspecialchars($barangay_tanod_official); ?></strong></U></p>
-            <!-- e-Signature for Barangay Tanod Official positioned over the name -->
             <div style="position: absolute; top: 25px; left: 50%; transform: translateX(-25%); width: 120px; height: auto;">
                     <img src="components/employee_modal/tanod_sig.php?t=<?=time()?>" alt="Lupon Tagapamayapa e-Signature" 
                         style="width: 120px; height: auto; z-index: 1;">
@@ -1751,18 +1816,16 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                         
                     </div>
                 </div>
+            </div>
 
-                <!-- Thumbprint Section Below Left Content -->
                 <section style="margin-top: 20px; text-align: center;">
                     <div style="display: flex; justify-content: left; gap: 20px;">
-                        <!-- Left Thumb Box with Label Above -->
                         <div style="text-align: center; font-size:6px;" >
                             <p><strong>Left Thumb:</strong></p>
                             <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
                             </div>
                         </div>
 
-                        <!-- Right Thumb Box -->
                         <div style="text-align: center; font-size:6px;">
                             <p><strong>Right Thumb:</strong></p>
                             <div style="border: 1px solid black; width: 60px; height: 60px; display: flex; justify-content: center; align-items: center;">
@@ -1778,89 +1841,209 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
                                 <p><strong>Issued at:</strong> ${issued_at}</p>
                     </section>
 ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
-                </div>
             </div>
-        </body>
+        </div>
+    </body>
     </html>
 
 
         `;
     }else if (certificate.toLowerCase() === "beso application") {
-                printAreaContent = `
-                    <html>
-                        <head>
-                            <link rel="stylesheet" href="css/form.css">
-                            <link rel="stylesheet" href="css/print/print.css">
-                        </head>
-                        <body>
-                        <div class="container" id="printArea">
-                    <header>
-                        <div class="logo-header"> <?php if ($logo): ?>
+  printAreaContent = `
+    <html>
+      <head>
+        <link rel="stylesheet" href="css/form.css">
+        <link rel="stylesheet" href="css/print/print.css">
+        <link rel="stylesheet" href="css/print/oath.css">
+
+        <style>
+            /* 1. WATERMARK CSS */
+            .container { 
+                position: relative; 
+            }
+            .watermark-logo {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                
+                /* RESIZE HERE: Change 600px to whatever size you want */
+                width: 70%; 
+                
+                opacity: 0.15; /* Transparency */
+                z-index: 9999; /* Forces it to stay on top */
+                pointer-events: none;
+            }
+             /* 2. FONT CHANGE: Set to Courier New */
+            body, p, div, span, h2, h3, h4, strong, u {
+                font-family: "Courier New", Courier, monospace !important; 
+            }
+                  
+        </style>
+      </head>
+
+      <body>
+        <div class="container" id="printArea">
+
+          <?php if ($logo): ?>
+              <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+          <?php endif; ?>
+
+          <header>
+            <div class="logo-header">
+              <?php if ($logo): ?>
                 <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
-            <?php else: ?>
-                <p>No active Barangay logo found.</p>
-            <?php endif; ?>
-                                        <div class="header-text">
-                                            <h2><strong>Republic of the Philippines</strong></h2>
-                                            <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
-                                            <h3><strong><?php echo $barangayName; ?></strong></h3>
-                                            <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
-                                            <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
-                                        </div>
-                            <?php if ($cityLogo): ?>
-                <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo"    >
-            <?php else: ?>
-                <p>No active City/Municipality logo found.</p>
-            <?php endif; ?>
-                        </div>
-                                    <hr class="header-line">
-                                </header>
-                                <section class="barangay-certification">
-                                    <h4 style="text-align: center; font-size: 50px;"><strong>BARANGAY CERTIFICATION</strong></h4>
-                                    <p style="text-align: center; font-size: 18px; margin-top: -10px;">
-                                        <em>(First Time Jobseeker Assistance Act - RA 11261)</em>
-                                    </p>
-                                    <br>
-                                    <p>This is to certify that <strong><u>${fullname}</u></strong>, ${age} years old is a resident of 
-                                        <strong>${res_zone}</strong>, <strong>${res_street_address}</strong>, Bugo, Cagayan de Oro City for <strong>${(() => {
-                                            const start = new Date(residency_start);
-                                            const today = new Date();
-                                            let years = today.getFullYear() - start.getFullYear();
+              <?php endif; ?>
+              <div class="header-text header-center">
+                <h2><strong>Republic of the Philippines</strong></h2>
+                <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
+                <h3><strong><?php echo $barangayName; ?></strong></h3>
+                <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
+                <p>Tel No.: <?php echo htmlspecialchars($telephoneNumber); ?>; Cell: <?php echo htmlspecialchars($mobileNumber); ?></p>
+              </div>
+              <?php if ($cityLogo): ?>
+                <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo">
+              <?php endif; ?>
+            </div>
+          </header>
+          <hr class="header-line">
+          <div style="
+                display:flex;
+                justify-content:flex-end;
+                font-size:14px;
+                margin: 2px 0 10px 0;">
+            <div><strong>Barangay Certificate Number.:</strong> ${escapeHtml(seriesNum || '')}</div>
+          </div>          
 
-                                            // Adjust if current date hasn't reached the anniversary month/day yet
-                                            const m = today.getMonth() - start.getMonth();
-                                            if (m < 0 || (m === 0 && today.getDate() < start.getDate())) {
-                                                years--;
-                                            }
+          <section class="barangay-certification">
+            <h4 style="text-align: center; font-size: 50px; margin-top: -10px;"><strong>BARANGAY CERTIFICATION</strong></h4>
+            <p style="text-align: center; font-size: 18px; margin-top: -20px;">
+              <em>(First Time Jobseeker Assistance Act - RA 11261)</em>
+            </p>
 
-                                            return years + (years === 1 ? " year" : " years");
-                                        })()}</strong>, is <strong>qualified</strong> availee of <strong>RA 11261</strong> or the <strong>First Time Jobseeker act of 2019.</strong>
-                                    </p>
-                                    <p>Further certifies that the holder/bearer was informed of his/her rights, including the duties and responsibilities accorded by RA 11261 through the <strong>OATH UNDERTAKING</strong> he/she has signed and execute in the presence of our Barangay Official.</p>
-                                    <p>This certification is issued upon request of the above-named person for <strong>${purpose}</strong> purposes and is valid only until <strong>${(() => {
-                                        const issuedDate = new Date();
-                                        const validUntil = new Date(issuedDate.setFullYear(issuedDate.getFullYear() + 1));
-                                        return validUntil.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-                                    })()}</strong>.</p>
-                                    <br>
-                                    <p>Signed this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>, 
-                                        at Barangay Bugo, Cagayan de Oro City.
-                                    </p>
-                                </section>
-                                <br>
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 18px;">
-                        <section style="width: 48%; line-height: 1.8;">
-                        <br>
-                        <br>    
-                        <p> Not valid without seal</p>
-                        </section>
-${renderSignatorySection(isCaptainSignatory, assignedKagName)}
-                                </div>
-                            </div>
-                        </body>
-                    </html>
-                `;
-            }else if (certificate.toLowerCase() === "cedula") {
+            <p>This is to certify that <strong><u>${escapeHtml(fullname)}</u></strong>, ${escapeHtml(age)} years old is a resident of
+              <strong>${escapeHtml(res_zone)}</strong>, <strong>${escapeHtml(res_street_address)}</strong>, Bugo, Cagayan de Oro City for
+              <strong>${
+                (() => {
+                  const start = new Date(residency_start);
+                  const today = new Date();
+                  let years = today.getFullYear() - start.getFullYear();
+                  const m = today.getMonth() - start.getMonth();
+                  if (m < 0 || (m === 0 && today.getDate() < start.getDate())) years--;
+                  return years + (years === 1 ? " year" : " years");
+                })()
+              }</strong>, is <strong>qualified</strong> availee of <strong>RA 11261</strong> or the <strong>First Time Jobseeker Act of 2019</strong>.</p>
+
+            <p>Further certifies that the holder/bearer was informed of his/her rights, including the duties and responsibilities accorded by RA 11261 through the
+              <strong>Oath of Undertaking</strong> he/she has signed and executed in the presence of a Barangay Official.</p>
+
+            <p>This certification is issued upon the request of the above-named person for <strong>${escapeHtml(purpose)}</strong> purposes and is valid only until
+              <strong>${
+                (() => {
+                  const d = new Date();
+                  const valid = new Date(d.getFullYear() + 1, d.getMonth(), d.getDate());
+                  return valid.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+                })()
+              }</strong>.</p>
+
+            <p>Signed this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong>,
+              at Barangay Bugo, Cagayan de Oro City.</p>
+          </section>
+
+
+          <div class="two-col" style="margin-bottom:18px;">
+            <section class="col-48" style="line-height:1.8;">
+              <p><em>Not valid without seal</em></p>
+            </section>
+            ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+          </div>
+
+        </div> <div class="page-break"></div>
+
+        <div class="oath-page">
+          <div class="oath-inner">
+          <div class="oath-top-gap"></div>
+            <header>
+              <div class="oath-header">
+                <?php if ($logo): ?>
+                  <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
+                <?php else: ?><span></span><?php endif; ?>
+
+                <div class="header-text">
+                  <h2><strong>REPUBLIC OF THE PHILIPPINES</strong></h2>
+                  <h3><strong>City of Cagayan de Oro</strong></h3>
+                  <h3><strong>BARANGAY BUGO</strong></h3>
+                  <h4><strong>OFFICE OF THE SANGGUNIANG BARANGAY</strong></h4>
+                </div>
+
+                <?php if ($cityLogo): ?>
+                  <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo">
+                <?php else: ?><span></span><?php endif; ?>
+              </div>
+            </header>
+
+            <hr class="oath-rule">
+
+            <section class="oath-wrap">
+              <div class="oath-title">OATH OF UNDERTAKING</div>
+
+              <p class="no-indent">
+                I, <strong>${escapeHtml(fullname)}</strong>, <strong>${escapeHtml(age)}</strong> years of age, resident of
+                <strong>Barangay BUGO</strong>, <strong>${escapeHtml(res_zone)}</strong>, Bugo, Cagayan de Oro City, availing the benefits of
+                <strong>Republic Act 11261</strong>, otherwise known as the <strong>First Time Jobseekers Act of 2019</strong>, do hereby declare,
+                agree and undertake to abide and be bound by the following:
+              </p>
+
+              <p class="clause">That this is the first time that I will actively look for a job, and therefore requesting that a Barangay Certification be issued in my favor to avail the benefits of the law.</p>
+              <p class="clause">That I am aware that the benefits and privileges under the said law shall be valid only for one (1) year from the date that the Barangay Certification is issued.</p>
+              <p class="clause">That I can avail the benefits of the law only once.</p>
+              <p class="clause">That I understand that my personal information shall be included in the Roster/List of First Time Jobseekers and will not be used for any unlawful purpose.</p>
+              <p class="clause">That I will inform and/or report to the Barangay personally, through text or other means, or through my family/relatives once I get employed.</p>
+              <p class="clause">That I am not a beneficiary of the JobStart Program under R.A. No. 10869 and other laws that give similar exemptions for the documents or transactions exempted under R.A. No. 11261.</p>
+              <p class="clause">That if issued the requested Certification, I will not use the same in any fraud, neither falsely help and/or assist in the fabrication of the said certification.</p>
+              <p class="clause">That this undertaking is made solely for the purpose of obtaining a Barangay Certification consistent with the objective of R.A. No. 11261 and not for any other purpose.</p>
+              <p class="clause">That I consent to the use of my personal information pursuant to the Data Privacy Act and other applicable laws, rules, and regulations.</p>
+
+              <br>
+              <p class="no-indent">
+                Signed this <strong>${dayWithSuffix}</strong> day of <strong>${month}</strong>, <strong>${year}</strong> in the City/Municipality of
+                <strong>Cagayan de Oro</strong> City.
+              </p>
+<div class="sig-row">
+  <div class="sig-box sig-left">
+    <div class="sig-line"></div>
+    <div class="sig-caption">Witnessed By:</div>
+    ${(() => {
+        // Use the witness name string passed into the function
+        const name = (assignedWitnessName || '').trim();
+        
+        // Use fallbacks if no witness was assigned
+        const displayName = name || 'ENGR. BELEN B. BASADRE'; // Default fallback name
+        // Determine position based on name, or default
+        const displayTitle = name ? 'Barangay Secretary' : 'Barangay Executive Secretary';
+        
+        return `
+          <div class="sig-name">${escapeHtml(displayName.toUpperCase())}</div>
+          <div class="sig-sub">${escapeHtml(displayTitle)}</div>
+        `;
+    })()}
+  </div>
+
+  <div class="sig-box sig-right">
+    <div class="sig-line"></div>
+    <div class="sig-caption">First Time Jobseekers</div>
+  </div>
+</div>
+
+
+    </section>
+        </div>
+      </div>
+
+    </body>
+  </html>
+  `;
+}else if (certificate.toLowerCase() === "cedula") {
   // --- helpers ---
   const toNumericShort = d => {
     const dt = d ? new Date(d) : new Date();
@@ -1944,20 +2127,16 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
     </head>
     <body>
       <div id="sheet">
-        <!-- Top band -->
         <div class="txt year">${yearToday}</div>
         <div class="txt placeIssue ${placeIssue.length>22?'small':''}">${escapeHtml(placeIssue)}</div>
         <div class="txt dateIssued">${escapeHtml(dateIssued)}</div>
 
-        <!-- Names -->
         <div class="txt lname">${escapeHtml(LNAME)}</div>
         <div class="txt fname">${escapeHtml(FNAME)}</div>
         <div class="txt mname">${escapeHtml(MNAME)}</div>
 
-        <!-- Address -->
         <div class="txt address ${address.length>48?'small':''}">${escapeHtml(address)}</div>
 
-        <!-- Right column -->
         <div class="txt pob ${birthPlace.length>32?'small':''}">${escapeHtml(birthPlace)}</div>
         <div class="txt dob">${escapeHtml(birthDate)}</div>
       </div>
@@ -2100,8 +2279,61 @@ document.addEventListener('DOMContentLoaded', () => {
           // Trigger initial toggle state
           statusSelect.dispatchEvent(new Event('change'));
 
+          /* -------------------------------------------------------------
+             NEW FRONTEND BLOCKING LOGIC
+             ------------------------------------------------------------- */
+          const saveBtn = document.getElementById('saveStatusBtn');
+          let isBlocked = false;
+
+          // Reset UI
+          if (saveBtn) {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save Status';
+              saveBtn.classList.remove('btn-secondary');
+              saveBtn.classList.add('btn-success');
+          }
+          
+          // Remove old alert
+          const existingAlert = document.getElementById('blockAlert');
+          if(existingAlert) existingAlert.remove();
+
+          // Check fetched cases
+          if (data.cases && data.cases.length > 0) {
+            data.cases.forEach(c => {
+               if(c.participants && c.participants.length > 0) {
+                   c.participants.forEach(p => {
+                       const role = (p.role || '').trim();
+                       const action = (p.action_taken || '').trim();
+                       if (role === 'Respondent' && action === 'Non-Appearance') {
+                           isBlocked = true;
+                       }
+                   });
+               }
+            });
+          }
+
+          // Apply visual block
+          if (isBlocked && saveBtn) {
+              saveBtn.disabled = true;
+              saveBtn.classList.remove('btn-success');
+              saveBtn.classList.add('btn-secondary');
+              saveBtn.innerHTML = '<i class="bi bi-lock-fill"></i> BLOCKED (Non-Appearance)';
+
+              const alertHTML = `
+                <div id="blockAlert" class="alert alert-danger d-flex align-items-center mt-3" role="alert">
+                  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2"></i>
+                  <div>
+                    <strong>Action Forbidden:</strong> This resident has a "Non-Appearance" record as a Respondent. Status updates are disabled.
+                  </div>
+                </div>
+              `;
+              const formContainer = document.querySelector('#statusUpdateForm .sticky-action');
+              if(formContainer) formContainer.insertAdjacentHTML('beforebegin', alertHTML);
+          }
+          /* ------------------------------------------------------------- */
+
+
           // ----- Render Case History -----
-          // ----- Render Case History (Updated with Participants, Action & Remarks) -----
           const container = document.getElementById('caseHistoryContainer');
           if (container) {
             if (data.cases && data.cases.length) {
@@ -2118,27 +2350,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 let participantsHtml = '';
                 if (cs.participants && cs.participants.length > 0) {
                     const listItems = cs.participants.map(p => {
-                        
-                        // 1. Action Taken Line (Hidden if empty)
                         const actionLine = p.action_taken 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-check2-circle me-1 text-success"></i><strong>Action:</strong> ${p.action_taken}
                                </div>` 
                             : '';
-
-                        // 2. Remarks Line (Hidden if empty)
                         const remarksLine = p.remarks 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-chat-left-text me-1 text-info"></i><strong>Remarks:</strong> ${p.remarks}
                                </div>` 
                             : '';
-                        
-                        // Only show the border/block if there is actually data to show
                         const detailsBlock = (actionLine || remarksLine) 
-                            ? `<div class="ms-1 ps-3 border-start border-2 border-light mb-2">
-                                 ${actionLine}
-                                 ${remarksLine}
-                               </div>` 
+                            ? `<div class="ms-1 ps-3 border-start border-2 border-light mb-2">${actionLine}${remarksLine}</div>` 
                             : '';
 
                         return `
@@ -2218,8 +2441,8 @@ document.addEventListener('DOMContentLoaded', () => {
   statusForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const newStatus      = statusSelect.value;
-    const currentStatus  = statusForm.dataset.currentStatusNorm || normStatus(statusForm.dataset.currentStatus || '');
+    const newStatus       = statusSelect.value;
+    const currentStatus   = statusForm.dataset.currentStatusNorm || normStatus(statusForm.dataset.currentStatus || '');
 
     // Require ApprovedCaptain before Released
     if (normStatus(newStatus) === 'released' && currentStatus !== 'approvedcaptain') {

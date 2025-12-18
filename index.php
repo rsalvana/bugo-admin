@@ -19,19 +19,21 @@ if (empty($_SESSION['csrf_token'])) {
     $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
 }
 
-// --- Email OTP sender helper (PHPMailer) ---
+// --- Email OTP sender helper (UPDATED FOR GMAIL) ---
 function send_2fa_mail(string $toEmail, string $toName, string $code): void {
-  $mailboxUser = 'admin@bugoportal.site';
-  $mailboxPass = 'Jayacop@100'; // TODO: move to env/secret
-  $smtpHost    = 'mail.bugoportal.site';
+  // 1. UPDATED GMAIL CREDENTIALS
+  $mailboxUser = 'jayacop9@gmail.com';
+  $mailboxPass = 'fsls ywyv irfn ctyc'; // Your specific App Password
+  $smtpHost    = 'smtp.gmail.com';
 
   $safeName = htmlspecialchars($toName ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
   $safeCode = htmlspecialchars($code ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
   $buildMessage = function(PHPMailer $m) use ($toEmail, $safeName, $safeCode, $mailboxUser) {
-    $m->setFrom($mailboxUser, 'Barangay Bugo');
+    // Gmail rewrites the From header anyway, but good to match
+    $m->setFrom($mailboxUser, 'Barangay Bugo Admin');
     $m->addAddress($toEmail, $safeName);
-    $m->addBCC($mailboxUser); // TEMP while testing
+    
     $m->isHTML(true);
     $m->Subject = 'Barangay Bugo 2FA Code';
     $m->Body = "<p>Hello <strong>{$safeName}</strong>,</p>
@@ -41,9 +43,6 @@ function send_2fa_mail(string $toEmail, string $toName, string $code): void {
                 <br><p>Thank you,<br>Barangay Bugo Portal</p>";
     $m->AltBody  = "Your verification code is: {$safeCode}\nThis code is valid for 5 minutes.";
     $m->CharSet  = 'UTF-8';
-    $m->Hostname = 'bugoportal.site';
-    $m->Sender   = $mailboxUser;
-    $m->addReplyTo($mailboxUser, 'Barangay Bugo');
   };
 
   $attempt = function(string $mode, int $port) use ($smtpHost, $mailboxUser, $mailboxPass, $buildMessage) {
@@ -55,8 +54,13 @@ function send_2fa_mail(string $toEmail, string $toName, string $code): void {
     $mail->Password      = $mailboxPass;
     $mail->Port          = $port;
     $mail->Timeout       = 10;
-    $mail->SMTPAutoTLS   = true;
-    $mail->SMTPKeepAlive = false;
+    
+    // Gmail uses TLS (587) or SSL (465)
+    $mail->SMTPSecure = ($mode === 'ssl')
+      ? PHPMailer::ENCRYPTION_SMTPS   // 465
+      : PHPMailer::ENCRYPTION_STARTTLS; // 587
+
+    // Localhost SSL Bypass
     $mail->SMTPOptions = [
       'ssl' => [
         'verify_peer'       => false,
@@ -64,32 +68,24 @@ function send_2fa_mail(string $toEmail, string $toName, string $code): void {
         'allow_self_signed' => true,
       ]
     ];
-    $mail->SMTPSecure = ($mode === 'ssl')
-      ? PHPMailer::ENCRYPTION_SMTPS   // 465
-      : PHPMailer::ENCRYPTION_STARTTLS; // 587
+    
     $buildMessage($mail);
     $mail->send();
   };
 
-  error_log("2FA: sending code={$code} to {$toEmail}");
+  error_log("2FA: sending code to {$toEmail}");
 
   try {
-    $attempt('ssl', 465);
+    // Try Port 587 (TLS) first for Gmail
+    $attempt('tls', 587);
   } catch (\Throwable $e1) {
-    error_log('2FA: 465 failed: '.$e1->getMessage());
+    error_log('2FA: 587 failed: '.$e1->getMessage());
     try {
-      $attempt('tls', 587);
+      // Fallback to Port 465 (SSL)
+      $attempt('ssl', 465);
     } catch (\Throwable $e2) {
-      error_log('2FA: 587 failed: '.$e2->getMessage());
-      try {
-        $fallback = new PHPMailer(true);
-        $fallback->isMail();
-        $buildMessage($fallback);
-        $fallback->send();
-      } catch (\Throwable $e3) {
-        error_log('2FA: sendmail failed: '.$e3->getMessage());
-        throw new \RuntimeException('Unable to send verification email right now.');
-      }
+      error_log('2FA: 465 failed: '.$e2->getMessage());
+      throw new \RuntimeException('Unable to send verification email. check SMTP config.');
     }
   } finally {
     if (isset($GLOBALS['mysqli']) && $GLOBALS['mysqli'] instanceof mysqli) {
@@ -211,7 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     // Decide post-login redirect based on role (used after OTP success OR bypass)
                     switch (true) {
                         case strpos($role_name, 'admin') !== false:
-                            $redirect_page = enc_page('admin_dashboard'); break;                                            
+                            $redirect_page = enc_page('admin_dashboard'); break;                                        
                         case strpos($role_name, 'revenue') !== false:
                             $redirect_page = enc_revenue('admin_dashboard'); break;
                         case strpos($role_name, 'indigency') !== false:
@@ -233,7 +229,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         case strpos($role_name, 'bhw') !== false:
                             $redirect_page = enc_bhw('bhw_dashboard'); break; 
                             case strpos($role_name, 'liason') !== false:
-                                $redirect_page = enc_liason('liason_dashboard'); break;                                                              
+                                $redirect_page = enc_liason('liason_dashboard'); break;                                                          
                         default:
                             $redirect_page = enc_page('admin_dashboard');
                     }
@@ -300,7 +296,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         ];
 
                         // Use an absolute path so it works from anywhere
-                        header('Location: /auth/login_auth/verify_email.php');
+                        header('Location: /bugo-admin/auth/login_auth/verify_email.php');
                         exit;
                     }
                 } else {
@@ -405,7 +401,6 @@ $mysqli->close();
             color: #fff;
             margin-top: 20px;
         }
-/* ... your .footer style ... */
 
         /* START: NEW RECAPTCHA FIX */
         .g-recaptcha {
@@ -422,8 +417,6 @@ $mysqli->close();
         }
         /* END: NEW RECAPTCHA FIX */
 
-    </style>
-    
     </style>
 </head>
 <body class="is-login">

@@ -70,3 +70,4 @@
 [2025-09-04 03:30:47] Row 11 raw: case=1010, compl='Miguel Aquino', resp='Marco Aquino', nature='Curfew Violation', dateCell="2025-08-10", parsedDate=2025-08-10, timeCell="10:15", parsedTime=10:15:00, hearingCell="2025-08-24", parsedHearing=2025-08-24, action='Ongoing'
 [2025-09-04 03:30:47] Row 11 inserted OK (case 1010)
 [2025-09-04 03:30:47] === Import end === imported=10, skipped=0
+[2025-12-17 21:31:49] === Import start === employee_id=95, tmp=C:\Users\Jun Ryan\Desktop\xampp\tmp\php5E9.tmp, logFile=C:\Users\Jun Ryan\Desktop\xampp\htdocs\bugo-admin\Modules\lupon_modules/logs\case_import.log

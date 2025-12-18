@@ -55,7 +55,7 @@ $status = $main['current_status'];
 $appointments = [];
 
 $tables = [
-    // table,          certificate expr, time col,           date col,           cedula_number expr,         income expr (aliased)
+    // table,          certificate expr, time col,           date col,           cedula_number expr,        income expr (aliased)
     ['schedules',      'certificate',    'selected_time',    'selected_date',    'NULL AS cedula_number',    'NULL AS cedula_income'],
     ['cedula',         "'Cedula'",       'appointment_time','appointment_date', 'cedula_number',            'income AS cedula_income'],
     ['urgent_request', 'certificate',    'selected_time',    'selected_date',    'NULL AS cedula_number',    'NULL AS cedula_income'],
@@ -125,27 +125,41 @@ $last   = $residentRow['last_name']   ?? '';
 $suffix = $residentRow['suffix_name'] ?? '';
 
 /* 2) Cases query WITH Participants Sub-query */
+// UPDATED: Now checks BOTH the main 'cases' table AND 'case_participants' table
 $cases = [];
 $case_sql = "
-    SELECT case_number, nature_offense, date_filed, date_hearing, action_taken
+    SELECT c.case_number, c.nature_offense, c.date_filed, c.date_hearing, c.action_taken
     FROM cases c
     WHERE
-        UPPER(TRIM(c.Resp_First_Name)) = UPPER(TRIM(?))
-        AND UPPER(TRIM(c.Resp_Last_Name))  = UPPER(TRIM(?))
-        AND (
-            c.Resp_Middle_Name IS NULL OR c.Resp_Middle_Name = ''
-            OR UPPER(TRIM(c.Resp_Middle_Name)) = UPPER(TRIM(?))
-            OR LEFT(UPPER(TRIM(c.Resp_Middle_Name)), 1) = LEFT(UPPER(TRIM(?)), 1)
+        -- 1. Match in Main Case Header
+        (
+            UPPER(TRIM(c.Resp_First_Name)) = UPPER(TRIM(?))
+            AND UPPER(TRIM(c.Resp_Last_Name))  = UPPER(TRIM(?))
+            AND (
+                c.Resp_Middle_Name IS NULL OR c.Resp_Middle_Name = ''
+                OR UPPER(TRIM(c.Resp_Middle_Name)) = UPPER(TRIM(?))
+                OR LEFT(UPPER(TRIM(c.Resp_Middle_Name)), 1) = LEFT(UPPER(TRIM(?)), 1)
+            )
+            AND (
+                c.Resp_Suffix_Name IS NULL OR c.Resp_Suffix_Name = ''
+                OR UPPER(TRIM(c.Resp_Suffix_Name)) = UPPER(TRIM(?))
+            )
         )
-        AND (
-            c.Resp_Suffix_Name IS NULL OR c.Resp_Suffix_Name = ''
-            OR UPPER(TRIM(c.Resp_Suffix_Name)) = UPPER(TRIM(?))
+        OR 
+        -- 2. Match in Case Participants (e.g., Respondent with Non-Appearance)
+        EXISTS (
+            SELECT 1 FROM case_participants cp 
+            WHERE cp.case_number = c.case_number
+            AND UPPER(TRIM(cp.first_name)) = UPPER(TRIM(?))
+            AND UPPER(TRIM(cp.last_name))  = UPPER(TRIM(?))
         )
-    ORDER BY COALESCE(date_filed, '0000-00-00') DESC, case_number DESC
+    ORDER BY COALESCE(c.date_filed, '0000-00-00') DESC, c.case_number DESC
 ";
+
 $cStmt = $mysqli->prepare($case_sql);
 if ($cStmt) {
-    $cStmt->bind_param('sssss', $first, $last, $middle, $middle, $suffix);
+    // Params: Main(F, L, M, M, S) + Participants(F, L)
+    $cStmt->bind_param('sssssss', $first, $last, $middle, $middle, $suffix, $first, $last);
     $cStmt->execute();
     $res = $cStmt->get_result();
     
@@ -155,7 +169,7 @@ if ($cStmt) {
         $participants = [];
 
         // --- SUB-QUERY for Participants ---
-        // Updated to fetch 'action_taken' and 'remarks' as requested
+        // Fetches detailed info including 'action_taken' which contains 'Non-Appearance'
         $partSql = "SELECT role, first_name, middle_name, last_name, suffix_name, action_taken, remarks 
                     FROM case_participants 
                     WHERE case_number = ?";

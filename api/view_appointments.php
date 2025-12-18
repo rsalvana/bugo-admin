@@ -53,6 +53,7 @@ if (isset($_POST['delete_appointment'], $_POST['tracking_number'], $_POST['certi
 }
 
 /* ====================== Status update ====================== */
+/* ====================== Status update ====================== */
 if (isset($_POST['update_status'], $_POST['tracking_number'], $_POST['new_status'], $_POST['certificate'])) {
     $tracking_number = $_POST['tracking_number'];
     $new_status      = $_POST['new_status'];
@@ -60,6 +61,71 @@ if (isset($_POST['update_status'], $_POST['tracking_number'], $_POST['new_status
     $cedula_number   = trim($_POST['cedula_number'] ?? '');
     $rejection_reason= trim($_POST['rejection_reason'] ?? '');
     $employee_id     = $_SESSION['employee_id'] ?? null;
+
+    /* -----------------------------------------------------------
+       1. NEW BLOCKING LOGIC: CHECK FOR NON-APPEARANCE
+       ----------------------------------------------------------- */
+    // A. Identify the resident ID first
+    $resIdQuery = "
+        SELECT res_id FROM schedules WHERE tracking_number = ?
+        UNION SELECT res_id FROM cedula WHERE tracking_number = ?
+        UNION SELECT res_id FROM urgent_request WHERE tracking_number = ?
+        UNION SELECT res_id FROM urgent_cedula_request WHERE tracking_number = ?
+        LIMIT 1
+    ";
+    $stmtRes = $mysqli->prepare($resIdQuery);
+    $stmtRes->bind_param("ssss", $tracking_number, $tracking_number, $tracking_number, $tracking_number);
+    $stmtRes->execute();
+    $resResult = $stmtRes->get_result();
+    $resRow = $resResult->fetch_assoc();
+    $stmtRes->close();
+
+    if ($resRow) {
+        $resident_id = $resRow['res_id'];
+
+        // B. Get Resident Name
+        $nameQ = $mysqli->prepare("SELECT first_name, last_name, middle_name, suffix_name FROM residents WHERE id = ?");
+        $nameQ->bind_param("i", $resident_id);
+        $nameQ->execute();
+        $resInfo = $nameQ->get_result()->fetch_assoc();
+        $nameQ->close();
+
+        if ($resInfo) {
+            $fname = trim($resInfo['first_name']);
+            $lname = trim($resInfo['last_name']);
+            
+            // C. Check case_participants for 'Respondent' AND 'Non-Appearance'
+            $blockSql = "
+                SELECT COUNT(*) as count 
+                FROM case_participants 
+                WHERE LOWER(first_name) = LOWER(?) 
+                  AND LOWER(last_name) = LOWER(?) 
+                  AND role = 'Respondent' 
+                  AND action_taken = 'Non-Appearance'
+            ";
+            
+            $blockStmt = $mysqli->prepare($blockSql);
+            $blockStmt->bind_param("ss", $fname, $lname);
+            $blockStmt->execute();
+            $blockRes = $blockStmt->get_result()->fetch_assoc();
+            $blockStmt->close();
+
+            if ($blockRes['count'] > 0) {
+                echo "<script>
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Action Blocked',
+                        text: 'Cannot update status. This resident is marked as a Respondent with Non-Appearance in a pending case.',
+                        confirmButtonText: 'OK'
+                    }).then(() => {
+                        window.location = '" . enc_page('view_appointments') . "';
+                    });
+                </script>";
+                exit; // STOP EXECUTION HERE
+            }
+        }
+    }
+    /* ---------------- END BLOCKING LOGIC ---------------- */
 
     // Check if urgent cedula
     $checkUrgentCedula = $mysqli->prepare("SELECT COUNT(*) FROM urgent_cedula_request WHERE tracking_number = ?");
@@ -91,102 +157,101 @@ if (isset($_POST['update_status'], $_POST['tracking_number'], $_POST['new_status
         }
     }
 
-// Perform the status update based on type/urgency
-if ($isUrgentCedula > 0) {
-    if ($new_status === 'Rejected') {
-        $query = "UPDATE urgent_cedula_request 
-                    SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
-                    WHERE tracking_number = ?";
-        $stmt = $mysqli->prepare($query);
-        $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
-    } else {
-        // If releasing, make sure issuance fields are set
-        if ($new_status === 'Released') {
-            $issued_on       = date('Y-m-d');
-            $issued_at_place= 'Barangay Bugo, Cagayan de Oro City';
-            $query = "UPDATE urgent_cedula_request 
-                        SET cedula_status = ?, cedula_number = ?,
-                            issued_on = CASE WHEN issued_on IS NULL OR issued_on='0000-00-00' THEN ? ELSE issued_on END,
-                            issued_at = CASE WHEN issued_at IS NULL OR issued_at='' THEN ? ELSE issued_at END,
-                            rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssssis", $new_status, $cedula_number, $issued_on, $issued_at_place, $employee_id, $tracking_number);
-        } else {
-            $query = "UPDATE urgent_cedula_request 
-                        SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
-        }
-    }
-} elseif ($certificate === 'Cedula') {
-    if ($new_status === 'Rejected') {
-        $query = "UPDATE cedula 
-                    SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
-                    WHERE tracking_number = ?";
-        $stmt = $mysqli->prepare($query);
-        $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
-    } else {
-        if ($new_status === 'Released') {
-            $issued_on       = date('Y-m-d');
-            $issued_at_place= 'Barangay Bugo, Cagayan de Oro City';
-            $query = "UPDATE cedula 
-                        SET cedula_status = ?, cedula_number = ?,
-                            issued_on = CASE WHEN issued_on IS NULL OR issued_on='0000-00-00' THEN ? ELSE issued_on END,
-                            issued_at = CASE WHEN issued_at IS NULL OR issued_at='' THEN ? ELSE issued_at END,
-                            rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssssis", $new_status, $cedula_number, $issued_on, $issued_at_place, $employee_id, $tracking_number);
-        } else {
-            $query = "UPDATE cedula 
-                        SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
-        }
-    }
-} else {
-    // urgent non-cedula?
-    $checkUrgent = $mysqli->prepare("SELECT COUNT(*) FROM urgent_request WHERE tracking_number = ?");
-    $checkUrgent->bind_param("s", $tracking_number);
-    $checkUrgent->execute();
-    $checkUrgent->bind_result($isUrgent);
-    $checkUrgent->fetch();
-    $checkUrgent->close();
-
-    if ($isUrgent > 0) {
+    // Perform the status update based on type/urgency
+    if ($isUrgentCedula > 0) {
         if ($new_status === 'Rejected') {
-            $query = "UPDATE urgent_request 
-                        SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+            $query = "UPDATE urgent_cedula_request 
+                        SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
                         WHERE tracking_number = ?";
             $stmt = $mysqli->prepare($query);
             $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
         } else {
-            $query = "UPDATE urgent_request 
-                        SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            // If releasing, make sure issuance fields are set
+            if ($new_status === 'Released') {
+                $issued_on       = date('Y-m-d');
+                $issued_at_place = 'Barangay Bugo, Cagayan de Oro City';
+                $query = "UPDATE urgent_cedula_request 
+                            SET cedula_status = ?, cedula_number = ?,
+                                issued_on = CASE WHEN issued_on IS NULL OR issued_on='0000-00-00' THEN ? ELSE issued_on END,
+                                issued_at = CASE WHEN issued_at IS NULL OR issued_at='' THEN ? ELSE issued_at END,
+                                rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssssis", $new_status, $cedula_number, $issued_on, $issued_at_place, $employee_id, $tracking_number);
+            } else {
+                $query = "UPDATE urgent_cedula_request 
+                            SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
+            }
         }
-    } else {
+    } elseif ($certificate === 'Cedula') {
         if ($new_status === 'Rejected') {
-            $query = "UPDATE schedules 
-                        SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+            $query = "UPDATE cedula 
+                        SET cedula_status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
                         WHERE tracking_number = ?";
             $stmt = $mysqli->prepare($query);
             $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
         } else {
-            $query = "UPDATE schedules 
-                        SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
-                        WHERE tracking_number = ?";
-            $stmt = $mysqli->prepare($query);
-            $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            if ($new_status === 'Released') {
+                $issued_on       = date('Y-m-d');
+                $issued_at_place = 'Barangay Bugo, Cagayan de Oro City';
+                $query = "UPDATE cedula 
+                            SET cedula_status = ?, cedula_number = ?,
+                                issued_on = CASE WHEN issued_on IS NULL OR issued_on='0000-00-00' THEN ? ELSE issued_on END,
+                                issued_at = CASE WHEN issued_at IS NULL OR issued_at='' THEN ? ELSE issued_at END,
+                                rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssssis", $new_status, $cedula_number, $issued_on, $issued_at_place, $employee_id, $tracking_number);
+            } else {
+                $query = "UPDATE cedula 
+                            SET cedula_status = ?, cedula_number = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssis", $new_status, $cedula_number, $employee_id, $tracking_number);
+            }
+        }
+    } else {
+        // urgent non-cedula?
+        $checkUrgent = $mysqli->prepare("SELECT COUNT(*) FROM urgent_request WHERE tracking_number = ?");
+        $checkUrgent->bind_param("s", $tracking_number);
+        $checkUrgent->execute();
+        $checkUrgent->bind_result($isUrgent);
+        $checkUrgent->fetch();
+        $checkUrgent->close();
+
+        if ($isUrgent > 0) {
+            if ($new_status === 'Rejected') {
+                $query = "UPDATE urgent_request 
+                            SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
+            } else {
+                $query = "UPDATE urgent_request 
+                            SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            }
+        } else {
+            if ($new_status === 'Rejected') {
+                $query = "UPDATE schedules 
+                            SET status = ?, rejection_reason = ?, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("ssis", $new_status, $rejection_reason, $employee_id, $tracking_number);
+            } else {
+                $query = "UPDATE schedules 
+                            SET status = ?, rejection_reason = NULL, is_read = 0, notif_sent = 1, employee_id = ?
+                            WHERE tracking_number = ?";
+                $stmt = $mysqli->prepare($query);
+                $stmt->bind_param("sis", $new_status, $employee_id, $tracking_number);
+            }
         }
     }
-}
-
 
     $stmt->execute();
     $stmt->close();
@@ -215,24 +280,24 @@ if ($isUrgentCedula > 0) {
 
     if ($isUrgentCedula) {
         $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM urgent_cedula_request u
-                            JOIN residents r ON u.res_id = r.id
-                            WHERE u.tracking_number = ?";
+                        FROM urgent_cedula_request u
+                        JOIN residents r ON u.res_id = r.id
+                        WHERE u.tracking_number = ?";
     } elseif ($certificate === 'Cedula') {
         $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM cedula c
-                            JOIN residents r ON c.res_id = r.id
-                            WHERE c.tracking_number = ?";
+                        FROM cedula c
+                        JOIN residents r ON c.res_id = r.id
+                        WHERE c.tracking_number = ?";
     } elseif ($isUrgentSchedule) {
         $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM urgent_request u
-                            JOIN residents r ON u.res_id = r.id
-                            WHERE u.tracking_number = ?";
+                        FROM urgent_request u
+                        JOIN residents r ON u.res_id = r.id
+                        WHERE u.tracking_number = ?";
     } else {
         $email_query = "SELECT r.email, r.contact_number, CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name
-                            FROM schedules s
-                            JOIN residents r ON s.res_id = r.id
-                            WHERE s.tracking_number = ?";
+                        FROM schedules s
+                        JOIN residents r ON s.res_id = r.id
+                        WHERE s.tracking_number = ?";
     }
 
     $stmt_email = $mysqli->prepare($email_query);
@@ -2229,7 +2294,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          // Set current status
+          // --- 1. Basic Setup & Status Locking ---
           statusForm.dataset.currentStatus     = data.status || '';
           statusForm.dataset.currentStatusNorm = normStatus(data.status);
           statusSelect.value                   = data.status || '';
@@ -2245,11 +2310,73 @@ document.addEventListener('DOMContentLoaded', () => {
           // Pre-fill witness name if it exists (BESO)
           if (assignWitnessSelect) assignWitnessSelect.value = selectedAppt?.assigned_witness_name || '';
 
-          // Trigger initial toggle state
+          // Trigger initial toggle state (to show/hide fields based on status)
           statusSelect.dispatchEvent(new Event('change'));
 
-          // ----- Render Case History -----
-// ----- Render Case History (Updated with Participants, Action Taken & Remarks) -----
+
+          // ---------------------------------------------------------
+          // 2. NEW FRONTEND LOGIC: Check for Non-Appearance and Block UI
+          // ---------------------------------------------------------
+          const saveBtn = document.getElementById('saveStatusBtn');
+          let isBlocked = false;
+
+          // Reset UI first (clean slate)
+          if (saveBtn) {
+              saveBtn.disabled = false;
+              saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save Status';
+              saveBtn.classList.remove('btn-secondary');
+              saveBtn.classList.add('btn-success');
+          }
+          
+          // Remove any existing warning alerts from previous opens
+          const existingAlert = document.getElementById('blockAlert');
+          if(existingAlert) existingAlert.remove();
+
+          // Check cases for blocking condition
+          if (data.cases && data.cases.length > 0) {
+            data.cases.forEach(c => {
+               if(c.participants && c.participants.length > 0) {
+                   c.participants.forEach(p => {
+                       // Normalize strings for comparison
+                       const role = (p.role || '').trim();
+                       const action = (p.action_taken || '').trim();
+
+                       if (role === 'Respondent' && action === 'Non-Appearance') {
+                           isBlocked = true;
+                       }
+                   });
+               }
+            });
+          }
+
+          // Apply Blocking UI if needed
+          if (isBlocked && saveBtn) {
+              // Disable the button
+              saveBtn.disabled = true;
+              saveBtn.classList.remove('btn-success');
+              saveBtn.classList.add('btn-secondary');
+              saveBtn.innerHTML = '<i class="bi bi-lock-fill"></i> BLOCKED (Non-Appearance)';
+
+              // Show a visual warning inside the modal
+              const alertHTML = `
+                <div id="blockAlert" class="alert alert-danger d-flex align-items-center mt-3" role="alert">
+                  <i class="bi bi-exclamation-triangle-fill flex-shrink-0 me-2"></i>
+                  <div>
+                    <strong>Action Forbidden:</strong> This resident has a "Non-Appearance" record as a Respondent. Status updates are disabled.
+                  </div>
+                </div>
+              `;
+              
+              // Inject above the button inside the sticky-action container
+              const formContainer = document.querySelector('#statusUpdateForm .sticky-action');
+              if(formContainer) {
+                  formContainer.insertAdjacentHTML('beforebegin', alertHTML);
+              }
+          }
+          // ---------------------------------------------------------
+
+
+          // --- 3. Render Case History ---
           const container = document.getElementById('caseHistoryContainer');
           if (container) {
             if (data.cases && data.cases.length) {
@@ -2267,21 +2394,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (cs.participants && cs.participants.length > 0) {
                     const listItems = cs.participants.map(p => {
                         
-                        // 1. Action Taken Line (from case_participants table)
+                        // 1. Action Taken Line
                         const actionLine = p.action_taken 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-check2-circle me-1 text-success"></i><strong>Action:</strong> ${p.action_taken}
                                </div>` 
                             : '';
 
-                        // 2. Remarks Line (from case_participants table)
+                        // 2. Remarks Line
                         const remarksLine = p.remarks 
                             ? `<div class="text-muted mt-1" style="font-size:0.85em;">
                                  <i class="bi bi-chat-left-text me-1 text-info"></i><strong>Remarks:</strong> ${p.remarks}
                                </div>` 
                             : '';
                         
-                        // Combine details with indentation
                         const detailsBlock = (actionLine || remarksLine) 
                             ? `<div class="ms-1 ps-3 border-start border-2 border-light mb-2">
                                  ${actionLine}
@@ -2335,7 +2461,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           }
 
-          // ----- Render Same-day Appointments (Preserved) -----
+          // --- 4. Render Same-day Appointments ---
           const ul   = document.getElementById('sameDayAppointments');
           const peso = v => '₱' + Number(v).toLocaleString('en-PH');
           if (ul) {
