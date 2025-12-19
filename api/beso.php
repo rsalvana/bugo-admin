@@ -1,13 +1,17 @@
 <?php
-ini_set('display_errors', 0); // Don't show PHP errors to users
-ini_set('log_errors', 1);     // Log errors instead
-error_reporting(E_ALL);       // Still report them in logs
-
+/* --------------------------------------------------------------------------
+   1. DIRECT ACCESS CHECK
+   (Keep this to prevent direct access to the API file)
+-------------------------------------------------------------------------- */
 if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
     http_response_code(403);
     require_once __DIR__ . '/../security/403.html';
     exit;
 }
+
+ini_set('display_errors', 0); // Don't show PHP errors to users
+ini_set('log_errors', 1);     // Log errors instead
+error_reporting(E_ALL);       // Still report them in logs
 
 if (session_status() === PHP_SESSION_NONE) session_start();
 
@@ -15,11 +19,48 @@ require_once __DIR__ . '/../include/connection.php';
 $mysqli = db_connection();
 include 'class/session_timeout.php';
 
+/* --------------------------------------------------------------------------
+   2. EXPORT HANDLER (MUST BE HERE)
+   - Checks if 'export_errors' is in the URL.
+   - Cleans the output buffer to remove Admin Sidebar/Header.
+   - Force downloads the CSV.
+-------------------------------------------------------------------------- */
+if (isset($_GET['export_errors']) && $_GET['export_errors'] == '1') {
+    if (!empty($_SESSION['beso_import_errors'])) {
+        // Wipe any HTML (Sidebar, Navbar, etc.) that index_Admin.php already loaded
+        while (ob_get_level()) { ob_end_clean(); }
+
+        // Send Download Headers
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="skipped_rows_report.csv"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+        
+        $output = fopen('php://output', 'w');
+        
+        // Add BOM for Excel compatibility
+        fputs($output, "\xEF\xBB\xBF");
+        
+        // Dump the data
+        foreach ($_SESSION['beso_import_errors'] as $row) {
+            fputcsv($output, $row);
+        }
+        
+        fclose($output);
+        
+        // Clear errors
+        unset($_SESSION['beso_import_errors']);
+        
+        // STOP EXECUTION so no more HTML is added
+        exit(); 
+    }
+}
+
 /**
  * NOTE: This fetch file now:
  * - de-duplicates by GROUP BY b.id
  * - exposes: contactNum_resolved, age_resolved
- *   (BESO values preferred, fall back to residents)
+ * (BESO values preferred, fall back to residents)
  */
 require_once 'components/beso/beso_fetch.php';
 require_once 'components/beso/edit_modal.php';
@@ -220,17 +261,34 @@ if (
         $employeeId = (int)($_SESSION['employee_id'] ?? 0);
         $inserted = 0; $skipped = 0; $dups = 0;
 
+        // Initialize Error Log
+        $errorLog = [];
+        $errorLog[] = ['REASON', 'IS DUPLICATE', 'IS INCOMPLETE', 'FIRST NAME', 'MIDDLE NAME', 'LAST NAME', 'SUFFIX', 'CONTACT', 'AGE', 'EDUCATION', 'COURSE']; 
+
         foreach ($rows as $r) {
             $first=$r['first']; $middle=$r['middle']; $last=$r['last']; $suffix=$r['suffix'];
             $contact=$r['contact']; $ageVal=$r['age']; $edu=$r['edu']; $course=$r['course'];
 
-            // de-dup
+            // 1. STRICT VALIDATION RULE (Incomplete Data)
+            if ($first === '' || $last === '' || $contact === '' || $ageVal === null || $edu === '' || $course === '') {
+                $skipped++;
+                // Add to error log: Reason, Is Dup, Is Incomplete
+                $errorLog[] = ['INCOMPLETE DATA', 'No', 'Yes', $first, $middle, $last, $suffix, $contact, $ageVal, $edu, $course];
+                continue; 
+            }
+
+            // 2. DUPLICATE CHECK
             $dupStmt->bind_param('sssss', $first, $middle, $last, $suffix, $contact);
             $dupStmt->execute(); $dupStmt->store_result();
-            if ($dupStmt->num_rows > 0) { $dups++; $dupStmt->free_result(); continue; }
+            if ($dupStmt->num_rows > 0) { 
+                $dups++; 
+                $errorLog[] = ['DUPLICATE RECORD', 'Yes', 'No', $first, $middle, $last, $suffix, $contact, $ageVal, $edu, $course];
+                $dupStmt->free_result(); 
+                continue; 
+            }
             $dupStmt->free_result();
 
-            // series (retry once if collision)
+            // 3. INSERT
             $series = $getNextSeries($mysqli);
             $ins->bind_param($types, $first,$middle,$last,$suffix, $contact,$ageVal,$edu,$course, $series,$employeeId);
             if (!$ins->execute()) {
@@ -240,7 +298,9 @@ if (
                     if ($ins->execute()) { $inserted++; continue; }
                 }
                 error_log('[BESO Import][Row Skip] ' . $ins->error);
-                $skipped++; continue;
+                $skipped++; 
+                $errorLog[] = ['DATABASE ERROR', 'No', 'No', $first, $middle, $last, $suffix, $contact, $ageVal, $edu, $course];
+                continue;
             }
             $inserted++;
         }
@@ -249,19 +309,76 @@ if (
         $ins->close();
         $dupStmt->close();
 
+        // Store Errors in Session
+        if (count($errorLog) > 1) { 
+            $_SESSION['beso_import_errors'] = $errorLog;
+            $hasErrors = true;
+        } else {
+            $hasErrors = false;
+        }
+
+        // =========================================================
+        // URL for Download: Points to Index + Param
+        // =========================================================
+       // ... inside the import logic ...
+
+        // =========================================================
+        // URL for Download: Points to Index + Param
+        // =========================================================
+        
+        // 1. Determine redirect URL (unchanged)
         $redirectURL = isset($redirects['beso'])
             ? $redirects['beso']
             : (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : 'index_Admin.php?page=beso');
+        
+        // 2. DYNAMIC DOWNLOAD FIX
+        // basename($_SERVER['PHP_SELF']) will return "index_Admin.php" if you are Admin
+        // or "index_Beso.php" (or whatever your user file is) if you are a User.
+       // 2. DYNAMIC DOWNLOAD FIX
+       $currentPage = basename($_SERVER['PHP_SELF']);
+        
+       // Check if the encrypt function exists (It exists in index_Admin.php)
+       // If yes, we encrypt 'beso'. If no (User side?), we keep it plain.
+       $pageParam = 'beso';
+       if (function_exists('encrypt')) {
+           $pageParam = urlencode(encrypt('beso'));
+       }
+
+       $downloadURL = $currentPage . '?page=' . $pageParam . '&export_errors=1';
+        // -------------------
 
         echo "<script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
         <script>
-        Swal.fire({
-          icon: 'success',
-          title: 'Import Complete',
-          html: 'Inserted: <b>" . (int)$inserted . "</b><br>Duplicates skipped: <b>" . (int)$dups . "</b><br>Other skipped: <b>" . (int)$skipped . "</b>',
-          confirmButtonColor: '#3085d6'
-        }).then(() => { window.location.href = " . json_encode($redirectURL) . "; });
-        </script>";
+        ";
+        if ($hasErrors) {
+            echo "
+            Swal.fire({
+              icon: 'warning',
+              title: 'Import Complete with Issues',
+              html: 'Inserted: <b>{$inserted}</b><br>Duplicates Skipped: <b>{$dups}</b><br>Incomplete/Errors: <b>{$skipped}</b><br><br>Download the report to see what was skipped.',
+              showDenyButton: true,
+              confirmButtonText: 'Okay',
+              denyButtonText: 'Download Skipped Report',
+              confirmButtonColor: '#3085d6',
+              denyButtonColor: '#d33'
+            }).then((result) => {
+              if (result.isDenied) {
+                 window.location.href = '{$downloadURL}';
+                 setTimeout(() => { window.location.href = " . json_encode($redirectURL) . "; }, 2000);
+              } else {
+                 window.location.href = " . json_encode($redirectURL) . ";
+              }
+            });";
+        } else {
+            echo "
+            Swal.fire({
+              icon: 'success',
+              title: 'Import Complete',
+              html: 'Inserted: <b>{$inserted}</b><br>No errors or duplicates found.',
+              confirmButtonColor: '#3085d6'
+            }).then(() => { window.location.href = " . json_encode($redirectURL) . "; });";
+        }
+        echo "</script>";
         exit;
 
     } catch (Throwable $e) {
@@ -288,7 +405,6 @@ if (
 
 <div class="container my-5">
   <div class="d-flex justify-content-between align-items-center">
-    <!-- filters -->
     <form method="GET" action="index_Admin.php" class="mb-3">
       <input type="hidden" name="page" value="<?= htmlspecialchars($_GET['page'] ?? 'beso') ?>">
       <div class="row g-2 align-items-end">
@@ -470,10 +586,9 @@ $start    = max(1, $end - $window + 1);
   </div>
 </div>
 
-<!-- Import Modal -->
 <div class="modal fade" id="importBesoModal" tabindex="-1" aria-labelledby="importBesoLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <form method="POST" enctype="multipart/form-data" class="modal-content">
+    <form method="POST" enctype="multipart/form-data" class="modal-content" id="importForm">
       <div class="modal-header">
         <h5 class="modal-title" id="importBesoLabel">Batch Upload (Excel/CSV)</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -501,3 +616,85 @@ $start    = max(1, $end - $window + 1);
 
 <script>const deleteBaseUrl = "<?= $redirects['beso'] ?? 'index_Admin.php?page=beso' ?>";</script>
 <script src="components/beso/beso_script.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('importForm');
+    
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            const fileInput = form.querySelector('input[type="file"]');
+            if (fileInput.files.length === 0) return;
+
+            const modalEl = document.getElementById('importBesoModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) modalInstance.hide();
+
+            Swal.fire({
+                title: 'Uploading File',
+                html: `
+                    <div class="mt-2">
+                        <h2 id="upload-percent-text" class="display-4 text-primary fw-bold mb-3">0%</h2>
+                        <div class="progress" style="height: 20px;">
+                            <div id="upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width: 0%;"></div>
+                        </div>
+                        <div id="upload-status-text" class="mt-3 text-muted small">Initializing...</div>
+                    </div>
+                `,
+                showConfirmButton: false, allowOutsideClick: false, allowEscapeKey: false
+            });
+
+            const progressBar = document.getElementById('upload-progress-bar');
+            const percentText = document.getElementById('upload-percent-text');
+            const statusText = document.getElementById('upload-status-text');
+
+            let currentProgress = 0;
+            const animationInterval = setInterval(() => {
+                if (currentProgress < 90) {
+                    currentProgress += Math.floor(Math.random() * 5) + 1; 
+                    if(currentProgress > 90) currentProgress = 90;
+                    if (progressBar && percentText) {
+                        progressBar.style.width = currentProgress + '%';
+                        percentText.innerText = currentProgress + '%';
+                        if(currentProgress < 30) statusText.innerText = 'Reading file...';
+                        else if(currentProgress < 60) statusText.innerText = 'Uploading to server...';
+                        else statusText.innerText = 'Verifying data...';
+                    }
+                }
+            }, 100); 
+
+            const formData = new FormData(form);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', window.location.href, true);
+
+            xhr.onload = function() {
+                clearInterval(animationInterval);
+                if (xhr.status === 200) {
+                    if (progressBar && percentText) {
+                        progressBar.style.width = '100%';
+                        progressBar.classList.remove('bg-primary');
+                        progressBar.classList.add('bg-success');
+                        percentText.innerText = '100%';
+                        percentText.classList.remove('text-primary');
+                        percentText.classList.add('text-success');
+                        statusText.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Processing Result...';
+                    }
+                    setTimeout(() => {
+                        document.open(); document.write(xhr.responseText); document.close();
+                    }, 500);
+                } else {
+                    Swal.fire('Error', 'An error occurred during upload.', 'error');
+                }
+            };
+
+            xhr.onerror = function() {
+                clearInterval(animationInterval);
+                Swal.fire('Connection Error', 'Could not connect to server.', 'error');
+            };
+
+            xhr.send(formData);
+        });
+    }
+});
+</script>
