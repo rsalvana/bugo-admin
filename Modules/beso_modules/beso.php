@@ -286,14 +286,14 @@ if (
         $inserted = 0; $skipped = 0; $dups = 0;
 
         foreach ($rows as $r) {
-            $first   = $r['first'];
-            $middle  = $r['middle'];
-            $last    = $r['last'];
-            $suffix  = $r['suffix'];
-            $contact = $r['contact'];   // normalized
-            $ageVal  = $r['age'];       // int|null
-            $edu     = $r['edu'];
-            $course  = $r['course'];
+            $first    = $r['first'];
+            $middle   = $r['middle'];
+            $last     = $r['last'];
+            $suffix   = $r['suffix'];
+            $contact  = $r['contact'];   // normalized
+            $ageVal   = $r['age'];       // int|null
+            $edu      = $r['edu'];
+            $course   = $r['course'];
 
             // de-dupe: name+contact in current year
             $dupStmt->bind_param('sssss', $first, $middle, $last, $suffix, $contact);
@@ -508,7 +508,6 @@ if ($__swal) {
         </table>
       </div>
 
-      <!-- Windowed Pagination -->
       <?php
         // Build preserved query string excluding pagenum
         $pageBase = function_exists('enc_beso') ? enc_beso('beso') : 'index_beso_staff.php?page=beso';
@@ -575,10 +574,9 @@ if ($__swal) {
   </div>
 </div>
 
-<!-- Import Modal -->
 <div class="modal fade" id="importBesoModal" tabindex="-1" aria-labelledby="importBesoLabel" aria-hidden="true">
   <div class="modal-dialog">
-    <form method="POST" enctype="multipart/form-data" class="modal-content">
+    <form method="POST" enctype="multipart/form-data" class="modal-content" id="importForm">
       <div class="modal-header">
         <h5 class="modal-title" id="importBesoLabel">Batch Upload (Excel/CSV)</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -607,3 +605,105 @@ if ($__swal) {
 
 <script>const deleteBaseUrl = "<?= function_exists('enc_beso') ? enc_beso('beso') : 'index_beso_staff.php?page=beso' ?>";</script>
 <script src="components/beso/beso_script.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('importForm');
+    
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            
+            const fileInput = form.querySelector('input[type="file"]');
+            if (fileInput.files.length === 0) return;
+
+            // Close modal
+            const modalEl = document.getElementById('importBesoModal');
+            const modalInstance = bootstrap.Modal.getInstance(modalEl);
+            if (modalInstance) modalInstance.hide();
+
+            // 1. Initialize SweetAlert
+            Swal.fire({
+                title: 'Uploading File',
+                html: `
+                    <div class="mt-2">
+                        <h2 id="upload-percent-text" class="display-4 text-primary fw-bold mb-3">0%</h2>
+                        <div class="progress" style="height: 20px;">
+                            <div id="upload-progress-bar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                                 role="progressbar" style="width: 0%;"></div>
+                        </div>
+                        <div id="upload-status-text" class="mt-3 text-muted small">Initializing...</div>
+                    </div>
+                `,
+                showConfirmButton: false,
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            });
+
+            const progressBar = document.getElementById('upload-progress-bar');
+            const percentText = document.getElementById('upload-percent-text');
+            const statusText = document.getElementById('upload-status-text');
+
+            // 2. Start "Fake" Animation (Goes up to 90% automatically)
+            let currentProgress = 0;
+            const animationInterval = setInterval(() => {
+                if (currentProgress < 90) {
+                    // Random speed to look natural
+                    currentProgress += Math.floor(Math.random() * 5) + 1; 
+                    if(currentProgress > 90) currentProgress = 90;
+                    
+                    if (progressBar && percentText) {
+                        progressBar.style.width = currentProgress + '%';
+                        percentText.innerText = currentProgress + '%';
+                        
+                        // Update text based on "fake" progress
+                        if(currentProgress < 30) statusText.innerText = 'Reading file...';
+                        else if(currentProgress < 60) statusText.innerText = 'Uploading to server...';
+                        else statusText.innerText = 'Verifying data...';
+                    }
+                }
+            }, 100); // Updates every 100ms
+
+            // 3. Start Actual Upload
+            const formData = new FormData(form);
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', window.location.href, true);
+
+            xhr.onload = function() {
+                clearInterval(animationInterval); // Stop the fake counter
+
+                if (xhr.status === 200) {
+                    // COMPLETE: Jump to 100%
+                    if (progressBar && percentText) {
+                        progressBar.style.width = '100%';
+                        progressBar.classList.remove('bg-primary');
+                        progressBar.classList.add('bg-success');
+                        
+                        percentText.innerText = '100%';
+                        percentText.classList.remove('text-primary');
+                        percentText.classList.add('text-success');
+                        
+                        statusText.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Database Processing Complete...';
+                    }
+
+                    // Slight delay so user sees "100%" before redirecting
+                    setTimeout(() => {
+                        document.open();
+                        document.write(xhr.responseText);
+                        document.close();
+                    }, 500);
+
+                } else {
+                    Swal.fire('Error', 'An error occurred during upload.', 'error');
+                }
+            };
+
+            xhr.onerror = function() {
+                clearInterval(animationInterval);
+                Swal.fire('Connection Error', 'Could not connect to server.', 'error');
+            };
+
+            xhr.send(formData);
+        });
+    }
+});
+</script>
