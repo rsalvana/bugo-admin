@@ -123,14 +123,14 @@ if (isset($_POST['import_excel'])) {
             }
 
             $need = array(
-                'date_filed'            => array('date_filed','date filed'),
-                'time_filed'            => array('time_filed','time filed'),
-                'case#'                 => array('case#','case_no','case_number','case'),
-                'complainants'          => array('complainants','complainant','complainant_name'),
-                'respondents'           => array('respondents','respondent','respondent_name'),
-                'nature_of_offense'     => array('nature_of_offense','nature_offense','offense','offence'),
-                'schedule_of_hearing'   => array('schedule_of_hearing','date_of_hearing','date_hearing','hearing'),
-                'action_taken'          => array('action_taken','status','case_status'),
+                'date_filed'          => array('date_filed','date filed'),
+                'time_filed'          => array('time_filed','time filed'),
+                'case#'               => array('case#','case_no','case_number','case'),
+                'complainants'        => array('complainants','complainant','complainant_name'),
+                'respondents'         => array('respondents','respondent','respondent_name'),
+                'nature_of_offense'   => array('nature_of_offense','nature_offense','offense','offence'),
+                'schedule_of_hearing' => array('schedule_of_hearing','date_of_hearing','date_hearing','hearing'),
+                'action_taken'        => array('action_taken','status','case_status'),
             );
             $colOf = function($key) use ($need,$headers) {
                 foreach ($need[$key] as $alias) {
@@ -665,6 +665,17 @@ $result = $mysqli->query($case_query);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="css/case/case.css">
+
+    <style>
+        /* Limits the modal body height to 70% of the screen height 
+           and adds a vertical scrollbar when content overflows.
+        */
+        #addCaseModal .modal-body {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+    </style>
+
 </head>
 <body>
 <div class="container my-5">

@@ -715,6 +715,17 @@ $result = $mysqli->query($case_query);
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
   <link rel="stylesheet" href="css/case/case.css">
+
+  <style>
+    /* Limits the modal body height to 70% of the screen height 
+      and adds a vertical scrollbar when content overflows.
+    */
+    #addCaseModal .modal-body {
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+  </style>
+
 </head>
 <body>
 <div class="container my-5">
@@ -745,7 +756,6 @@ $result = $mysqli->query($case_query);
               <th>Time Filed</th>
               <th>Date of Hearing</th>
               <th>Case Status</th>
-              <!-- <th>Remarks</th> -->
               <th>Action</th>
             </tr>
           </thead>
@@ -755,7 +765,7 @@ $result = $mysqli->query($case_query);
                 $user_role = $_SESSION['Role_Name'] ?? '';
                 $isPunongBarangay = strtolower($user_role) === 'punong barangay';
             ?>
-            <!-- <tr>
+            <tr>
                 <td><?= htmlspecialchars($row['case_number']); ?></td>
                 <td><?= htmlspecialchars($row['complainant_full_names'] ?? $row['Comp_First_Name']); ?></td>
                 <td><?= htmlspecialchars($row['respondent_full_names'] ?? $row['Resp_First_Name']); ?></td>
@@ -783,8 +793,6 @@ $result = $mysqli->query($case_query);
                 <?php endif; ?>
                 </td>
                 
-                <td><?= htmlspecialchars($row['remarks'] ?? ''); ?></td>
-
                 <td>
                     <button class="btn btn-warning btn-sm" 
                             data-bs-toggle="modal" 
@@ -799,7 +807,7 @@ $result = $mysqli->query($case_query);
                         <i class="bi bi-person-check"></i>
                     </button>
                 </td>
-            </tr> -->
+            </tr>
             <?php endwhile; ?>
           </tbody>
         </table>
