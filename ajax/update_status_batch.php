@@ -109,10 +109,8 @@ $hasNonAppearanceCase = function (int $resId) use ($mysqli): bool {
 
     $f = trim((string)$f);
     $l = trim((string)$l);
-    // $m = trim((string)$m); // middle name sometimes omitted in participants table, primarily match F/L
-
+    
     // Check case_participants for Respondent + Non-Appearance
-    // Using LOWER for case-insensitive comparison
     $sql = "
         SELECT COUNT(*) as cnt 
         FROM case_participants 
@@ -612,7 +610,7 @@ try {
     exit;
 }
 
-// ----- EMAIL NOTIFICATION (cPanel mailbox; no env) -----
+// ----- EMAIL NOTIFICATION (UPDATED: Gmail SMTP) -----
 $email_query = "
     SELECT r.email, r.contact_number, 
            CONCAT(r.first_name, ' ', r.middle_name, ' ', r.last_name) AS full_name,
@@ -645,17 +643,16 @@ if ($result_email && $result_email->num_rows > 0) {
     if ($email !== '') {
         $mail = new PHPMailer(true);
         try {
+            // ── GMAIL SMTP CONFIGURATION (From Reference) ──────────────────────────
             $mail->isSMTP();
-            $mail->Host          = 'mail.bugoportal.site';
-            $mail->SMTPAuth      = true;
-            $mail->Username      = 'admin@bugoportal.site';
-            $mail->Password      = 'Jayacop@100';
-            $mail->Port          = 465;
-            $mail->SMTPSecure    = PHPMailer::ENCRYPTION_SMTPS;
-            $mail->Timeout       = 12;
-            $mail->SMTPAutoTLS   = true;
-            $mail->SMTPKeepAlive = false;
-
+            $mail->Host       = 'smtp.gmail.com';
+            $mail->SMTPAuth   = true;
+            $mail->Username   = 'jayacop9@gmail.com';
+            $mail->Password   = 'fsls ywyv irfn ctyc'; // Your App Password
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port       = 587;
+            
+            // SSL Bypass (Required for Localhost/XAMPP)
             $mail->SMTPOptions = [
                 'ssl' => [
                     'verify_peer'       => false,
@@ -664,24 +661,29 @@ if ($result_email && $result_email->num_rows > 0) {
                 ]
             ];
 
-            $mail->setFrom('admin@bugoportal.site', 'Barangay Office');
+            // Email Content
+            $mail->setFrom('jayacop9@gmail.com', 'Barangay Bugo Admin');
             $mail->addAddress($email, $resident_name);
-            $mail->addReplyTo('admin@bugoportal.site', 'Barangay Office');
+            $mail->addReplyTo('jayacop9@gmail.com', 'Barangay Bugo Admin');
 
             $mail->isHTML(true);
             $prettyDate  = $date ? date('F j, Y', strtotime($date)) : 'your date';
             $mail->Subject = 'Appointment Status Update';
-            $mail->Body    = "<p>Dear {$resident_name},</p>
-                              <p>Your {$certificate} appointment on <strong>{$prettyDate}</strong> has been updated to:</p>
-                              <h3 style='color:#0d6efd;margin:8px 0'>{$new_status}</h3>"
-                              . ($reason !== '' ? "<p><em>Reason: ".htmlspecialchars($reason, ENT_QUOTES, 'UTF-8')."</em></p>" : "")
-                              . "<br><p>Thank you,<br>Barangay Office</p>";
+            
+            $mail->Body    = "
+                <p>Dear <strong>{$resident_name}</strong>,</p>
+                <p>Your <strong>{$certificate}</strong> appointment on <strong>{$prettyDate}</strong> has been updated to:</p>
+                <h2 style='color:#0d6efd;'>{$new_status}</h2>"
+                . ($reason !== '' ? "<p><em>Reason: ".htmlspecialchars($reason, ENT_QUOTES, 'UTF-8')."</em></p>" : "")
+                . "<br><p>Thank you,<br>Barangay Bugo Portal</p>";
+
             $mail->AltBody = "Dear {$resident_name},\n\nYour {$certificate} appointment on {$prettyDate} has been updated to \"{$new_status}\"."
                              . ($reason !== '' ? "\nReason: {$reason}" : "")
-                             . "\n\nThank you.\nBarangay Office";
+                             . "\n\nThank you.\nBarangay Bugo Portal";
 
             $mail->send();
         } catch (Exception $e) {
+            // Log error but don't fail the AJAX response
             error_log("Email failed to send: " . $mail->ErrorInfo);
         }
     }
@@ -691,9 +693,10 @@ $stmt_email->close();
 // ----- Success response -----
 echo json_encode([
     'success' => true,
-    'message' => 'Status updated successfully.',
+    'message' => 'Status updated & Email sent successfully.',
     'assignedKagawadId'   => ($new_status === 'ApprovedCaptain' && isset($assigned_kagawad_id) ? $assigned_kagawad_id : null),
     'assignedKagawadName' => ($new_status === 'ApprovedCaptain' && isset($assigned_kagawad_name) ? $assigned_kagawad_name : null),
     'assignedWitnessName' => ($new_status === 'ApprovedCaptain' ? $assigned_witness_name : null)
 ]);
 exit;
+?>

@@ -2431,29 +2431,39 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   /* ---------- VIEW MODAL: submit ---------- */
-  statusForm.addEventListener('submit', async (e) => {
+statusForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    const newStatus      = statusSelect.value;
-    const currentStatus  = statusForm.dataset.currentStatusNorm || normStatus(statusForm.dataset.currentStatus || '');
+    const newStatus     = statusSelect.value;
+    const currentStatus = statusForm.dataset.currentStatusNorm || normStatus(statusForm.dataset.currentStatus || '');
 
-    // Require ApprovedCaptain before Released
+    // 1. Validation: Require ApprovedCaptain before Released
     if (normStatus(newStatus) === 'released' && currentStatus !== 'approvedcaptain') {
       await Swal.fire({ icon:'warning', title:'Action Not Allowed',
         text:'You must first mark the appointment as Approved by Captain before releasing it.' });
       return;
     }
 
-    // Require Kagawad when moving to ApprovedCaptain (non-Cedula)
-    if (newStatus === 'ApprovedCaptain' && !isCedulaType(currentAppointmentType) && !assignSelect.value) {
+    // 2. Validation: Require Kagawad when moving to ApprovedCaptain (non-Cedula)
+    if (newStatus === 'ApprovedCaptain' && !isCedulaType(currentAppointmentType) && assignSelect && !assignSelect.value) {
       await Swal.fire({ icon:'warning', title:'Assign Kagawad',
         text:'Please select a Kagawad before approving by Captain.' });
       assignSelect.focus();
       return;
     }
 
-    // Require Cedula # when Releasing a Cedula appointment
-    if (newStatus === 'Released' && isCedulaType(currentAppointmentType) && !cedulaInput.value.trim()) {
+    // 3. Validation: Require Witness when moving to ApprovedCaptain (BESO)
+    if (newStatus === 'ApprovedCaptain' &&
+        normStatus(currentAppointmentType) === 'besoapplication' &&
+        assignWitnessSelect && !assignWitnessSelect.value.trim()) {
+      await Swal.fire({ icon:'warning', title:'Assign Witness',
+        text:'Please select a Witness (Secretary) for the BESO application.' });
+      assignWitnessSelect.focus();
+      return;
+    }
+
+    // 4. Validation: Require Cedula # when Releasing a Cedula appointment
+    if (newStatus === 'Released' && isCedulaType(currentAppointmentType) && cedulaInput && !cedulaInput.value.trim()) {
       await Swal.fire({ icon:'warning', title:'Cedula Number required',
         text:'Provide the Cedula Number before marking as Released.' });
       cedulaInput.focus();
@@ -2461,7 +2471,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const formData = new FormData(statusForm);
-    Swal.fire({ title:'Saving...', text:'Please wait while we update the status.', allowOutsideClick:false, didOpen:()=>Swal.showLoading() });
+
+    // 🔥 UPDATED LOADING ALERT: Shows explicit "sending email" message
+    Swal.fire({ 
+        title: 'Processing...', 
+        html: 'Updating status and <b>sending email notification</b>...<br>Please do not close this window.', 
+        allowOutsideClick: false, 
+        didOpen: () => Swal.showLoading() 
+    });
 
     try {
       const res  = await fetch('./ajax/update_status_batch.php', {

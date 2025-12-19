@@ -908,7 +908,6 @@ if ($wr = $mysqli->query($witnessSql)) {
               </div>
             </section>
             
-            <!-- Hidden by default; will only show for "Beso Application" -->
             <section class="card soft-card grid-col-2 d-none" id="witnessSection">
                 <div class="card-header soft-card-header">
                     <span class="section-title"><i class="bi bi-person-badge"></i> Assign Witness/Secretary</span>
@@ -1101,9 +1100,10 @@ if ($wr = $mysqli->query($witnessSql)) {
           }).then(result => {
             if (!result.isConfirmed) return;
 
+            // LOADING INDICATOR
             Swal.fire({
-              title: 'Approving...',
-              text: 'Please wait while we update the records.',
+              title: 'Sending email...',
+              text: 'Updating status and sending notification to the resident. This may take a few seconds.',
               allowOutsideClick: false,
               didOpen: () => Swal.showLoading()
             });

@@ -475,6 +475,29 @@ function copyText(text) {
     });
 }
 
+// --- CUSTOM LOADER FUNCTION ---
+function showCustomLoader(title, subtitle) {
+    Swal.fire({
+        html: `
+            <div class="d-flex flex-column align-items-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status" style="width: 3.5rem; height: 3.5rem; border-width: 4px;">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5 class="fw-bold text-dark mt-2">${title}</h5>
+                <p class="text-muted mb-0 small">${subtitle}</p>
+            </div>
+        `,
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        width: 400, // Makes it compact
+        padding: '1rem',
+        customClass: {
+            popup: 'rounded-4 border-0 shadow-lg' // Soft rounded corners and shadow
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     let currentReqId = null;
     let items = [];
@@ -492,17 +515,14 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.process-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             currentReqId = this.dataset.id;
-            const mode = this.dataset.mode; // 'edit' or 'view'
+            const mode = this.dataset.mode; 
 
             document.getElementById('p_res_name').innerText = this.dataset.name;
             document.getElementById('p_presc_img').src = this.dataset.img;
-            
-            // --- LOAD REMARKS FROM DATA ATTRIBUTE ---
             document.getElementById('p_remarks').value = this.dataset.remarks || '';
 
             items = []; renderItems();
 
-            // Toggle UI elements based on mode
             if (mode === 'view') {
                 document.getElementById('modalTitle').innerText = 'Request Details';
                 document.getElementById('inventorySection').classList.add('d-none');
@@ -533,7 +553,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     window.removeItem = function(index) { 
-        // Prevent removing items in View Mode (simple check)
         if(document.getElementById('inventorySection').classList.contains('d-none')) return;
         items.splice(index, 1); renderItems(); 
     }
@@ -545,10 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
             tb.innerHTML = ''; emptyMsg.style.display = 'block';
         } else {
             emptyMsg.style.display = 'none';
-            // Only show delete button if NOT in view mode
             const isViewMode = document.getElementById('inventorySection').classList.contains('d-none');
-            const delBtn = isViewMode ? '' : `<button class="btn btn-sm text-danger" onclick="removeItem(${items.length})"><i class="bi bi-x-circle-fill"></i></button>`;
-
             tb.innerHTML = items.map((i, idx) => `
                 <tr class="border-bottom">
                     <td><span class="fw-bold text-dark">${i.name}</span> <small class="text-muted">(${i.unit})</small></td>
@@ -569,23 +585,81 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function submitProcess(status) {
         if(status === 'Approved' && items.length === 0) return Swal.fire('Error', 'Add medicines first.', 'warning');
+        
+        // --- 1. CALL CUSTOM LOADER ---
+        showCustomLoader(
+            'Processing Request...', 
+            'Saving data and sending email to resident...'
+        );
+
         const fd = new FormData();
-        fd.append('action', 'process'); fd.append('request_id', currentReqId);
-        fd.append('status', status); fd.append('remarks', document.getElementById('p_remarks').value);
+        fd.append('action', 'process'); 
+        fd.append('request_id', currentReqId);
+        fd.append('status', status); 
+        fd.append('remarks', document.getElementById('p_remarks').value);
         fd.append('items', JSON.stringify(items));
+
         fetch('api/bhw_request_action.php', { method: 'POST', body: fd })
-        .then(r => r.json()).then(d => { 
-            d.success ? Swal.fire('Success', d.message, 'success').then(() => location.reload()) : Swal.fire('Error', d.message, 'error'); 
+        .then(r => r.json())
+        .then(d => { 
+            if (d.success) {
+                Swal.fire({
+                    icon: 'success', 
+                    title: 'Success', 
+                    text: d.message,
+                    confirmButtonColor: '#4e73df',
+                    customClass: { popup: 'rounded-4 border-0 shadow-lg' }
+                }).then(() => location.reload());
+            } else {
+                Swal.fire('Error', d.message, 'error'); 
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            Swal.fire('Error', 'An unexpected error occurred.', 'error');
         });
     }
 
     document.querySelectorAll('.update-status').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.dataset.id, status = this.dataset.status;
-            Swal.fire({ title: `Mark as ${status}?`, showCancelButton: true, confirmButtonText: 'Yes' }).then((res) => {
+            Swal.fire({ 
+                title: `Mark as ${status}?`, 
+                showCancelButton: true, 
+                confirmButtonText: 'Yes',
+                customClass: { popup: 'rounded-4 border-0 shadow-lg' }
+            }).then((res) => {
                 if(res.isConfirmed) {
-                    const fd = new FormData(); fd.append('action', 'update_status'); fd.append('request_id', id); fd.append('new_status', status);
-                    fetch('api/bhw_request_action.php', { method: 'POST', body: fd }).then(r => r.json()).then(d => { if(d.success) location.reload(); });
+                    
+                    // --- 1. CALL CUSTOM LOADER ---
+                    showCustomLoader(
+                        'Updating Status...', 
+                        'Notifying resident via email...'
+                    );
+
+                    const fd = new FormData(); 
+                    fd.append('action', 'update_status'); 
+                    fd.append('request_id', id); 
+                    fd.append('new_status', status);
+                    
+                    fetch('api/bhw_request_action.php', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(d => { 
+                        if(d.success) {
+                            Swal.fire({
+                                icon: 'success', 
+                                title: 'Updated!', 
+                                text: d.message,
+                                confirmButtonColor: '#4e73df',
+                                customClass: { popup: 'rounded-4 border-0 shadow-lg' }
+                            }).then(() => location.reload()); 
+                        } else {
+                            Swal.fire('Error', d.message, 'error');
+                        }
+                    })
+                    .catch(err => {
+                        Swal.fire('Error', 'Network error.', 'error');
+                    });
                 }
             });
         });

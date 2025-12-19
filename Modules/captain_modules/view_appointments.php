@@ -566,7 +566,7 @@ SELECT * FROM (
     WHERE u.urgent_delete_status = 0 
       AND u.selected_date >= CURDATE()
 ) AS all_appointments
- WHERE status IN ('Approved', 'ApprovedCaptain')
+ WHERE status IN ('Approved')
 GROUP BY tracking_number
 ORDER BY 
     (status = 'Pending' AND selected_time = 'URGENT' AND selected_date = CURDATE()) DESC,
@@ -629,13 +629,17 @@ while ($row = $result->fetch_assoc()) {
 
 $total_results_sql = "
     SELECT COUNT(*) AS total FROM (
-        SELECT tracking_number FROM schedules WHERE appointment_delete_status = 0
+        SELECT tracking_number FROM schedules 
+        WHERE appointment_delete_status = 0 AND status = 'Approved' AND selected_date >= CURDATE()
         UNION
-        SELECT tracking_number FROM cedula WHERE cedula_status IS NOT NULL AND cedula_delete_status = 0
+        SELECT tracking_number FROM cedula 
+        WHERE cedula_delete_status = 0 AND cedula_status = 'Approved' AND appointment_date >= CURDATE()
         UNION
-        SELECT tracking_number FROM urgent_request WHERE urgent_delete_status = 0
+        SELECT tracking_number FROM urgent_request 
+        WHERE urgent_delete_status = 0 AND status = 'Approved' AND selected_date >= CURDATE()
         UNION
-        SELECT tracking_number FROM urgent_cedula_request WHERE cedula_delete_status = 0
+        SELECT tracking_number FROM urgent_cedula_request 
+        WHERE cedula_delete_status = 0 AND cedula_status = 'Approved' AND appointment_date >= CURDATE()
     ) AS combined
 ";
 $total_results_result = $mysqli->query($total_results_sql);
@@ -816,11 +820,7 @@ if ($wr = $mysqli->query($witnessSql)) {
                         <label class="form-label mb-1 fw-semibold">Status</label>
                         <select name="status_filter" class="form-select form-select-sm">
                             <option value="">All</option>
-                            <option value="Pending" <?= ($GLOBALS['_GET']['status_filter'] ?? '') == 'Pending' ? 'selected' : '' ?>>Pending</option>
                             <option value="Approved" <?= ($GLOBALS['_GET']['status_filter'] ?? '') == 'Approved' ? 'selected' : '' ?>>Approved</option>
-                            <option value="Rejected" <?= ($GLOBALS['_GET']['status_filter'] ?? '') == 'Rejected' ? 'selected' : '' ?>>Rejected</option>
-                            <option value="Released" <?= ($GLOBALS['_GET']['status_filter'] ?? '') == 'Released' ? 'selected' : '' ?>>Released</option>
-                            <option value="ApprovedCaptain" <?= ($GLOBALS['_GET']['status_filter'] ?? '') == 'ApprovedCaptain' ? 'selected' : '' ?>>Approved by Captain</option>
                         </select>
                     </div>
 
@@ -1185,8 +1185,8 @@ if ($wr = $mysqli->query($witnessSql)) {
                         if (!result.isConfirmed) return;
 
                         Swal.fire({
-                            title: 'Approving...',
-                            text: 'Please wait while we update the records.',
+                            title: 'Sending email...',
+                            text: 'Updating status and sending notification to the resident. This may take a few seconds.',
                             allowOutsideClick: false,
                             didOpen: () => Swal.showLoading()
                         });
@@ -1298,7 +1298,7 @@ if ($wr = $mysqli->query($witnessSql)) {
         });
     });
 
-    // NEW: Client-side validation for Status Modal
+ // NEW: Client-side validation + Loading Indicator for Status Modal
     const statusForm = document.getElementById('statusUpdateForm');
     if (statusForm) {
         statusForm.addEventListener('submit', function(e) {
@@ -1310,6 +1310,7 @@ if ($wr = $mysqli->query($witnessSql)) {
             const isCedula = certificate === 'cedula';
             const isBeso = certificate === 'beso application';
 
+            // --- Validation Logic ---
             if (statusSelect.value === 'ApprovedCaptain' && !isCedula) {
                 if (!kagSelect.value) {
                     e.preventDefault();
@@ -1322,6 +1323,29 @@ if ($wr = $mysqli->query($witnessSql)) {
                     return;
                 }
             }
+
+            // --- Loading Feature ---
+            // If validation passes, show the loader while the form submits
+            let loadingTitle = 'Sending Email...';
+            let loadingText = 'Updating status and sending notification to the resident.<br>This may take a few seconds.';
+
+            // If the status triggers an email (Approved, Released, Rejected, ApprovedCaptain)
+            if (['Approved', 'Released', 'Rejected', 'ApprovedCaptain'].includes(statusSelect.value)) {
+                loadingTitle = 'Sending Email...';
+                loadingText = 'Updating status and sending notification to the resident.<br>This may take a few seconds.';
+            }
+
+            Swal.fire({
+                title: loadingTitle,
+                html: loadingText,
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+            
+            // The form will now continue to submit to the PHP backend...
         });
     }
 
