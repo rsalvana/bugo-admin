@@ -250,6 +250,45 @@ function get_archived_feedback($search_term = '', $limit = 10, $page = 1) {
     return $stmt->get_result();
 }
 
+function get_archived_announcements($search_term = '', $limit = 10, $page = 1) {
+    global $mysqli;
+    $offset = ($page - 1) * $limit;
+
+    // ✅ FIXED: Table 'announcement', Column 'Id', ordered by newest
+    $sql = "SELECT Id, announcement_details, created FROM announcement WHERE delete_status = 1";
+    
+    if ($search_term) {
+        $sql .= " AND announcement_details LIKE ? ORDER BY created DESC LIMIT ? OFFSET ?";
+        $stmt = $mysqli->prepare($sql);
+        $s = "%$search_term%";
+        $stmt->bind_param("sii", $s, $limit, $offset);
+    } else {
+        $sql .= " ORDER BY created DESC LIMIT ? OFFSET ?";
+        $stmt = $mysqli->prepare($sql);
+        $stmt->bind_param("ii", $limit, $offset);
+    }
+
+    $stmt->execute();
+    return $stmt->get_result();
+}
+
+function get_archived_faqs($search_term = '', $limit = 10, $page = 1) {
+    global $mysqli;
+    $offset = ($page - 1) * $limit;
+    $sql = "SELECT faq_id, faq_question, faq_answer, created_at FROM faqs WHERE delete_status = 1";
+    if ($search_term) {
+        $sql .= " AND (faq_question LIKE ? OR faq_answer LIKE ?) LIMIT ? OFFSET ?";
+        $stmt = $mysqli->prepare($sql);
+        $s = "%$search_term%";
+        $stmt->bind_param("ssii", $s, $s, $limit, $offset);
+    } else {
+        $sql .= " LIMIT ? OFFSET ?";
+        $stmt = $mysqli->prepare($sql);
+        $stmt->bind_param("ii", $limit, $offset);
+    }
+    $stmt->execute();
+    return $stmt->get_result();
+}
 /* =========================================
    Handle restore / delete POST actions
    (store flash + mark for client redirect)
@@ -339,6 +378,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $trigger->isDelete(27, $feedback_id);
         flash_success('Feedback deleted successfully!');
     }
+
+    // Announcements
+    if (isset($_POST['restore_announcement'])) {
+        $id = (int)$_POST['id'];
+        // ✅ FIXED: Table 'announcement', ID 'Id'
+        $mysqli->query("UPDATE announcement SET delete_status = 0 WHERE Id = $id");
+        $trigger->isRestored(28, $id, 10);
+        flash_success('Announcement restored!');
+    } elseif (isset($_POST['delete_announcement'])) {
+        $id = (int)$_POST['id'];
+        $mysqli->query("DELETE FROM announcement WHERE Id = $id");
+        $trigger->isDelete(28, $id);
+        flash_success('Announcement deleted!');
+    }
+
+    // FAQ
+    if (isset($_POST['restore_faq'])) {
+        $id = (int)$_POST['faq_id'];
+        $mysqli->query("UPDATE faqs SET delete_status = 0 WHERE faq_id = $id");
+        $trigger->isRestored(29, $id, 10);
+        flash_success('FAQ restored!');
+    } elseif (isset($_POST['delete_faq'])) {
+        $id = (int)$_POST['faq_id'];
+        $mysqli->query("DELETE FROM faqs WHERE faq_id = $id");
+        $trigger->isDelete(29, $id);
+        flash_success('FAQ deleted!');
+    }
+
 }
 
 /* =========================================
@@ -360,12 +427,16 @@ $total_appointments = (int)$mysqli->query("
 ")->fetch_row()[0];
 $total_events = count_records('events', 'events_delete_status');
 $total_feedback = count_records('feedback', 'feedback_delete_status');
+$total_announcements = count_records('announcement', 'delete_status'); 
+$total_faqs = count_records('faqs', 'delete_status');
 
 $archived_residents    = get_archived_residents($search_term, $limit, $page);
 $archived_employees    = get_archived_employees($search_term, $limit, $page);
 $archived_appointments = get_archived_appointments($search_term, $limit, $page);
 $archived_events       = get_archived_events($search_term, $limit, $page);
 $archived_feedback     = get_archived_feedback($search_term, $limit, $page);
+$archived_announcements = get_archived_announcements($search_term, $limit, $page);
+$archived_faqs          = get_archived_faqs($search_term, $limit, $page);
 
 // If your app provides $redirects['archive'], use it; otherwise fallback to current script
 $baseUrl = isset($redirects['archive']) ? $redirects['archive'] : (basename($_SERVER['PHP_SELF']).'?page='.(isset($_GET['page'])?urlencode($_GET['page']):''));
@@ -403,6 +474,9 @@ h2 { color:#228be6;font-weight:600; }
     <li class="nav-item"><a class="nav-link <?= ($tab=='appointments')?'active':'' ?>" href="<?= $baseUrl ?>&tab=appointments">Appointments</a></li>
     <li class="nav-item"><a class="nav-link <?= ($tab=='events')?'active':'' ?>" href="<?= $baseUrl ?>&tab=events">Events</a></li>
     <li class="nav-item"><a class="nav-link <?= ($tab=='feedback')?'active':'' ?>" href="<?= $baseUrl ?>&tab=feedback">Feedback</a></li>
+    <li class="nav-item"><a class="nav-link <?= ($tab=='announcements')?'active':'' ?>" href="<?= $baseUrl ?>&tab=announcements">Announcements</a></li>
+    <li class="nav-item"><a class="nav-link <?= ($tab=='faqs')?'active':'' ?>" href="<?= $baseUrl ?>&tab=faqs">FAQs</a></li>
+  
   </ul>
 
   <div class="tab-content mt-3" id="archiveTabContent">
@@ -578,6 +652,79 @@ h2 { color:#228be6;font-weight:600; }
       </div>
       <?php $qs='&tab=feedback&search='.urlencode($search_term); render_pagination($total_feedback,$limit,$page,$baseUrl,$qs); ?>
     </div>
+
+    <div class="tab-pane fade <?= ($tab=='announcements')?'show active':'' ?>" id="announcements" role="tabpanel">
+      <div class="input-group mb-3">
+        <input type="text" class="form-control searchInput" id="searchAnnouncements" placeholder="Search announcements..." value="<?= htmlspecialchars($search_term) ?>">
+      </div>
+      <div class="table-responsive w-100" style="height:500px;overflow-y:auto;">
+        <table class="table table-bordered w-100 mb-0" id="announcementsTable">
+          <thead>
+            <tr>
+              <th style="width:100px;">ID</th>
+              <th>Announcement Details</th>
+              <th style="width:250px;">Date Created</th>
+              <th style="width:200px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          <?php if($archived_announcements->num_rows > 0): while($row = $archived_announcements->fetch_assoc()): ?>
+            <tr>
+              <td><?= htmlspecialchars($row['Id']) ?></td>
+              <td><?= htmlspecialchars($row['announcement_details']) ?></td>
+              <td><?= htmlspecialchars($row['created']) ?></td>
+              <td class="actions">
+                <form method="POST">
+                  <input type="hidden" name="id" value="<?= $row['Id'] ?>">
+                  <button type="button" name="restore_announcement" class="btn btn-success btn-sm swal-restore-btn" data-message="Restore this announcement?">Restore</button>
+                  <button type="button" name="delete_announcement" class="btn btn-danger btn-sm swal-delete-btn" data-message="Permanently delete this announcement?">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <?php endwhile; else: ?>
+            <tr><td colspan="4" class="text-center">No archived announcements found.</td></tr>
+          <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php $qs='&tab=announcements&search='.urlencode($search_term); render_pagination($total_announcements, $limit, $page, $baseUrl, $qs); ?>
+    </div>
+
+    <div class="tab-pane fade <?= ($tab=='faqs')?'show active':'' ?>" id="faqs" role="tabpanel">
+      <div class="input-group mb-3">
+        <input type="text" class="form-control searchInput" id="searchFaqs" placeholder="Search FAQs..." value="<?= htmlspecialchars($search_term) ?>">
+      </div>
+      <div class="table-responsive w-100" style="height:500px;overflow-y:auto;">
+        <table class="table table-bordered w-100 mb-0" id="faqsTable">
+          <thead>
+            <tr>
+              <th style="width:300px;">Question</th>
+              <th>Answer</th>
+              <th style="width:200px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          <?php if($archived_faqs->num_rows > 0): while($row = $archived_faqs->fetch_assoc()): ?>
+            <tr>
+              <td><?= htmlspecialchars($row['faq_question']) ?></td>
+              <td><?= htmlspecialchars($row['faq_answer']) ?></td>
+              <td class="actions">
+                <form method="POST">
+                  <input type="hidden" name="faq_id" value="<?= $row['faq_id'] ?>">
+                  <button type="button" name="restore_faq" class="btn btn-success btn-sm swal-restore-btn" data-message="Restore this FAQ?">Restore</button>
+                  <button type="button" name="delete_faq" class="btn btn-danger btn-sm swal-delete-btn" data-message="Permanently delete this FAQ?">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <?php endwhile; else: ?>
+            <tr><td colspan="3" class="text-center">No archived FAQs found.</td></tr>
+          <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php $qs='&tab=faqs&search='.urlencode($search_term); render_pagination($total_faqs, $limit, $page, $baseUrl, $qs); ?>
+    </div>           
+
   </div>
 </div>
 

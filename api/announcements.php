@@ -2,33 +2,42 @@
 require_once __DIR__ . '/../include/connection.php';
 $mysqli = db_connection();
 include 'class/session_timeout.php';
-require_once 'components/announcement/announcement_fetch.php';
 
+// 1. DETERMINE REDIRECT URL FIRST
 $role = strtolower($_SESSION['Role_Name'] ?? '');
 switch ($role) {
-    case 'admin':
-        $redirectPage = enc_admin('announcements');
-        break;
-    case 'punong barangay':
-        $redirectPage = enc_captain('announcements');
-        break;
-    case 'beso':
-        $redirectPage = enc_beso('announcements');
-        break;
-    case 'barangay secretary':
-        $redirectPage = enc_brgysec('announcements');
-        break;
-    case 'lupon':
-        $redirectPage = enc_lupon('announcements');
-        break;
-    case 'multimedia':
-        $redirectPage = enc_multimedia('announcements');
-        break;
-    case 'revenue staff':
-        $redirectPage = enc_revenue('announcements');
-        break; 
+    case 'admin': $redirectPage = enc_admin('announcements'); break;
+    case 'punong barangay': $redirectPage = enc_captain('announcements'); break;
+    case 'beso': $redirectPage = enc_beso('announcements'); break;
+    case 'barangay secretary': $redirectPage = enc_brgysec('announcements'); break;
+    case 'lupon': $redirectPage = enc_lupon('announcements'); break;
+    case 'multimedia': $redirectPage = enc_multimedia('announcements'); break;
+    case 'revenue staff': $redirectPage = enc_revenue('announcements'); break; 
+    default: $redirectPage = 'index.php';
 }
-$parsedBaseUrl = strtok($redirectPage, '?'); // ✅ remove query string early
+$parsedBaseUrl = strtok($redirectPage, '?');
+
+// =========================================================
+// 2. HANDLE DELETE (This was missing!)
+// =========================================================
+if (isset($_GET['delete_id'])) {
+    $id = (int)$_GET['delete_id'];
+    
+    // Update delete_status to 1 (Archive it)
+    $stmt = $mysqli->prepare("UPDATE announcement SET delete_status = 1 WHERE Id = ?");
+    $stmt->bind_param("i", $id);
+    
+    if ($stmt->execute()) {
+        // Use Javascript redirect to refresh the page cleanly
+        echo "<script>window.location.href = '$redirectPage';</script>";
+        exit;
+    } else {
+        die("Error archiving: " . $stmt->error);
+    }
+}
+
+// 3. Fetch Data
+require_once 'components/announcement/announcement_fetch.php';
 ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <link rel="stylesheet" href="css/Notice/announcement.css">
@@ -43,7 +52,6 @@ $parsedBaseUrl = strtok($redirectPage, '?'); // ✅ remove query string early
     <input type="hidden" name="page" value="<?= htmlspecialchars($_GET['page'] ?? 'announcements') ?>">
     <div class="row g-2 align-items-end">
         
-        <!-- 🔍 Search -->
         <div class="col-md-4">
             <label class="form-label">Search</label>
             <input type="text" name="search" class="form-control"
@@ -51,7 +59,6 @@ $parsedBaseUrl = strtok($redirectPage, '?'); // ✅ remove query string early
                    value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
         </div>
 
-        <!-- 📅 Month -->
         <div class="col-md-2">
             <label class="form-label">Month</label>
             <select name="month" class="form-select">
@@ -66,7 +73,6 @@ $parsedBaseUrl = strtok($redirectPage, '?'); // ✅ remove query string early
             </select>
         </div>
 
-        <!-- 📅 Year -->
         <div class="col-md-2">
             <label class="form-label">Year</label>
             <select name="year" class="form-select">
@@ -82,7 +88,6 @@ $parsedBaseUrl = strtok($redirectPage, '?'); // ✅ remove query string early
             </select>
         </div>
 
-        <!-- 🔘 Buttons -->
         <div class="col-md-2 d-flex gap-2">
             <button type="submit" class="btn btn-primary w-100">Filter</button>
             <a href="<?= htmlspecialchars($redirectPage) ?>" class="btn btn-secondary w-100">Clear</a>
@@ -164,4 +169,4 @@ $parsedBaseUrl = strtok($redirectPage, '?'); // ✅ remove query string early
 <script>
   const deleteBaseUrl = "<?= $redirectPage ?>";
 </script>
-<script src = "components/announcement/announcement.js"></script>
+<script src="components/announcement/announcement.js"></script>
