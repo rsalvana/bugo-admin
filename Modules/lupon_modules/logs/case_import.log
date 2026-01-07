@@ -71,3 +71,4 @@
 [2025-09-04 03:30:47] Row 11 inserted OK (case 1010)
 [2025-09-04 03:30:47] === Import end === imported=10, skipped=0
 [2025-12-17 21:31:49] === Import start === employee_id=95, tmp=C:\Users\Jun Ryan\Desktop\xampp\tmp\php5E9.tmp, logFile=C:\Users\Jun Ryan\Desktop\xampp\htdocs\bugo-admin\Modules\lupon_modules/logs\case_import.log
+[2025-12-19 13:39:53] === Import start === employee_id=95, tmp=C:\Users\Jun Ryan\Desktop\xampp\tmp\php1734.tmp, logFile=C:\Users\Jun Ryan\Desktop\xampp\htdocs\bugo-admin\Modules\lupon_modules/logs\case_import.log
