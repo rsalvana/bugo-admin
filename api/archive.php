@@ -289,6 +289,27 @@ function get_archived_faqs($search_term = '', $limit = 10, $page = 1) {
     $stmt->execute();
     return $stmt->get_result();
 }
+
+function get_archived_medicines($search_term = '', $limit = 10, $page = 1) {
+    global $mysqli;
+    $offset = ($page - 1) * $limit;
+    $sql = "SELECT id, medicine_name, category, stock_quantity, unit FROM medicine_inventory WHERE delete_status = 1";
+    
+    if ($search_term) {
+        $sql .= " AND (medicine_name LIKE ? OR category LIKE ?) LIMIT ? OFFSET ?";
+        $stmt = $mysqli->prepare($sql);
+        $s = "%$search_term%";
+        $stmt->bind_param("ssii", $s, $s, $limit, $offset);
+    } else {
+        $sql .= " LIMIT ? OFFSET ?";
+        $stmt = $mysqli->prepare($sql);
+        $stmt->bind_param("ii", $limit, $offset);
+    }
+    
+    $stmt->execute();
+    return $stmt->get_result();
+}
+
 /* =========================================
    Handle restore / delete POST actions
    (store flash + mark for client redirect)
@@ -406,6 +427,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_success('FAQ deleted!');
     }
 
+    // Medicine Inventory
+    if (isset($_POST['restore_medicine'])) {
+        $id = (int)$_POST['id'];
+        $mysqli->query("UPDATE medicine_inventory SET delete_status = 0 WHERE id = $id");
+        // $trigger->isRestored(30, $id, 10); // Optional: Add log trigger if needed
+        flash_success('Medicine restored!');
+    } elseif (isset($_POST['delete_medicine'])) {
+        $id = (int)$_POST['id'];
+        $mysqli->query("DELETE FROM medicine_inventory WHERE id = $id");
+        // $trigger->isDelete(30, $id); // Optional: Add log trigger if needed
+        flash_success('Medicine permanently deleted!');
+    }
+
 }
 
 /* =========================================
@@ -429,6 +463,7 @@ $total_events = count_records('events', 'events_delete_status');
 $total_feedback = count_records('feedback', 'feedback_delete_status');
 $total_announcements = count_records('announcement', 'delete_status'); 
 $total_faqs = count_records('faqs', 'delete_status');
+$total_medicines = count_records('medicine_inventory', 'delete_status');
 
 $archived_residents    = get_archived_residents($search_term, $limit, $page);
 $archived_employees    = get_archived_employees($search_term, $limit, $page);
@@ -437,6 +472,7 @@ $archived_events       = get_archived_events($search_term, $limit, $page);
 $archived_feedback     = get_archived_feedback($search_term, $limit, $page);
 $archived_announcements = get_archived_announcements($search_term, $limit, $page);
 $archived_faqs          = get_archived_faqs($search_term, $limit, $page);
+$archived_medicines = get_archived_medicines($search_term, $limit, $page);
 
 // If your app provides $redirects['archive'], use it; otherwise fallback to current script
 $baseUrl = isset($redirects['archive']) ? $redirects['archive'] : (basename($_SERVER['PHP_SELF']).'?page='.(isset($_GET['page'])?urlencode($_GET['page']):''));
@@ -476,6 +512,7 @@ h2 { color:#228be6;font-weight:600; }
     <li class="nav-item"><a class="nav-link <?= ($tab=='feedback')?'active':'' ?>" href="<?= $baseUrl ?>&tab=feedback">Feedback</a></li>
     <li class="nav-item"><a class="nav-link <?= ($tab=='announcements')?'active':'' ?>" href="<?= $baseUrl ?>&tab=announcements">Announcements</a></li>
     <li class="nav-item"><a class="nav-link <?= ($tab=='faqs')?'active':'' ?>" href="<?= $baseUrl ?>&tab=faqs">FAQs</a></li>
+    <li class="nav-item"><a class="nav-link <?= ($tab=='medicines')?'active':'' ?>" href="<?= $baseUrl ?>&tab=medicines">Medicines</a></li>
   
   </ul>
 
@@ -652,7 +689,7 @@ h2 { color:#228be6;font-weight:600; }
       </div>
       <?php $qs='&tab=feedback&search='.urlencode($search_term); render_pagination($total_feedback,$limit,$page,$baseUrl,$qs); ?>
     </div>
-
+<!-- ANNOUNCMENT -->
     <div class="tab-pane fade <?= ($tab=='announcements')?'show active':'' ?>" id="announcements" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchAnnouncements" placeholder="Search announcements..." value="<?= htmlspecialchars($search_term) ?>">
@@ -689,7 +726,7 @@ h2 { color:#228be6;font-weight:600; }
       </div>
       <?php $qs='&tab=announcements&search='.urlencode($search_term); render_pagination($total_announcements, $limit, $page, $baseUrl, $qs); ?>
     </div>
-
+<!-- FAQS -->
     <div class="tab-pane fade <?= ($tab=='faqs')?'show active':'' ?>" id="faqs" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchFaqs" placeholder="Search FAQs..." value="<?= htmlspecialchars($search_term) ?>">
@@ -725,6 +762,45 @@ h2 { color:#228be6;font-weight:600; }
       <?php $qs='&tab=faqs&search='.urlencode($search_term); render_pagination($total_faqs, $limit, $page, $baseUrl, $qs); ?>
     </div>           
 
+    <div class="tab-pane fade <?= ($tab=='medicines')?'show active':'' ?>" id="medicines" role="tabpanel">
+      <div class="input-group mb-3">
+        <input type="text" class="form-control searchInput" id="searchMedicines" placeholder="Search medicines..." value="<?= htmlspecialchars($search_term) ?>">
+      </div>
+      <div class="table-responsive w-100" style="height:500px;overflow-y:auto;">
+        <table class="table table-bordered w-100 mb-0" id="medicinesTable">
+          <thead>
+            <tr>
+              <th>Medicine Name</th>
+              <th>Category</th>
+              <th>Stock</th>
+              <th>Unit</th>
+              <th style="width:200px;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+          <?php if($archived_medicines && $archived_medicines->num_rows > 0): while($row = $archived_medicines->fetch_assoc()): ?>
+            <tr>
+              <td><?= htmlspecialchars($row['medicine_name']) ?></td>
+              <td><?= htmlspecialchars($row['category']) ?></td>
+              <td><?= htmlspecialchars($row['stock_quantity']) ?></td>
+              <td><?= htmlspecialchars($row['unit']) ?></td>
+              <td class="actions">
+                <form method="POST">
+                  <input type="hidden" name="id" value="<?= $row['id'] ?>">
+                  <button type="button" name="restore_medicine" class="btn btn-success btn-sm swal-restore-btn" data-message="Restore this medicine?">Restore</button>
+                  <button type="button" name="delete_medicine" class="btn btn-danger btn-sm swal-delete-btn" data-message="⚠️ This will DELETE the medicine FOREVER. Are you sure?">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <?php endwhile; else: ?>
+            <tr><td colspan="5" class="text-center">No archived medicines found.</td></tr>
+          <?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+      <?php $qs='&tab=medicines&search='.urlencode($search_term); render_pagination($total_medicines, $limit, $page, $baseUrl, $qs); ?>
+    </div>        
+
   </div>
 </div>
 
@@ -747,6 +823,7 @@ $(function () {
     bindDebouncedSearch('searchAppointments','appointmentsTable');
     bindDebouncedSearch('searchEvents','eventsTable');
     bindDebouncedSearch('searchFeedback','feedbackTable');
+    bindDebouncedSearch('searchMedicines','medicinesTable');
 });
 
 // SweetAlert confirm wrappers

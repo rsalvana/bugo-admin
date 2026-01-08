@@ -7,6 +7,27 @@ if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
 require_once __DIR__ . '/../../include/connection.php';
 $mysqli = db_connection();
 
+// =============================================================
+// 1. HANDLE ARCHIVE LOGIC (Add this block)
+// =============================================================
+if (isset($_GET['delete_id'])) {
+    $id = (int)$_GET['delete_id'];
+    
+    // Update delete_status to 1
+    $stmt = $mysqli->prepare("UPDATE medicine_inventory SET delete_status = 1 WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    
+    if ($stmt->execute()) {
+        // Success! Reload the page and remove 'delete_id' from URL
+        echo "<script>
+            const url = new URL(window.location.href);
+            url.searchParams.delete('delete_id');
+            window.location.href = url.toString();
+        </script>";
+        exit;
+    }
+}
+
 // --- FILTERS & SEARCH ---
 $search = $_GET['search'] ?? '';
 $category = $_GET['category'] ?? '';
@@ -470,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Handle Archive
+    // Handle Archive (Updated Simple Version)
     document.querySelectorAll('.archive-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const id = this.dataset.id;
@@ -483,10 +504,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 confirmButtonText: 'Yes, Archive it'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    const fd = new FormData();
-                    fd.append('action', 'archive');
-                    fd.append('med_id', id);
-                    submitData(fd);
+                    // Redirect using the CURRENT URL + delete_id
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('delete_id', id);
+                    window.location.href = url.toString();
                 }
             });
         });

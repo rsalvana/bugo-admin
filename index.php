@@ -207,7 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     // Decide post-login redirect based on role (used after OTP success OR bypass)
                     switch (true) {
                         case strpos($role_name, 'admin') !== false:
-                            $redirect_page = enc_page('admin_dashboard'); break;                                        
+                            $redirect_page = enc_page('admin_dashboard'); break;                                     
                         case strpos($role_name, 'revenue') !== false:
                             $redirect_page = enc_revenue('admin_dashboard'); break;
                         case strpos($role_name, 'indigency') !== false:
@@ -229,7 +229,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                         case strpos($role_name, 'bhw') !== false:
                             $redirect_page = enc_bhw('bhw_dashboard'); break; 
                             case strpos($role_name, 'liason') !== false:
-                                $redirect_page = enc_liason('liason_dashboard'); break;                                                          
+                                $redirect_page = enc_liason('liason_dashboard'); break;                                                              
                         default:
                             $redirect_page = enc_page('admin_dashboard');
                     }
@@ -358,16 +358,28 @@ $mysqli->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Barangay Bugo - Login</title>
     <link rel="icon" type="image/png" href="assets/logo/logo.png">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="css/responsive.css">
-
+    
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <style>
+        :root {
+            --primary-color: #0d6efd;
+            --primary-dark: #0a58ca;
+            --bg-overlay: rgba(0, 0, 0, 0.55);
+            --card-bg: rgba(255, 255, 255, 0.92);
+        }
+
         body {
             margin: 0;
-            font-family: Arial, sans-serif;
+            font-family: 'Poppins', sans-serif;
             background: url('logo/bugo.png') no-repeat center center fixed;
             background-size: cover;
             display: flex;
@@ -376,141 +388,308 @@ $mysqli->close();
             flex-direction: column;
             min-height: 100vh;
             position: relative;
+            overflow-x: hidden;
         }
+
+        /* Modern Gradient Overlay */
         body::before {
             content: '';
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0, 0, 0, 0.4);
+            background: linear-gradient(135deg, rgba(0,0,0,0.7) 0%, rgba(0,30,60,0.5) 100%);
             z-index: 1;
+            backdrop-filter: blur(4px);
         }
+
+        /* Glassmorphism Card */
         .login-card {
             position: relative;
             z-index: 2;
-            background: #fff;
-            padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+            background: var(--card-bg);
+            padding: 45px 35px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.25);
             width: 100%;
-            max-width: 400px;
+            max-width: 420px;
             text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            animation: fadeInUp 0.8s ease-out;
         }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-card img {
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+            transition: transform 0.3s ease;
+        }
+        .login-card img:hover {
+            transform: scale(1.05);
+        }
+
+        .login-card h2 {
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+
+        .login-card p {
+            color: #666;
+            font-size: 0.95rem;
+            margin-bottom: 25px;
+        }
+
+        /* Modern Inputs */
+        .form-floating-custom {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid #e0e0e0;
+            transition: all 0.3s ease;
+            background: #fff;
+        }
+
+        .input-group:focus-within {
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+            transform: translateY(-1px);
+        }
+
+        .input-group-text {
+            background: transparent;
+            border: none;
+            color: #999;
+            padding-left: 15px;
+        }
+
+        .form-control {
+            border: none;
+            padding: 12px 15px;
+            font-size: 0.95rem;
+            color: #333;
+        }
+        
+        .form-control:focus {
+            box-shadow: none;
+        }
+
+        .btn-toggle-password {
+            background: transparent;
+            border: none;
+            color: #999;
+            z-index: 5;
+        }
+        .btn-toggle-password:hover {
+            color: var(--primary-color);
+            background: transparent;
+        }
+
+        /* Modern Button */
+        .btn-primary {
+            background: linear-gradient(135deg, #0d6efd 0%, #0056b3 100%);
+            border: none;
+            border-radius: 50px;
+            padding: 12px 20px;
+            font-weight: 600;
+            font-size: 1rem;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(13, 110, 253, 0.35);
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(13, 110, 253, 0.5);
+            background: linear-gradient(135deg, #0b5ed7 0%, #004494 100%);
+        }
+
+        /* Checkbox & Links */
+        .form-check-input {
+            cursor: pointer;
+        }
+        .form-check-label {
+            font-size: 0.9rem;
+            color: #555;
+            cursor: pointer;
+        }
+        .forgot-link {
+            font-size: 0.9rem;
+            color: #0d6efd;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        .forgot-link:hover {
+            color: #0043a8;
+            text-decoration: underline;
+        }
+
+        /* Footer */
         .footer {
             position: relative;
             z-index: 2;
-            color: #fff;
-            margin-top: 20px;
+            color: rgba(255,255,255,0.8);
+            margin-top: 30px;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
         }
 
-        /* START: NEW RECAPTCHA FIX */
-        .g-recaptcha {
-            /* This helps center the reCAPTCHA block */
-            display: inline-block;
+        /* Recaptcha Container */
+        .recaptcha-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+            transform-origin: center;
         }
 
-        @media (max-width: 370px) {
+        @media (max-width: 480px) {
             .login-card {
-                /* Reduce padding on very small screens to fit reCAPTCHA */
-                padding-left: 8px;
-                padding-right: 8px;
+                padding: 30px 20px;
+                border-radius: 15px;
+            }
+            .recaptcha-container {
+                transform: scale(0.85); /* Shrink recaptcha slightly on mobile */
             }
         }
-        /* END: NEW RECAPTCHA FIX */
-
     </style>
 </head>
 <body class="is-login">
 
     <div class="container">
         <div class="row justify-content-center">
-            <div class="col-md-6 col-lg-4">
+            <div class="col-md-6 col-lg-5 col-xl-4">
                 <div class="login-card">
-                    <img src="assets/logo/bugo_logo.png" alt="Barangay Logo" width="80" class="mb-3">
-                    <h2>Welcome Back!</h2>
-                    <p class="mb-4">Please login to your account</p>
+                    <?php if($logo): ?>
+                        <?php 
+                        // Default logo
+                        $logoDisplay = 'bugo_logo.png'; 
+
+                        // Check if database result exists and try to find the correct column name
+                        if ($logo) {
+                            if (isset($logo['image']) && !empty($logo['image'])) {
+                                $logoDisplay = $logo['image'];
+                            } elseif (isset($logo['logo_img']) && !empty($logo['logo_img'])) {
+                                $logoDisplay = $logo['logo_img']; // Alternative column name
+                            } elseif (isset($logo['file_name']) && !empty($logo['file_name'])) {
+                                $logoDisplay = $logo['file_name']; // Alternative column name
+                            }
+                        }
+                    ?>
+                    
+                    <img src="assets/logo/<?php echo htmlspecialchars($logoDisplay); ?>" alt="Barangay Logo" width="90" class="mb-2">
+                    <?php endif; ?>
+                    
+                    <h2>Welcome Back</h2>
+                    <p>Sign in to access your dashboard</p>
+                    
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
-                        <div class="mb-3 input-group">
-                            <span class="input-group-text"><i class="fa fa-user"></i></span>
-                            <input type="text" name="username" class="form-control" placeholder="Username" required>
+                        
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="fa-regular fa-user"></i></span>
+                            <input type="text" name="username" class="form-control" placeholder="Username" required autocomplete="username">
                         </div>
-                        <div class="mb-3 input-group">
-                          <span class="input-group-text"><i class="fa fa-lock"></i></span>
-                          <input type="password" id="password" name="password" class="form-control" placeholder="Password" required>
-                          <button type="button" class="btn btn-outline-secondary" id="togglePassword" aria-label="Show password">
-                            <i class="fa fa-eye"></i>
-                          </button>
+                        
+                        <div class="input-group mb-3">
+                            <span class="input-group-text"><i class="fa-solid fa-lock"></i></span>
+                            <input type="password" id="password" name="password" class="form-control" placeholder="Password" required autocomplete="current-password">
+                            <button type="button" class="btn btn-toggle-password" id="togglePassword" aria-label="Show password">
+                                <i class="fa-regular fa-eye"></i>
+                            </button>
                         </div>
-                        <div class="g-recaptcha my-3" data-sitekey="6Ldid00rAAAAAJW0Uh8pFV_ZPyvhICFCnqesb6Mv"></div>
-                        <button type="submit" class="btn btn-primary w-100">Login</button>
-                        <div class="form-check text-start mt-2">
-                        <input type="checkbox" class="form-check-input" id="remember" name="remember">
-                        <label class="form-check-label" for="remember">Remember me</label>
+                        
+                        <div class="recaptcha-container">
+                            <div class="g-recaptcha" data-sitekey="6Ldid00rAAAAAJW0Uh8pFV_ZPyvhICFCnqesb6Mv"></div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 mb-3">Sign In</button>
+                        
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="form-check text-start">
+                                <input type="checkbox" class="form-check-input" id="remember" name="remember">
+                                <label class="form-check-label" for="remember">Remember me</label>
+                            </div>
+                            <a href="forgot/forgot_password.php" class="forgot-link">Forgot Password?</a>
                         </div>
                     </form>
-                    <div class="mt-3">
-                        <a href="forgot/forgot_password.php" class="text-muted">Forgot Password?</a>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="footer">
-        Copyright &copy; <?php echo $barangayName . ' ' . date('Y'); ?>
+        &copy; <?php echo date('Y'); ?> <?php echo htmlspecialchars($barangayName); ?>. All rights reserved.
     </div>
 
-<?php if (!empty($error_message)) : ?>
-<script>
-document.addEventListener("DOMContentLoaded", function () {
-    <?php if (strpos($error_message, "LOCKED:") === 0): 
-        $secondsLeft = (int) str_replace("LOCKED:", "", $error_message);
-    ?>
-        let remaining = <?php echo $secondsLeft; ?>;
-        Swal.fire({
-            icon: 'error',
-            title: 'Account Locked',
-            html: 'Too many failed login attempts.<br><b id="countdown"></b>',
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            didOpen: () => {
-                const countdownEl = Swal.getHtmlContainer().querySelector('#countdown');
-                const timer = setInterval(() => {
-                    let mins = Math.floor(remaining / 60);
-                    let secs = remaining % 60;
-                    countdownEl.textContent = `${mins}m ${secs}s remaining`;
-                    remaining--;
-                    if (remaining < 0) {
-                        clearInterval(timer);
-                        Swal.close();
-                        location.reload(); // Reload so they can try again
-                    }
-                }, 1000);
-            }
-        });
-    <?php else: ?>
-        Swal.fire({
-            icon: 'error',
-            title: 'Login Failed',
-            text: <?php echo json_encode($error_message); ?>,
-            confirmButtonColor: '#3085d6'
-        });
+    <?php if (!empty($error_message)) : ?>
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        <?php if (strpos($error_message, "LOCKED:") === 0): 
+            $secondsLeft = (int) str_replace("LOCKED:", "", $error_message);
+        ?>
+            let remaining = <?php echo $secondsLeft; ?>;
+            Swal.fire({
+                icon: 'error',
+                title: 'Account Locked',
+                html: 'Too many failed login attempts.<br>Please wait <b id="countdown"></b>',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                buttonsStyling: false,
+                customClass: { confirmButton: 'btn btn-primary' },
+                didOpen: () => {
+                    const countdownEl = Swal.getHtmlContainer().querySelector('#countdown');
+                    const timer = setInterval(() => {
+                        let mins = Math.floor(remaining / 60);
+                        let secs = remaining % 60;
+                        countdownEl.textContent = `${mins}m ${secs}s`;
+                        remaining--;
+                        if (remaining < 0) {
+                            clearInterval(timer);
+                            Swal.close();
+                            location.reload();
+                        }
+                    }, 1000);
+                }
+            });
+        <?php else: ?>
+            Swal.fire({
+                icon: 'error',
+                title: 'Login Failed',
+                text: <?php echo json_encode($error_message); ?>,
+                confirmButtonColor: '#0d6efd',
+                buttonsStyling: true
+            });
+        <?php endif; ?>
+    });
+    </script>
     <?php endif; ?>
-});
-</script>
-<?php endif; ?>
-
 
     <?php if (!empty($_SESSION['login_success']) && !empty($_SESSION['redirect_page'])): ?>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            Swal.fire({
-                icon: 'success',
-                title: 'Login Successful',
-                text: 'Welcome back!',
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
                 showConfirmButton: false,
-                timer: 1000,
-                timerProgressBar: true
+                timer: 1500,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
+                }
+            });
+
+            Toast.fire({
+                icon: 'success',
+                title: 'Welcome back!'
             }).then(() => {
                 window.location.href = <?php echo json_encode($_SESSION['redirect_page']); ?>;
             });
@@ -525,31 +704,31 @@ document.addEventListener("DOMContentLoaded", function () {
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         Swal.fire({
-          icon: 'warning',
-          title: 'Add your email to enable 2FA',
-          text: 'For better security, please add a valid email to your profile to enable two-factor authentication.',
-          confirmButtonText: 'OK'
+          icon: 'info',
+          title: 'Security Notice',
+          text: 'For better security, please add a valid email to your profile to enable Two-Factor Authentication.',
+          confirmButtonText: 'Understood',
+          confirmButtonColor: '#0d6efd'
         });
       });
     </script>
     <?php unset($_SESSION['needs_email_for_2fa']); endif; ?>
     
     <script>
-document.addEventListener('DOMContentLoaded', function () {
-  const pw = document.getElementById('password');
-  const btn = document.getElementById('togglePassword');
-  if (!pw || !btn) return;
-  btn.addEventListener('click', function () {
-    const isText = pw.type === 'text';
-    pw.type = isText ? 'password' : 'text';
-    const icon = this.querySelector('i');
-    icon.classList.toggle('fa-eye', isText);
-    icon.classList.toggle('fa-eye-slash', !isText);
-    this.setAttribute('aria-label', isText ? 'Show password' : 'Hide password');
-  });
-});
-</script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const pw = document.getElementById('password');
+      const btn = document.getElementById('togglePassword');
+      if (!pw || !btn) return;
+      btn.addEventListener('click', function () {
+        const isText = pw.type === 'text';
+        pw.type = isText ? 'password' : 'text';
+        const icon = this.querySelector('i');
+        icon.classList.toggle('fa-eye', isText);
+        icon.classList.toggle('fa-eye-slash', !isText);
+        this.setAttribute('aria-label', isText ? 'Show password' : 'Hide password');
+      });
+    });
+    </script>
 
-    
 </body>
 </html>

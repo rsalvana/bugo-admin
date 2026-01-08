@@ -19,6 +19,30 @@ if (empty($_SESSION['employee_id'])) {
 
 $mysqli = db_connection();
 
+// =============================================================
+// 1. HANDLE ARCHIVE / DELETE LOGIC (Paste this here)
+// =============================================================
+if (isset($_GET['delete_id'])) {
+    $id = (int)$_GET['delete_id'];
+    
+    // Check if ID is valid
+    if ($id > 0) {
+        // Update delete_status to 1 (Soft Delete)
+        $stmt = $mysqli->prepare("UPDATE faqs SET delete_status = 1 WHERE faq_id = ?");
+        $stmt->bind_param("i", $id);
+        
+        if ($stmt->execute()) {
+            // Success! Reload the page cleanly
+            echo "<script>
+                const url = new URL(window.location.href);
+                url.searchParams.delete('delete_id');
+                window.location.href = url.toString();
+            </script>";
+            exit;
+        }
+    }
+}
+
 // Build/refresh CSRF
 if (empty($_SESSION['csrf_token'])) {
   $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
@@ -30,6 +54,7 @@ $sql = "
   SELECT f.faq_id, f.faq_question, f.faq_answer, f.faq_status, f.created_at
   FROM faqs f
   LEFT JOIN employee_list e ON e.employee_id = f.employee_id
+  WHERE f.delete_status = 0  
   ORDER BY f.faq_id DESC
   LIMIT 200
 ";
@@ -363,39 +388,29 @@ document.getElementById('faqEditForm').addEventListener('submit', async (e) => {
   }
 });
 
-// ARCHIVE
+// ARCHIVE (Updated to work with Archive Page)
 document.getElementById('faqTableBody').addEventListener('click', async (e) => {
   const btn = e.target.closest('.action-archive');
   if (!btn) return;
   const id = btn.getAttribute('data-id');
 
-  const ok = window.Swal
-    ? (await Swal.fire({ icon:'warning', title:'Archive FAQ?', text:'This will mark the FAQ as Inactive.', showCancelButton:true, confirmButtonText:'Yes, archive it' })).isConfirmed
-    : confirm('Archive this FAQ?');
-  if (!ok) return;
+  const result = window.Swal 
+    ? await Swal.fire({
+        title: 'Archive FAQ?',
+        text: "This will move the FAQ to the Archive tab.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, archive it!'
+      })
+    : { isConfirmed: confirm('Archive this FAQ?') };
 
-  try {
-    const fd = new FormData();
-    fd.set('csrf_token', csrfToken);
-    fd.set('faq_id', id);
-
-    const res = await fetch('ajax/faq_create.php?action=archive', {
-      method: 'POST',
-      body: fd,
-      headers: { 'Accept': 'application/json' },
-      credentials: 'same-origin'
-    });
-    const json = await ensureJson(res);
-
-    if (json.success) {
-      const row = document.getElementById(`faq-row-${id}`);
-      if (row) row.querySelector('.faq-status').innerHTML = '<span class="badge bg-secondary">Inactive</span>';
-      (window.Swal ? Swal.fire({ icon:'success', title:'Archived', text: json.message || 'FAQ archived.' }) : alert(json.message || 'FAQ archived.'));
-    } else {
-      (window.Swal ? Swal.fire({ icon:'error', title:'Error', text: json.message || 'Failed to archive.' }) : alert(json.message || 'Failed to archive.'));
-    }
-  } catch (err) {
-    (window.Swal ? Swal.fire({ icon:'error', title:'Error', text: err.message }) : alert(err.message));
-  }
+  if (result.isConfirmed) {
+      // THIS IS CORRECT: It keeps your current Admin URL and adds the delete ID
+      const url = new URL(window.location.href);
+      url.searchParams.set('delete_id', id);
+      window.location.href = url.toString();
+  }2
 });
 </script>
