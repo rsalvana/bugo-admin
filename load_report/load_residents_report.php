@@ -57,18 +57,6 @@ if ($age_min !== null && $age_max !== null) {
   $addCond("age <= ?", [$age_max], "i");
 }
 
-/* male/female cards: exclude gender filter but keep zone + age range */
-$base_where_no_gender = " WHERE resident_delete_status = 0";
-$params_no_gender = []; $types_no_gender = "";
-if ($res_zone !== null) { $base_where_no_gender .= " AND res_zone = ?"; $params_no_gender[] = $res_zone; $types_no_gender .= "s"; }
-if ($age_min !== null && $age_max !== null) {
-  $base_where_no_gender .= " AND age BETWEEN ? AND ?"; $params_no_gender[] = $age_min; $params_no_gender[] = $age_max; $types_no_gender .= "ii";
-} elseif ($age_min !== null) {
-  $base_where_no_gender .= " AND age >= ?"; $params_no_gender[] = $age_min; $types_no_gender .= "i";
-} elseif ($age_max !== null) {
-  $base_where_no_gender .= " AND age <= ?"; $params_no_gender[] = $age_max; $types_no_gender .= "i";
-}
-
 /* age groups: exclude age-range filter but keep gender + zone */
 $base_where_no_age = " WHERE resident_delete_status = 0";
 $params_no_age = []; $types_no_age = "";
@@ -76,6 +64,8 @@ if ($gender !== null)   { $base_where_no_age .= " AND gender = ?";   $params_no_
 if ($res_zone !== null) { $base_where_no_age .= " AND res_zone = ?"; $params_no_age[] = $res_zone; $types_no_age .= "s"; }
 
 /* ---------- Queries ---------- */
+
+// 1. Total Residents
 $total_sql = "SELECT COUNT(*) AS total FROM residents" . $base_where;
 $stmt = $mysqli->prepare($total_sql);
 if (!empty($params)) $stmt->bind_param($types, ...$params);
@@ -83,21 +73,23 @@ $stmt->execute();
 $total_res = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
 $stmt->close();
 
-$male_sql = "SELECT COUNT(*) AS c FROM residents" . $base_where_no_gender . " AND gender='Male'";
+// 2. Male Count
+$male_sql = "SELECT COUNT(*) AS c FROM residents" . $base_where . " AND gender='Male'";
 $stmt = $mysqli->prepare($male_sql);
-if (!empty($params_no_gender)) $stmt->bind_param($types_no_gender, ...$params_no_gender);
+if (!empty($params)) $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $male_count = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
 $stmt->close();
 
-$female_sql = "SELECT COUNT(*) AS c FROM residents" . $base_where_no_gender . " AND gender='Female'";
+// 3. Female Count
+$female_sql = "SELECT COUNT(*) AS c FROM residents" . $base_where . " AND gender='Female'";
 $stmt = $mysqli->prepare($female_sql);
-if (!empty($params_no_gender)) $stmt->bind_param($types_no_gender, ...$params_no_gender);
+if (!empty($params)) $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $female_count = (int)($stmt->get_result()->fetch_assoc()['c'] ?? 0);
 $stmt->close();
 
-/* age group breakdown (respect gender+zone, ignore age-range filter) */
+/* age group breakdown */
 $age_groups = [
   '0-10' => [0,10], '11-19'=>[11,19], '20-29'=>[20,29],
   '30-39'=>[30,39], '40-49'=>[40,49], '50-59'=>[50,59], '60+'=>[60,200],
@@ -114,7 +106,7 @@ foreach ($age_groups as $label => [$minA,$maxA]) {
   $stmt->close();
 }
 
-/* zone distribution (respect full filter) */
+/* zone distribution */
 $zone_sql = "SELECT res_zone, COUNT(*) AS cnt FROM residents".$base_where." GROUP BY res_zone ORDER BY cnt DESC";
 $stmt = $mysqli->prepare($zone_sql);
 if (!empty($params)) $stmt->bind_param($types, ...$params);
@@ -124,10 +116,10 @@ $zones = [];
 while ($z = $zone_res->fetch_assoc()) $zones[] = $z;
 $stmt->close();
 
-/* pagination count (screen only) */
+/* pagination */
 $total_pages = max(1, (int)ceil($total_res / $limit));
 
-/* data query (disable LIMIT in print mode) */
+/* data query */
 $data_sql = "SELECT id, first_name, middle_name, last_name, suffix_name, age, gender, res_zone
              FROM residents" . $base_where . " ORDER BY last_name ASC" . ($print ? "" : " LIMIT ?, ?");
 
@@ -168,11 +160,8 @@ function normalize_signature_data_uri(?string $data, ?string $mimeHint='image/pn
   return 'data:'.$mime.';base64,'.$b64;
 }
 
-/* current employee (name + roles from employee_roles, signature from employee_list) */
 function current_employee_with_roles(mysqli $db): array {
-  $name = null; $sig = null; $roles = null;
-
-  // common id keys in session
+  $name = null; $sig = null;
   $empId = $_SESSION['employee_id'] ?? $_SESSION['emp_id'] ?? $_SESSION['Employee_Id'] ?? $_SESSION['id'] ?? null;
 
   if ($empId && is_numeric($empId)) {
@@ -192,17 +181,6 @@ function current_employee_with_roles(mysqli $db): array {
       }
       $st->close();
     }
-    if ($st = $db->prepare("SELECT GROUP_CONCAT(Role_Name ORDER BY Role_Id SEPARATOR ', ') AS role_names
-                            FROM employee_roles
-                            WHERE Employee_Id=? AND Role_Name IS NOT NULL AND Role_Name<>''")) {
-      $st->bind_param('i', $empId);
-      if ($st->execute()) {
-        $st->store_result();
-        $rn = null; $st->bind_result($rn);
-        if ($st->fetch()) $roles = $rn ?: null;
-      }
-      $st->close();
-    }
   }
 
   // fallback via username
@@ -219,17 +197,6 @@ function current_employee_with_roles(mysqli $db): array {
           $mi = $mn ? ' '.mb_substr(trim($mn),0,1).'.' : '';
           $name = trim(preg_replace('/\s+/', ' ', ($fn??'').$mi.' '.($ln??'')));
           if (!empty($blob)) $sig = normalize_signature_data_uri($blob, $mime ?: 'image/png');
-          if ($id && ($st2 = $db->prepare("SELECT GROUP_CONCAT(Role_Name ORDER BY Role_Id SEPARATOR ', ') AS role_names
-                                           FROM employee_roles
-                                           WHERE Employee_Id=? AND Role_Name IS NOT NULL AND Role_Name<>''"))) {
-            $st2->bind_param('i', $id);
-            if ($st2->execute()) {
-              $st2->store_result();
-              $rn=null; $st2->bind_result($rn);
-              if ($st2->fetch()) $roles = $rn ?: null;
-            }
-            $st2->close();
-          }
         }
       }
       $st->close();
@@ -245,17 +212,15 @@ function current_employee_with_roles(mysqli $db): array {
     ];
     foreach ($cand as $v) { if ($v && trim($v)!=='') { $name = trim($v); break; } }
   }
-  if (!$roles) $roles = $_SESSION['Role_Name'] ?? null;
 
-  return ['name'=>$name, 'sig'=>$sig, 'roles'=>$roles];
+  return ['name'=>$name, 'sig'=>$sig];
 }
 
-/* barangay signatory by position (name & signature) */
 function fetch_signatory_separate(mysqli $db, string $pos): array {
   $stmt1 = $db->prepare("SELECT bi.official_id, bi.esignature, bi.esignature_mime
-                         FROM barangay_information bi
-                         WHERE LOWER(bi.`position`)=LOWER(?) AND bi.`status`='active'
-                         ORDER BY bi.id DESC LIMIT 1");
+                          FROM barangay_information bi
+                          WHERE LOWER(bi.`position`)=LOWER(?) AND bi.`status`='active'
+                          ORDER BY bi.id DESC LIMIT 1");
   if (!$stmt1) return ['name'=>null,'sig'=>null];
   $stmt1->bind_param('s', $pos);
   if (!$stmt1->execute()) { $stmt1->close(); return ['name'=>null,'sig'=>null]; }
@@ -289,7 +254,9 @@ function fetch_signatory_separate(mysqli $db, string $pos): array {
 $cu = current_employee_with_roles($mysqli);
 $preparedBy  = $cu['name'] ?: 'Encoder';
 $preparedSig = $cu['sig']  ?? null;
-$preparedPos = $cu['roles'] ?: 'Encoder';
+
+// FIX: Use the current SESSION ROLE instead of the concatenated list from DB
+$preparedPos = $_SESSION['Role_Name'] ?? 'Encoder';
 
 $sgSec  = fetch_signatory_separate($mysqli, 'Barangay Secretary');
 $sgPB   = fetch_signatory_separate($mysqli, 'Punong Barangay');
@@ -325,16 +292,19 @@ table { page-break-inside:auto; }
 tr    { page-break-inside:avoid; page-break-after:auto; }
 .print-hide { display:none !important; } /* hidden in print */
 </style>
-<!--<link rel="stylesheet" href="css/report/report.css">-->
 <div class="res-report">
-  <!-- KPI Cards -->
   <div class="analytics">
     <div class="card-analytic"><h6>Total Residents</h6><p><?= number_format($total_res) ?></p></div>
-    <div class="card-analytic"><h6>Male</h6><p><?= number_format($male_count) ?></p></div>
-    <div class="card-analytic"><h6>Female</h6><p><?= number_format($female_count) ?></p></div>
+    
+    <?php if ($gender === null || $gender === '' || $gender === 'Male'): ?>
+      <div class="card-analytic"><h6>Male</h6><p><?= number_format($male_count) ?></p></div>
+    <?php endif; ?>
+
+    <?php if ($gender === null || $gender === '' || $gender === 'Female'): ?>
+      <div class="card-analytic"><h6>Female</h6><p><?= number_format($female_count) ?></p></div>
+    <?php endif; ?>
   </div>
 
-  <!-- Age Groups (hidden on print) -->
   <div class="section print-hide">
     <h6>Age Group Distribution</h6>
     <table class="table table-sm table-bordered mb-0">
@@ -349,7 +319,6 @@ tr    { page-break-inside:avoid; page-break-after:auto; }
     </table>
   </div>
 
-  <!-- Zones (hidden on print) -->
   <div class="section print-hide">
     <h6>Residents per Zone</h6>
     <table class="table table-sm table-bordered mb-0">
@@ -368,7 +337,6 @@ tr    { page-break-inside:avoid; page-break-after:auto; }
     </table>
   </div>
 
-  <!-- Residents Table -->
   <div class="section">
     <table class="table table-bordered table-striped table-hover" style="page-break-inside:auto;">
       <thead class="table-primary">
@@ -413,9 +381,9 @@ if ($print) {
   echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>'.$reportTitle.'</title>
   <style>
     @page { size: A4 landscape; margin: 12mm; }
-    *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-    html, body { font-family: Segoe UI, Arial, sans-serif; color:#0f172a; }
-    body { margin:0; }
+    *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; box-sizing: border-box; }
+    html, body { font-family: Segoe UI, Arial, sans-serif; color:#0f172a; margin: 0; padding: 0; width: 100%; }
+    
     .header{ display:grid; grid-template-columns:auto 1fr auto; align-items:center; margin:0 0 10px 0; }
     .seals{ display:flex; gap:12px; }
     .seal{ width:52px; height:52px; border-radius:50%; overflow:hidden; border:1px solid #e2e8f0; background:#fff; }
@@ -425,12 +393,12 @@ if ($print) {
     .year{ font-size:14px; justify-self:end; }
     .box{ border:1.5px solid #cfd8e3; padding:10px; page-break-inside:auto; }
 
-    tr, img, .card-analytic { break-inside: avoid; page-break-inside: avoid; }
-    .footer{ display:grid; grid-template-columns:1fr 1fr 1fr; text-align:center; margin-top:12px; }
-    .sig .lbl{ font-size:12px; margin-bottom:8px; font-weight:600; }
-    .sig .name{ font-weight:700; font-size:14px; margin-bottom:2px; }
+    tr, img, .card-analytic, .footer { break-inside: avoid; page-break-inside: avoid; }
+    .footer{ display:grid; grid-template-columns:1fr 1fr 1fr; text-align:center; margin-top:30px; }
+    .sig .lbl{ font-size:12px; margin-bottom:25px; font-weight:600; }
+    .sig .name{ font-weight:700; font-size:14px; margin-bottom:2px; text-transform: uppercase; }
     .sig .pos{ font-size:12px; color:#475569; }
-    .sigimg{ max-height:56px; width:auto; margin-bottom:4px; display:block; margin-left:auto; margin-right:auto; }
+    .sigimg{ max-height:50px; width:auto; display:block; margin: 0 auto -10px auto; position: relative; top: 10px; }
 
     /* table dividers (print) */
     .box table { width:100%; border-collapse:collapse; }

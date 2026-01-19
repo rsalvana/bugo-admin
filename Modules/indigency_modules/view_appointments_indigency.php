@@ -470,7 +470,9 @@ $unionSql = "
     TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
     COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
     NULL AS assigned_kagawad_id,
-    NULL AS assigned_kag_name
+    NULL AS assigned_kag_name,
+     NULL AS oneness_fullname   
+    
   FROM urgent_cedula_request ucr
   JOIN residents r ON ucr.res_id = r.id
   LEFT JOIN employee_list  el ON el.employee_id = ucr.employee_id
@@ -480,7 +482,7 @@ $unionSql = "
 
   UNION ALL
 
-  /* 2) Regular Schedules */
+  /* 2) Regular Schedules */ 
   SELECT 
     2 AS src_priority,
     s.tracking_number,
@@ -494,7 +496,8 @@ $unionSql = "
     TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
     COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
     s.assignedKagId   AS assigned_kagawad_id,
-    s.assignedKagName AS assigned_kag_name
+    s.assignedKagName AS assigned_kag_name,
+    s.oneness_fullname AS oneness_fullname
   FROM schedules s
   JOIN residents r ON s.res_id = r.id
   LEFT JOIN cedula          c  ON c.res_id = r.id
@@ -524,7 +527,8 @@ $unionSql = "
     TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
     COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
     NULL AS assigned_kagawad_id,
-    NULL AS assigned_kag_name
+    NULL AS assigned_kag_name,
+    NULL AS oneness_fullname
   FROM cedula c
   JOIN residents r ON c.res_id = r.id
   LEFT JOIN employee_list  el ON el.employee_id = c.employee_id
@@ -550,7 +554,8 @@ $unionSql = "
     TRIM(CONCAT(el.employee_fname,' ',IFNULL(el.employee_mname,''),' ',el.employee_lname)) AS signatory_name,
     COALESCE(er.Role_Name,'Barangay Staff') AS signatory_position,
     u.assignedKagId   AS assigned_kagawad_id,
-    u.assignedKagName AS assigned_kag_name
+    u.assignedKagName AS assigned_kag_name,
+    u.oneness_fullname AS oneness_fullname
   FROM urgent_request u
   JOIN residents r ON u.res_id = r.id
   LEFT JOIN cedula                 c  ON c.res_id  = r.id AND c.cedula_status  = 'Approved'
@@ -865,24 +870,27 @@ if ($stmtCap = $mysqli->prepare("
           <tbody id="appointmentTableBody">
 <?php
 if (!empty($filtered_appointments)):
-    foreach ($filtered_appointments as $row):
+  foreach ($filtered_appointments as $row):
 
-// FILTER: Show only Indigency types
-if (stripos($row['certificate'], 'Indigency') === false) {
-    continue; 
-}
+    $cert = (string)($row['certificate'] ?? '');
 
-        // ❌  Skip BESO if the user is Revenue Staff
-        if (stripos($user_role, 'revenue') !== false &&
-            $row['certificate'] === 'BESO Application') {
-            continue;
-        }
+    $isIndigency = (stripos($cert, 'Indigency') !== false);
+    $isOneness   = (strcasecmp(trim($cert), 'Certification Of Oneness') === 0);
 
-        // Re‑use your existing row template
-        include 'components/appointment_row.php';
+    if (!$isIndigency && !$isOneness) {
+        continue;
+    }
 
-    endforeach;
+    // ❌ Skip BESO if the user is Revenue Staff
+    if (stripos($user_role, 'revenue') !== false && $cert === 'BESO Application') {
+        continue;
+    }
+
+    include 'components/appointment_row.php';
+
+  endforeach;
 else: ?>
+
     <tr>
         <td colspan="7" class="text-center">No appointments found</td>
     </tr>
@@ -1212,8 +1220,8 @@ function renderSignatorySection(isCaptain /* ignored */, assignedKagName){
 function printAppointment(
   certificate, fullname, res_zone, birth_date = "", birth_place = "", res_street_address = "",
   purpose = "", issued_on ="", issued_at = "", cedula_number = "", civil_status = "",
-  residency_start = "", age= "", residentId = "",  assignedKagName = "",   
-  signatoryEmployeeId = 0, seriesNum = "",
+  residency_start = "", age= "", residentId = "", assignedKagName = "",
+  signatoryEmployeeId = 0, seriesNum = "", assigned_witness_name = "", oneness_fullname = ""
 ) {
   let printAreaContent = "";
 
@@ -2142,6 +2150,139 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
       </div>
     </body>
   </html>`;
+}
+ else if (certificate === "Certification Of Oneness") {
+  // console.log("oneness_fullname inside printAppointment:", oneness_fullname);
+
+  // 1) Format date strings similar to other certs (optional)
+  const formattedIssuedOn = issued_on
+    ? new Date(issued_on).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' })
+    : 'N/A';
+
+  // 2) Age
+  let ageText = "N/A";
+  if (birth_date) {
+    const dob = new Date(birth_date);
+    if (!isNaN(dob)) {
+      const diff = Date.now() - dob.getTime();
+      const age = Math.floor(diff / (365.25 * 24 * 60 * 60 * 1000));
+      ageText = `${age}`;
+    }
+  }
+
+  // 3) month upper like your sample
+  const monthUpper = (month || "").toUpperCase();
+
+  // 4) Oneness other-name (SAFE fallback so it never crashes)
+  // ✅ If you haven't passed it yet, this will just show blank line.
+const onenessName = String(oneness_fullname || '').trim();
+// console.log("oneness_fullname param:", oneness_fullname, "=> onenessName:", onenessName);
+
+  // 5) Purpose
+  const purposeUpper = (purpose || "IDENTIFICATION").toUpperCase();
+
+  printAreaContent = `
+    <html>
+      <head>
+        <link rel="stylesheet" href="css/form.css">
+        <link rel="stylesheet" href="css/print/print.css">
+
+        <style>
+          /* Same watermark layering as Barangay Residency */
+          .container { position: relative; }
+          .watermark-logo {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 57%;
+            opacity: 0.20;
+            z-index: 0;
+            pointer-events: none;
+          }
+          header, section, .footer, .two-col {
+            position: relative;
+            z-index: 2;
+          }
+        </style>
+      </head>
+
+      <body>
+        <div class="container" id="printArea">
+
+          <?php if ($logo): ?>
+            <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" class="watermark-logo">
+          <?php endif; ?>
+
+          <header>
+            <div class="logo-header">
+              <?php if ($logo): ?>
+                <img src="data:image/jpeg;base64,<?php echo base64_encode($logo['logo_image']); ?>" alt="Barangay Logo" class="logo">
+              <?php else: ?>
+                <p>No active Barangay logo found.</p>
+              <?php endif; ?>
+
+              <div class="header-text">
+                <h2><strong>Republic of the Philippines</strong></h2>
+                <h3><strong><?php echo $cityMunicipalityName; ?></strong></h3>
+                <h2><strong>OFFICE OF THE PUNONG BARANGAY</strong></h2>
+                <h3><strong><?php echo $barangayName; ?></strong></h3>                
+              </div>
+
+              <?php if ($cityLogo): ?>
+                <img src="data:image/jpeg;base64,<?php echo base64_encode($cityLogo['logo_image']); ?>" alt="City Logo" class="logo">
+              <?php else: ?>
+                <p>No active City/Municipality logo found.</p>
+              <?php endif; ?>
+            </div>
+          </header>
+
+          <hr class="header-line">
+
+          <section class="barangay-certification">
+            <h4 style="text-align:center;font-size:50px;"><strong>CERTIFICATION of ONENESS</strong></h4>
+            <p>TO WHOM IT MAY CONCERN:</p><br>
+
+            <p>
+              THIS IS TO CERTIFY that <strong>${fullname}</strong>, <strong>${ageText}</strong> years old,
+              is a resident of <strong>${res_zone}</strong>, <strong>${res_street_address}</strong>, Bugo, Cagayan de Oro City.
+            </p>
+            <br>
+
+            <p>
+              FURTHER CERTIFIES that the above-named person and the name
+              <strong>${onenessName ? onenessName : '________________________'}</strong>
+              is the same and one person.
+            </p>
+            <br>
+
+            <p>
+              This Certification is issued upon the request of the above-mentioned person
+              for <strong>${purposeUpper}</strong> whatever legal purposes it may serve best.
+            </p>
+            <br>
+
+            <p>
+              Issued this <strong>${dayWithSuffix}</strong> day of <strong>${monthUpper}</strong>, <strong>${year}</strong>,
+              at Barangay Bugo, Cagayan de Oro City.
+            </p>
+          </section>
+
+          <br><br><br><br><br>
+
+          <div style="display:flex; justify-content:space-between; margin-bottom:18px;">
+            <section style="width:48%; line-height:1.8;">
+
+            </section>
+
+            <!-- ✅ Use your existing signature renderer (prevents captainName undefined) -->
+            ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
+          </div>
+
+        </div>
+      </body>
+    </html>
+  `;
 }
 
 

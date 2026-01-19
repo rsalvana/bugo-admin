@@ -20,13 +20,8 @@ $trigger = new Trigger();
 ========================================= */
 if (session_status() === PHP_SESSION_NONE) session_start();
 
-/**
- * Store a flash message and mark that we should redirect on the client
- * (avoids PHP header() after output started).
- */
 function flash_success(string $msg, string $title='Success', string $icon='success'): void {
     $_SESSION['flash'] = ['icon'=>$icon, 'title'=>$title, 'msg'=>$msg];
-    // Redirect target: same URL (GET), strip any fragment
     $_SESSION['do_redirect'] = strtok($_SERVER['REQUEST_URI'], '#');
 }
 
@@ -93,18 +88,18 @@ function get_archived_residents($search_term = '', $limit = 10, $page = 1) {
     $offset = ($page - 1) * $limit;
 
     if ($search_term) {
-        $sql = "SELECT id, CONCAT(first_name, ' ', middle_name, ' ', last_name) AS full_name, gender, res_zone
-                FROM residents
-                WHERE resident_delete_status = 1
-                  AND (id LIKE ? OR first_name LIKE ? OR middle_name LIKE ? OR last_name LIKE ?)
+        $sql = "SELECT id, CONCAT(first_name, ' ', middle_name, ' ', last_name) AS full_name, gender, res_zone 
+                FROM residents 
+                WHERE resident_delete_status = 1 
+                  AND (id LIKE ? OR first_name LIKE ? OR middle_name LIKE ? OR last_name LIKE ?) 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $s = "%$search_term%";
         $stmt->bind_param("ssssii", $s,$s,$s,$s,$limit,$offset);
     } else {
-        $sql = "SELECT id, CONCAT(first_name, ' ', middle_name, ' ', last_name) AS full_name, gender, res_zone
-                FROM residents
-                WHERE resident_delete_status = 1
+        $sql = "SELECT id, CONCAT(first_name, ' ', middle_name, ' ', last_name) AS full_name, gender, res_zone 
+                FROM residents 
+                WHERE resident_delete_status = 1 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $stmt->bind_param("ii", $limit, $offset);
@@ -118,18 +113,18 @@ function get_archived_employees($search_term = '', $limit = 10, $page = 1) {
     $offset = ($page - 1) * $limit;
 
     if ($search_term) {
-        $sql = "SELECT employee_id, CONCAT(employee_fname,' ',employee_mname,' ',employee_lname) AS full_name, employee_gender, employee_zone
-                FROM employee_list
-                WHERE employee_delete_status = 1
-                  AND (employee_id LIKE ? OR employee_fname LIKE ? OR employee_mname LIKE ? OR employee_lname LIKE ?)
+        $sql = "SELECT employee_id, CONCAT(employee_fname,' ',employee_mname,' ',employee_lname) AS full_name, employee_gender, employee_zone 
+                FROM employee_list 
+                WHERE employee_delete_status = 1 
+                  AND (employee_id LIKE ? OR employee_fname LIKE ? OR employee_mname LIKE ? OR employee_lname LIKE ?) 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $s = "%$search_term%";
         $stmt->bind_param("ssssii", $s,$s,$s,$s,$limit,$offset);
     } else {
-        $sql = "SELECT employee_id, CONCAT(employee_fname,' ',employee_mname,' ',employee_lname) AS full_name, employee_gender, employee_zone
-                FROM employee_list
-                WHERE employee_delete_status = 1
+        $sql = "SELECT employee_id, CONCAT(employee_fname,' ',employee_mname,' ',employee_lname) AS full_name, employee_gender, employee_zone 
+                FROM employee_list 
+                WHERE employee_delete_status = 1 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $stmt->bind_param("ii", $limit, $offset);
@@ -145,21 +140,21 @@ function get_archived_appointments($search_term = '', $limit = 10, $page = 1) {
     if ($search_term) {
         $sql = "
         SELECT * FROM (
-            SELECT a.id,
+            SELECT a.id, 
                    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name) AS full_name,
                    a.certificate, a.tracking_number, a.selected_date, a.selected_time, a.status
             FROM schedules a
             JOIN residents r ON a.res_id = r.id
             WHERE a.appointment_delete_status = 1
               AND (r.first_name LIKE ? OR r.middle_name LIKE ? OR r.last_name LIKE ? OR a.tracking_number LIKE ?)
-
+            
             UNION ALL
-
-            SELECT c.Ced_Id AS id,
+            
+            SELECT c.Ced_Id AS id, 
                    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name) AS full_name,
-                   'Cedula' AS certificate, c.tracking_number,
-                   DATE(c.appointment_date_time) AS selected_date,
-                   TIME(c.appointment_date_time) AS selected_time,
+                   'Cedula' AS certificate, c.tracking_number, 
+                   DATE(c.appointment_date_time) AS selected_date, 
+                   TIME(c.appointment_date_time) AS selected_time, 
                    c.cedula_status AS status
             FROM cedula c
             JOIN residents r ON c.res_id = r.id
@@ -173,20 +168,20 @@ function get_archived_appointments($search_term = '', $limit = 10, $page = 1) {
     } else {
         $sql = "
         SELECT * FROM (
-            SELECT a.id,
+            SELECT a.id, 
                    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name) AS full_name,
                    a.certificate, a.tracking_number, a.selected_date, a.selected_time, a.status
             FROM schedules a
             JOIN residents r ON a.res_id = r.id
             WHERE a.appointment_delete_status = 1
-
+            
             UNION ALL
-
-            SELECT c.Ced_Id AS id,
+            
+            SELECT c.Ced_Id AS id, 
                    CONCAT(r.first_name,' ',IFNULL(r.middle_name,''),' ',r.last_name) AS full_name,
-                   'Cedula' AS certificate, c.tracking_number,
-                   c.appointment_date AS selected_date,
-                   c.appointment_time AS selected_time,
+                   'Cedula' AS certificate, c.tracking_number, 
+                   c.appointment_date AS selected_date, 
+                   c.appointment_time AS selected_time, 
                    c.cedula_status AS status
             FROM cedula c
             JOIN residents r ON c.res_id = r.id
@@ -205,18 +200,18 @@ function get_archived_events($search_term = '', $limit = 10, $page = 1) {
     $offset = ($page - 1) * $limit;
 
     if ($search_term) {
-        $sql = "SELECT id, event_title, event_description, event_location, event_time, event_date
-                FROM events
-                WHERE events_delete_status = 1
-                  AND (event_title LIKE ? OR event_description LIKE ? OR event_location LIKE ?)
+        $sql = "SELECT id, event_title, event_description, event_location, event_time, event_date 
+                FROM events 
+                WHERE events_delete_status = 1 
+                  AND (event_title LIKE ? OR event_description LIKE ? OR event_location LIKE ?) 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $s = "%$search_term%";
         $stmt->bind_param("ssssi", $s,$s,$s,$limit,$offset);
     } else {
-        $sql = "SELECT id, event_title, event_description, event_location, event_time, event_date
-                FROM events
-                WHERE events_delete_status = 1
+        $sql = "SELECT id, event_title, event_description, event_location, event_time, event_date 
+                FROM events 
+                WHERE events_delete_status = 1 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $stmt->bind_param("ii", $limit, $offset);
@@ -230,18 +225,18 @@ function get_archived_feedback($search_term = '', $limit = 10, $page = 1) {
     $offset = ($page - 1) * $limit;
 
     if ($search_term) {
-        $sql = "SELECT id, feedback_text, created_at
-                FROM feedback
-                WHERE feedback_delete_status = 1
-                  AND feedback_text LIKE ?
+        $sql = "SELECT id, feedback_text, created_at 
+                FROM feedback 
+                WHERE feedback_delete_status = 1 
+                  AND feedback_text LIKE ? 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $s = "%$search_term%";
         $stmt->bind_param("sii", $s,$limit,$offset);
     } else {
-        $sql = "SELECT id, feedback_text, created_at
-                FROM feedback
-                WHERE feedback_delete_status = 1
+        $sql = "SELECT id, feedback_text, created_at 
+                FROM feedback 
+                WHERE feedback_delete_status = 1 
                 LIMIT ? OFFSET ?";
         $stmt = $mysqli->prepare($sql);
         $stmt->bind_param("ii", $limit, $offset);
@@ -254,7 +249,6 @@ function get_archived_announcements($search_term = '', $limit = 10, $page = 1) {
     global $mysqli;
     $offset = ($page - 1) * $limit;
 
-    // ✅ FIXED: Table 'announcement', Column 'Id', ordered by newest
     $sql = "SELECT Id, announcement_details, created FROM announcement WHERE delete_status = 1";
     
     if ($search_term) {
@@ -312,7 +306,6 @@ function get_archived_medicines($search_term = '', $limit = 10, $page = 1) {
 
 /* =========================================
    Handle restore / delete POST actions
-   (store flash + mark for client redirect)
 ========================================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Residents
@@ -403,7 +396,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Announcements
     if (isset($_POST['restore_announcement'])) {
         $id = (int)$_POST['id'];
-        // ✅ FIXED: Table 'announcement', ID 'Id'
         $mysqli->query("UPDATE announcement SET delete_status = 0 WHERE Id = $id");
         $trigger->isRestored(28, $id, 10);
         flash_success('Announcement restored!');
@@ -431,12 +423,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['restore_medicine'])) {
         $id = (int)$_POST['id'];
         $mysqli->query("UPDATE medicine_inventory SET delete_status = 0 WHERE id = $id");
-        // $trigger->isRestored(30, $id, 10); // Optional: Add log trigger if needed
         flash_success('Medicine restored!');
     } elseif (isset($_POST['delete_medicine'])) {
         $id = (int)$_POST['id'];
         $mysqli->query("DELETE FROM medicine_inventory WHERE id = $id");
-        // $trigger->isDelete(30, $id); // Optional: Add log trigger if needed
         flash_success('Medicine permanently deleted!');
     }
 
@@ -465,8 +455,8 @@ $total_announcements = count_records('announcement', 'delete_status');
 $total_faqs = count_records('faqs', 'delete_status');
 $total_medicines = count_records('medicine_inventory', 'delete_status');
 
-$archived_residents    = get_archived_residents($search_term, $limit, $page);
-$archived_employees    = get_archived_employees($search_term, $limit, $page);
+$archived_residents     = get_archived_residents($search_term, $limit, $page);
+$archived_employees     = get_archived_employees($search_term, $limit, $page);
 $archived_appointments = get_archived_appointments($search_term, $limit, $page);
 $archived_events       = get_archived_events($search_term, $limit, $page);
 $archived_feedback     = get_archived_feedback($search_term, $limit, $page);
@@ -474,7 +464,6 @@ $archived_announcements = get_archived_announcements($search_term, $limit, $page
 $archived_faqs          = get_archived_faqs($search_term, $limit, $page);
 $archived_medicines = get_archived_medicines($search_term, $limit, $page);
 
-// If your app provides $redirects['archive'], use it; otherwise fallback to current script
 $baseUrl = isset($redirects['archive']) ? $redirects['archive'] : (basename($_SERVER['PHP_SELF']).'?page='.(isset($_GET['page'])?urlencode($_GET['page']):''));
 ?>
 
@@ -513,11 +502,9 @@ h2 { color:#228be6;font-weight:600; }
     <li class="nav-item"><a class="nav-link <?= ($tab=='announcements')?'active':'' ?>" href="<?= $baseUrl ?>&tab=announcements">Announcements</a></li>
     <li class="nav-item"><a class="nav-link <?= ($tab=='faqs')?'active':'' ?>" href="<?= $baseUrl ?>&tab=faqs">FAQs</a></li>
     <li class="nav-item"><a class="nav-link <?= ($tab=='medicines')?'active':'' ?>" href="<?= $baseUrl ?>&tab=medicines">Medicines</a></li>
-  
   </ul>
 
   <div class="tab-content mt-3" id="archiveTabContent">
-    <!-- Residents -->
     <div class="tab-pane fade <?= ($tab=='residents')?'show active':'' ?>" id="residents" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchResidents" placeholder="Search residents..." value="<?= htmlspecialchars($search_term) ?>">
@@ -551,7 +538,6 @@ h2 { color:#228be6;font-weight:600; }
       <?php $qs='&tab=residents&search='.urlencode($search_term); render_pagination($total_residents,$limit,$page,$baseUrl,$qs); ?>
     </div>
 
-    <!-- Employees -->
     <div class="tab-pane fade <?= ($tab=='employees')?'show active':'' ?>" id="employees" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchEmployees" placeholder="Search employees..." value="<?= htmlspecialchars($search_term) ?>">
@@ -585,7 +571,6 @@ h2 { color:#228be6;font-weight:600; }
       <?php $qs='&tab=employees&search='.urlencode($search_term); render_pagination($total_employees,$limit,$page,$baseUrl,$qs); ?>
     </div>
 
-    <!-- Appointments -->
     <div class="tab-pane fade <?= ($tab=='appointments')?'show active':'' ?>" id="appointments" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchAppointments" placeholder="Search appointments..." value="<?= htmlspecialchars($search_term) ?>">
@@ -622,7 +607,6 @@ h2 { color:#228be6;font-weight:600; }
       <?php $qs='&tab=appointments&search='.urlencode($search_term); render_pagination($total_appointments,$limit,$page,$baseUrl,$qs); ?>
     </div>
 
-    <!-- Events -->
     <div class="tab-pane fade <?= ($tab=='events')?'show active':'' ?>" id="events" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchEvents" placeholder="Search events..." value="<?= htmlspecialchars($search_term) ?>">
@@ -630,7 +614,14 @@ h2 { color:#228be6;font-weight:600; }
       <div class="table-responsive w-100" style="height:500px;overflow-y:auto;">
         <table class="table table-bordered w-100 mb-0" id="eventsTable">
           <thead>
-            <tr><th>Title</th><th>Description</th><th>Location</th><th>Time</th><th>Date</th><th>Actions</th></tr>
+            <tr>
+                <th style="width: 15%;">Title</th>
+                <th style="width: 30%;">Description</th>
+                <th style="width: 10%;">Location</th>
+                <th style="width: 15%;">Time</th>
+                <th style="width: 15%;">Date</th>
+                <th style="width: 20%;">Actions</th>
+            </tr>
           </thead>
           <tbody>
           <?php if($archived_events->num_rows>0): while($row=$archived_events->fetch_assoc()): ?>
@@ -657,7 +648,6 @@ h2 { color:#228be6;font-weight:600; }
       <?php $qs='&tab=events&search='.urlencode($search_term); render_pagination($total_events,$limit,$page,$baseUrl,$qs); ?>
     </div>
 
-    <!-- Feedback -->
     <div class="tab-pane fade <?= ($tab=='feedback')?'show active':'' ?>" id="feedback" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchFeedback" placeholder="Search feedback..." value="<?= htmlspecialchars($search_term) ?>">
@@ -689,7 +679,7 @@ h2 { color:#228be6;font-weight:600; }
       </div>
       <?php $qs='&tab=feedback&search='.urlencode($search_term); render_pagination($total_feedback,$limit,$page,$baseUrl,$qs); ?>
     </div>
-<!-- ANNOUNCMENT -->
+
     <div class="tab-pane fade <?= ($tab=='announcements')?'show active':'' ?>" id="announcements" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchAnnouncements" placeholder="Search announcements..." value="<?= htmlspecialchars($search_term) ?>">
@@ -698,10 +688,10 @@ h2 { color:#228be6;font-weight:600; }
         <table class="table table-bordered w-100 mb-0" id="announcementsTable">
           <thead>
             <tr>
-              <th style="width:100px;">ID</th>
-              <th>Announcement Details</th>
-              <th style="width:250px;">Date Created</th>
-              <th style="width:200px;">Actions</th>
+              <th style="width: 5%;">ID</th>
+              <th style="width: 60%;">Announcement Details</th>
+              <th style="width: 20%;">Date Created</th>
+              <th style="width: 15%;">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -726,7 +716,7 @@ h2 { color:#228be6;font-weight:600; }
       </div>
       <?php $qs='&tab=announcements&search='.urlencode($search_term); render_pagination($total_announcements, $limit, $page, $baseUrl, $qs); ?>
     </div>
-<!-- FAQS -->
+
     <div class="tab-pane fade <?= ($tab=='faqs')?'show active':'' ?>" id="faqs" role="tabpanel">
       <div class="input-group mb-3">
         <input type="text" class="form-control searchInput" id="searchFaqs" placeholder="Search FAQs..." value="<?= htmlspecialchars($search_term) ?>">
@@ -735,9 +725,9 @@ h2 { color:#228be6;font-weight:600; }
         <table class="table table-bordered w-100 mb-0" id="faqsTable">
           <thead>
             <tr>
-              <th style="width:300px;">Question</th>
-              <th>Answer</th>
-              <th style="width:200px;">Actions</th>
+              <th style="width: 35%;">Question</th>
+              <th style="width: 50%;">Answer</th>
+              <th style="width: 25%;">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -760,7 +750,7 @@ h2 { color:#228be6;font-weight:600; }
         </table>
       </div>
       <?php $qs='&tab=faqs&search='.urlencode($search_term); render_pagination($total_faqs, $limit, $page, $baseUrl, $qs); ?>
-    </div>           
+    </div>          
 
     <div class="tab-pane fade <?= ($tab=='medicines')?'show active':'' ?>" id="medicines" role="tabpanel">
       <div class="input-group mb-3">
@@ -770,11 +760,11 @@ h2 { color:#228be6;font-weight:600; }
         <table class="table table-bordered w-100 mb-0" id="medicinesTable">
           <thead>
             <tr>
-              <th>Medicine Name</th>
-              <th>Category</th>
-              <th>Stock</th>
-              <th>Unit</th>
-              <th style="width:200px;">Actions</th>
+              <th style="width: 20%;">Medicine Name</th>
+              <th style="width: 20%;">Category</th>
+              <th style="width: 10%;">Stock</th>
+              <th style="width: 10%;">Unit</th>
+              <th style="width: 15%;">Actions</th>
             </tr>
           </thead>
           <tbody>

@@ -1,6 +1,7 @@
 <?php
-ini_set('display_errors', 0); // Don't show PHP errors to users
-ini_set('log_errors', 1);     // Log errors instead
+// api/urgent_beso_request.php
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
 register_shutdown_function(function () {
@@ -12,7 +13,7 @@ register_shutdown_function(function () {
     }
 });
 
-require_once __DIR__ . '/../../include/encryption.php'; // align with reference path
+require_once __DIR__ . '/../../include/encryption.php'; 
 require_once __DIR__ . '/../../include/connection.php';
 $mysqli = db_connection();
 include 'class/session_timeout.php';
@@ -20,7 +21,7 @@ include 'class/session_timeout.php';
 $user_role = $_SESSION['Role_Name'] ?? '';
 $residents = [];
 
-/* --- Eligible residents (Released Residency FTJ & not yet used for BESO) --- */
+/* --- Strict Resident Filter: Must have Released Residency FTJ & NOT used for BESO --- */
 $sql = "
     SELECT DISTINCT
         r.id,
@@ -58,7 +59,6 @@ $sql = "
     ORDER BY full_name ASC
 ";
 
-
 if ($result = $mysqli->query($sql)) {
     while ($row = $result->fetch_assoc()) {
         $residents[] = $row;
@@ -66,6 +66,7 @@ if ($result = $mysqli->query($sql)) {
     $result->free();
 }
 
+// Strictly BESO Application
 $certificates = ['BESO Application'];
 ?>
 <!DOCTYPE html>
@@ -73,288 +74,392 @@ $certificates = ['BESO Application'];
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>On-Site BESO Request - Admin</title>
+  <title>On-Site BESO Request - Multi</title>
 
-  <!-- Vendor CSS (match reference) -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-bootstrap-4@5.0.16/bootstrap-4.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
 
-  <!-- App CSS (reuse same palette/components) -->
   <link rel="stylesheet" href="css/urgent/urgent.css">
   <style>
-    /* small safety if urgent.css isn't loaded yet */
-    .app-card { border: 0; }
-    .detail .detail-label{font-size:.8rem;color:#6c757d;display:block}
-    .detail .detail-value{font-weight:600}
-    .sticky-submit{position:sticky;bottom:0.5rem}
+      .queue-item-remove { cursor: pointer; color: #dc3545; transition: color 0.2s; }
+      .queue-item-remove:hover { color: #a71d2a; transform: scale(1.1); }
+      .sticky-submit-footer { position: sticky; bottom: 0; background: white; z-index: 10; border-top: 1px solid #dee2e6; }
+      .staging-card { border-left: 5px solid #0d6efd; }
+      .queue-card { border-top: 5px solid #dc3545; }
   </style>
 </head>
 <body>
 <main class="container py-4">
   <div class="card app-card shadow-lg rounded-4 p-3 p-md-5 mb-5">
+    
     <header class="text-center mb-4">
       <h1 class="h3 h2-md fw-bold d-flex align-items-center justify-content-center gap-2">
-        <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+        <i class="bi bi-briefcase-fill text-danger"></i>
         On-Site BESO Request
       </h1>
-      <p class="text-muted mb-0 small">Create and submit a BESO (First Time Jobseeker) urgent appointment.</p>
+      <p class="text-muted mb-0 small">Process First Time Jobseeker BESO applications.</p>
     </header>
 
-    <!-- Step 1: Resident -->
     <section aria-labelledby="resident-label" class="mb-4">
-      <label id="resident-label" for="residentSelect" class="form-label fw-semibold">Select Resident</label>
-      <select id="residentSelect" class="form-select form-select-lg shadow-sm rounded-3" required>
+      <label id="resident-label" for="residentSelect" class="form-label fw-semibold">Select Eligible Resident</label>
+      <select id="residentSelect" class="form-select form-select-lg shadow-sm rounded-3">
         <option value="">-- Choose Resident --</option>
         <?php foreach ($residents as $resident): ?>
           <option value="<?= (int)$resident['id'] ?>"><?= htmlspecialchars($resident['full_name']) ?></option>
         <?php endforeach; ?>
       </select>
-      <div class="form-text">Start typing to search; press Enter to pick.</div>
+      <div class="form-text text-primary"><i class="bi bi-info-circle"></i> Only residents with a <b>Released Barangay Residency (FTJ)</b> appear here.</div>
     </section>
 
-    <!-- Resident details -->
-    <section id="residentDetails" class="d-none" aria-live="polite">
-      <div class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-header fw-bold">Resident Details</div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-12 col-md-6">
-              <div class="detail">
-                <span class="detail-label">Name</span>
-                <span id="residentName" class="detail-value"></span>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="detail">
-                <span class="detail-label">Birth Date</span>
-                <span id="residentBirthDate" class="detail-value"></span>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="detail">
-                <span class="detail-label">Birth Place</span>
-                <span id="residentBirthPlace" class="detail-value"></span>
-              </div>
-            </div>
-            <div class="col-12">
-              <div class="detail">
-                <span class="detail-label">Address</span>
-                <span id="residentAddress" class="detail-value"></span>
-              </div>
-            </div>
-          </div>
+    <section id="residentDetails" class="d-none mb-4" aria-live="polite">
+      <div class="card border-0 shadow-sm rounded-4 bg-light">
+        <div class="card-body py-2">
+             <div class="row align-items-center small">
+                <div class="col-md-6">
+                    <span class="text-muted">Resident:</span> 
+                    <span id="residentName" class="fw-bold text-dark fs-6 ms-1"></span>
+                </div>
+                <div class="col-md-6 text-md-end mt-2 mt-md-0">
+                    <span class="text-muted me-1">Status:</span>
+                    <span class="badge bg-success">Eligible for BESO</span>
+                </div>
+             </div>
         </div>
       </div>
-
-      <!-- Form -->
-      <form id="urgentForm" novalidate>
-        <input type="hidden" id="CertificateSelect" value="BESO Application">
-
-        <!-- BESO fields -->
-        <section id="besoFields" class="mb-3">
-          <div class="row g-3">
-            <div class="col-12 col-md-6">
-              <label for="educationAttainment" class="form-label">Educational Attainment</label>
-              <input type="text" id="educationAttainment" class="form-control" placeholder="e.g., College Graduate">
-            </div>
-            <div class="col-12 col-md-6">
-              <label for="course" class="form-label">Course</label>
-              <input type="text" id="course" class="form-control" placeholder="e.g., BSIT">
-            </div>
-          </div>
-        </section>
-
-        <!-- Purpose -->
-        <section id="purposeContainer" class="mb-3" aria-labelledby="purpose-label">
-          <label id="purpose-label" for="purposeSelect" class="form-label">Purpose</label>
-          <select id="purposeSelect" class="form-select" required>
-            <option value="">-- Choose Purpose --</option>
-          </select>
-        </section>
-
-        <section id="customPurposeContainer" class="mb-4 d-none">
-          <label for="customPurposeInput" class="form-label">Please specify</label>
-          <input type="text" id="customPurposeInput" class="form-control" placeholder="Enter custom purpose">
-        </section>
-
-        <!-- Submit -->
-        <div class="position-relative">
-          <button type="submit" class="btn btn-danger btn-lg w-100 sticky-submit">
-            <i class="bi bi-send-fill me-2"></i>
-            Submit Urgent BESO Appointment
-          </button>
-        </div>
-      </form>
     </section>
+
+    <div id="mainInterface" class="d-none">
+        <div class="row g-4">
+            
+            <div class="col-lg-5">
+                <div class="card staging-card shadow-sm h-100">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-plus-circle me-1 text-primary"></i> Configure Application
+                    </div>
+                    <div class="card-body">
+                        <form id="stagingForm">
+                            <div class="mb-3">
+                                <label for="CertificateSelect" class="form-label fw-semibold">Certificate Type</label>
+                                <select id="CertificateSelect" class="form-select" readonly>
+                                    <?php foreach ($certificates as $certName): ?>
+                                    <option value="<?= htmlspecialchars($certName) ?>"><?= htmlspecialchars($certName) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+
+                            <div id="dynamicFields" class="border-top pt-3 mt-3">
+                                <div id="besoFields" class="mb-3">
+                                    <label class="form-label small fw-bold">Education Details</label>
+                                    <input type="text" id="educationAttainment" class="form-control mb-2" placeholder="Highest Educational Attainment">
+                                    <input type="text" id="course" class="form-control" placeholder="Course / Degree">
+                                </div>
+
+                                <div id="purposeContainer" class="mb-3">
+                                    <label class="form-label small fw-bold">Purpose</label>
+                                    <select id="purposeSelect" class="form-select mb-2">
+                                        <option value="">-- Choose Purpose --</option>
+                                    </select>
+                                    
+                                    <div id="customPurposeContainer" class="d-none mt-2">
+                                        <input type="text" id="customPurposeInput" class="form-control" placeholder="Specify custom purpose">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button type="button" id="btnAddToList" class="btn btn-primary w-100 mt-2">
+                                <i class="bi bi-arrow-right-short"></i> Add to Queue
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="card queue-card shadow-sm h-100">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-list-check me-1 text-danger"></i> Request Queue</span>
+                        <span class="badge bg-secondary rounded-pill" id="queueCount">0</span>
+                    </div>
+                    
+                    <div class="card-body p-0 position-relative">
+                        <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                            <table class="table table-hover align-middle mb-0" id="queueTable">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 35%">Certificate</th>
+                                        <th style="width: 45%">Details</th>
+                                        <th style="width: 20%" class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="3" class="text-center text-muted py-5">
+                                        <i class="bi bi-basket3 display-6 d-block mb-2 text-secondary opacity-25"></i>
+                                        List is empty.
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer sticky-submit-footer p-3">
+                         <button type="button" id="btnSubmitAll" class="btn btn-danger btn-lg w-100 fw-bold shadow-sm" disabled>
+                            <i class="bi bi-send-fill me-2"></i> Submit Application
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
   </div>
 </main>
 
-<!-- Vendor JS (match reference) -->
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js"></script>
 
-<!-- Inline JS (consistent behaviors with reference) -->
 <script>
 (() => {
-  let residentDetails = null;
-  const redirectUrl = "<?= enc_beso('urgent_request') ?>";
-
   const $resident = $('#residentSelect');
-  const $detailsWrap = $('#residentDetails');
+  const $mainInterface = $('#mainInterface');
+  const $cert = $('#CertificateSelect');
+  
+  const $besoWrap = $('#besoFields');
+  const $purposeWrap = $('#purposeContainer');
   const $purpose = $('#purposeSelect');
   const $customPurposeWrap = $('#customPurposeContainer');
-  const $customPurpose = $('#customPurposeInput');
+  const $customPurposeInput = $('#customPurposeInput');
+  
+  const $queueTableBody = $('#queueTable tbody');
+  const $btnSubmit = $('#btnSubmitAll');
+  const $queueCount = $('#queueCount');
 
-  // Enhance select
+  let residentDetails = null;
+  let requestQueue = []; 
+  const redirectUrl = "<?= enc_beso('urgent_request') ?>";
+
+  const toast = (icon, title) => Swal.fire({toast:true, position:'top-end', showConfirmButton:false, timer:2500, icon, title});
+
   $resident.select2({ placeholder: 'Search resident...', width: '100%' });
 
-  // Helpers
-  const show = ($el, on = true) => $el.toggleClass('d-none', !on);
-  const toast = (icon, title) => Swal.fire({toast:true,position:'top',showConfirmButton:false, timer:2500, icon, title});
-
-  // On resident change -> fetch details + guardrails
+  // 1. Resident Logic
   $resident.on('change', function () {
-    show($detailsWrap, false);
+    const id = this.value;
+    
+    // Reset
+    requestQueue = [];
+    updateQueueTable();
+    resetStagingArea();
+    $mainInterface.addClass('d-none');
+    $('#residentDetails').addClass('d-none');
     residentDetails = null;
 
-    const id = this.value;
     if (!id) return;
 
+    Swal.showLoading();
     fetch('ajax/fetch_resident_details.php?id=' + encodeURIComponent(id))
       .then(r => r.json())
       .then(data => {
+        Swal.close();
         if (!data?.success) {
-          Swal.fire('Not Found','Resident not found.','error');
+          Swal.fire('Error', 'Resident not found.', 'error');
           return;
         }
-
         residentDetails = data;
 
-        // FTJ BESO guardrails (match reference logic text/flow)
+        // --- BESO Guardrails (Parity with previous logic) ---
         if (parseInt(data.age || '0', 10) <= 17) {
-          Swal.fire('Not Eligible','Resident is under 18 and not eligible for a BESO application.','error')
-            .then(() => window.location.href = redirectUrl);
-          return;
+             Swal.fire('Not Eligible','Resident is under 18.', 'error');
+             $resident.val(null).trigger('change');
+             return;
         }
-
-        if (['pending','approved','rejected'].includes(String(data.cedula_status || '').toLowerCase())) {
-          Swal.fire('Cedula Required','Resident must first acquire a Cedula. Please visit the Revenue Department.','warning')
-            .then(() => window.location.href = redirectUrl);
-          return;
-        }
-
-        if (data.has_residency_used) {
-          Swal.fire('Already Used','This resident already used their Barangay Residency for BESO.','warning')
-            .then(() => window.location.href = redirectUrl);
-          return;
-        }
-
-        if (!data.has_residency) {
-          Swal.fire('Missing Residency','No Barangay Residency for First Time Jobseeker.','warning')
-            .then(() => window.location.href = redirectUrl);
-          return;
-        }
-
         if (data.has_existing_beso) {
-          Swal.fire('Duplicate','BESO record already exists.','warning')
-            .then(() => window.location.href = redirectUrl);
-          return;
+             Swal.fire('Duplicate','BESO record already exists.', 'warning');
+             $resident.val(null).trigger('change');
+             return;
         }
 
-        // Populate details card
-        $('#residentName').text(data.full_name || '');
-        $('#residentBirthDate').text(data.birth_date || '');
-        $('#residentBirthPlace').text(data.birth_place || '');
-        $('#residentAddress').text(['Zone ' + (data.res_zone||''), 'Phase ' + (data.res_street_address||'')].join(', '));
+        // Populate Info
+        $('#residentName').text(data.full_name);
+        
+        // Load purposes
+        loadPurposes('BESO Application');
 
-        // Load purposes for BESO
-        fetch('ajax/fetch_purposes_by_certificate.php?cert=' + encodeURIComponent('BESO Application'))
-          .then(r => r.json())
-          .then(list => {
-            $purpose.html('<option value="">-- Choose Purpose --</option>');
-            (Array.isArray(list) ? list : []).forEach(p => {
-              $purpose.append(`<option value="${p.purpose_name}">${p.purpose_name}</option>`);
-            });
-            // $purpose.append('<option value="others">Others</option>');
-          })
-          .catch(() => $purpose.html('<option value="">Error loading purposes</option><option value="others">Others</option>'));
-
-        show($detailsWrap, true);
-        document.querySelector('#residentDetails')?.scrollIntoView({behavior:'smooth', block:'start'});
+        // Show Interface
+        $mainInterface.removeClass('d-none');
+        $('#residentDetails').removeClass('d-none');
       })
-      .catch(() => Swal.fire('Error','Error fetching resident details.','error'));
+      .catch(() => Swal.fire('Error', 'Connection failed', 'error'));
   });
 
-  // Toggle custom purpose
-  $purpose.on('change', function () {
-    show($customPurposeWrap, this.value === 'others');
+  // Purpose Toggle
+  $purpose.on('change', function() {
+      $customPurposeWrap.toggleClass('d-none', this.value === 'others');
   });
 
-  // Submit
-  $('#urgentForm').on('submit', function (e) {
-    e.preventDefault();
+  function resetStagingArea() {
+      $('#educationAttainment').val('');
+      $('#course').val('');
+      $purpose.empty(); 
+      $customPurposeWrap.addClass('d-none');
+      $customPurposeInput.val('');
+  }
 
-    const resId = $resident.val();
-    const attainment = $('#educationAttainment').val().trim();
-    const course = $('#course').val().trim();
-    const selectedPurpose = $purpose.val();
-    const customPurpose = ($customPurpose.val() || '').trim();
-    const finalPurpose = (selectedPurpose === 'others') ? customPurpose : selectedPurpose;
-
-    if (!residentDetails) { Swal.fire('Missing','Please select a resident.','warning'); return; }
-    if (!resId || !attainment || !course || !finalPurpose) {
-      Swal.fire('Missing Info','Please complete all fields.','warning');
-      return;
-    }
-
-    const payload = {
-      userId: resId,
-      certificate: 'BESO Application',
-      urgent: true,
-      education_attainment: attainment,
-      course: course,
-      purpose: finalPurpose
-    };
-
-    Swal.fire({title:'Submit BESO Record?', text:'Do you want to finalize and save the BESO application?', icon:'question', showCancelButton:true, confirmButtonText:'Yes, submit'})
-      .then((res) => {
-        if (!res.isConfirmed) return;
-
-        fetch('class/save_schedule.php', {
-          method: 'POST',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify(payload)
-        })
+  function loadPurposes(certName) {
+      $purpose.html('<option value="">Loading...</option>');
+      fetch('ajax/fetch_purposes_by_certificate.php?cert=' + encodeURIComponent(certName))
         .then(r => r.json())
         .then(data => {
-          if (!data?.success) throw new Error(data?.message || 'Failed to save urgent request');
-          return fetch('class/save_beso.php', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
-          });
+            let html = '<option value="">-- Choose Purpose --</option>';
+            if(Array.isArray(data)) {
+                data.forEach(p => html += `<option value="${p.purpose_name}">${p.purpose_name}</option>`);
+            }
+            $purpose.html(html);
         })
-        .then(r => r.json())
-        .then(bd => {
-          if (bd?.success) {
-            Swal.fire({icon:'success',title:'Success',text:'BESO application submitted.'})
-              .then(() => window.location.reload());
-          } else {
-            Swal.fire('Error','Failed to save BESO: ' + (bd?.message || 'Unknown error'),'error');
-          }
-        })
-        .catch(err => Swal.fire('System Error', err.message, 'error'));
+        .catch(() => $purpose.html('<option value="others">Others</option>'));
+  }
+
+  // 2. Add to Queue
+  $('#btnAddToList').on('click', function() {
+      const certName = $cert.val(); // Hardcoded 'BESO Application'
+      
+      // Prevent duplicates
+      if(requestQueue.length > 0) {
+          Swal.fire('Limit Reached', 'You can only add one BESO application per request.', 'info');
+          return;
+      }
+
+      // Fields
+      const attainment = $('#educationAttainment').val().trim();
+      const course = $('#course').val().trim();
+      const pSel = $purpose.val();
+      const pCust = $customPurposeInput.val();
+      const purpose = (pSel === 'others' ? pCust : pSel);
+
+      if (!attainment || !course) { toast('warning', 'Education details required.'); return; }
+      if (!purpose) { toast('warning', 'Purpose required.'); return; }
+
+      const payload = {
+         userId: $resident.val(),
+         certificate: certName,
+         urgent: true,
+         education_attainment: attainment,
+         course: course,
+         purpose: purpose
+      };
+
+      const uniqueId = Date.now(); 
+      requestQueue.push({
+          id: uniqueId,
+          certificate: certName,
+          payload: payload,
+          details: `Course: ${course}`
       });
+
+      updateQueueTable();
+      resetStagingArea(); // Optional: clear inputs to prevent double add confusion
+      toast('success', 'Added to Queue');
   });
 
-  // Minor UX parity
-  $resident.on('select2:open', () => {
-    document.querySelector('#resident-label')?.scrollIntoView({behavior:'smooth', block:'center'});
+  // 3. Queue UI
+  function updateQueueTable() {
+      $queueTableBody.empty();
+      if(requestQueue.length === 0) {
+          $queueTableBody.html(`<tr><td colspan="3" class="text-center text-muted py-5">List is empty.</td></tr>`);
+          $btnSubmit.prop('disabled', true);
+          $queueCount.text('0');
+          return;
+      }
+
+      requestQueue.forEach(item => {
+         const row = `
+            <tr>
+                <td><span class="fw-bold text-primary">${item.certificate}</span></td>
+                <td><small class="text-muted">${item.details}</small></td>
+                <td class="text-end">
+                    <i class="bi bi-trash3-fill queue-item-remove fs-5" 
+                       onclick="removeItem(${item.id})" title="Remove"></i>
+                </td>
+            </tr>`;
+         $queueTableBody.append(row);
+      });
+      $btnSubmit.prop('disabled', false);
+      $queueCount.text(requestQueue.length);
+  }
+
+  window.removeItem = function(id) {
+      requestQueue = requestQueue.filter(item => item.id !== id);
+      updateQueueTable();
+  };
+
+  // 4. Submit
+  $btnSubmit.on('click', async function() {
+      if(requestQueue.length === 0) return;
+
+      const confirmed = await Swal.fire({
+          title: 'Submit Application?',
+          text: `Finalize BESO Application.`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, Submit',
+          confirmButtonColor: '#d63384'
+      });
+
+      if (!confirmed.isConfirmed) return;
+
+      Swal.fire({
+          title: 'Processing...',
+          allowOutsideClick: false,
+          didOpen: () => { Swal.showLoading(); }
+      });
+
+      let failCount = 0;
+
+      for (const item of requestQueue) {
+          try {
+              // 1. Save Schedule
+              const resp = await fetch('class/save_schedule.php', { 
+                  method: 'POST', 
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify(item.payload)
+              });
+              const result = await resp.json();
+
+              if (!result.success) throw new Error(result.message || 'Save schedule failed');
+
+              // 2. Save BESO Details
+              const besoResp = await fetch('class/save_beso.php', { 
+                  method: 'POST', 
+                  headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify(item.payload)
+              });
+              const besoResult = await besoResp.json();
+              
+              if (!besoResult.success) {
+                   console.error('BESO Save Error', besoResult);
+                   // Note: Schedule is already saved, might need rollback logic in strict systems
+                   // But for now we count it as failure
+                   throw new Error('BESO detail save failed');
+              }
+
+          } catch (err) {
+              failCount++;
+              console.error('Submission Error:', err);
+          }
+      }
+
+      Swal.close();
+
+      if (failCount === 0) {
+          Swal.fire({icon: 'success', title: 'Success', text: 'Application Submitted.'})
+            .then(() => window.location.reload());
+      } else {
+          Swal.fire({icon: 'error', title: 'Error', text: 'Failed to submit application.'});
+      }
   });
+
 })();
 </script>
 </body>

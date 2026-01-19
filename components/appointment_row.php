@@ -168,52 +168,15 @@ $seriesNum = (string)($row['seriesNum'] ?? '');
 if ($seriesNum === '') {
     $trk = (string)($row['tracking_number'] ?? '');
     if ($trk !== '') {
-        // urgent_request by tracking_number
         if ($st = $mysqli->prepare("SELECT seriesNum FROM urgent_request WHERE tracking_number = ? LIMIT 1")) {
             $st->bind_param('s', $trk);
             if ($st->execute()) { $st->bind_result($sn); if ($st->fetch()) $seriesNum = (string)($sn ?? ''); }
             $st->close();
         }
-        // schedules by tracking_number
         if ($seriesNum === '' && ($st = $mysqli->prepare("SELECT seriesNum FROM schedules WHERE tracking_number = ? LIMIT 1"))) {
             $st->bind_param('s', $trk);
             if ($st->execute()) { $st->bind_result($sn); if ($st->fetch()) $seriesNum = (string)($sn ?? ''); }
             $st->close();
-        }
-    }
-}
-
-/* ---------- Keep existing BESO lookup, only if still empty ---------- */
-if ($seriesNum === '' && $rid > 0 && strcasecmp($certRaw, 'BESO Application') === 0) {
-    // get resident name by id
-    if ($stmtN = $mysqli->prepare("SELECT first_name, middle_name, last_name, suffix_name FROM residents WHERE id = ? LIMIT 1")) {
-        $stmtN->bind_param('i', $rid);
-        if ($stmtN->execute()) {
-            $stmtN->bind_result($fn, $mn, $ln, $sn);
-            if ($stmtN->fetch()) {
-                $fn = $fn ?? ''; $mn = $mn ?? ''; $ln = $ln ?? ''; $sn = $sn ?? '';
-                $stmtN->close();
-
-                // match latest BESO by exact name
-                if ($stmtB = $mysqli->prepare("
-                    SELECT seriesNum
-                    FROM beso
-                    WHERE firstName = ? AND middleName = ? AND lastName = ? AND IFNULL(suffixName,'') = ?
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT 1
-                ")) {
-                    $stmtB->bind_param('ssss', $fn, $mn, $ln, $sn);
-                    if ($stmtB->execute()) {
-                        $stmtB->bind_result($ser);
-                        if ($stmtB->fetch()) $seriesNum = (string)$ser;
-                    }
-                    $stmtB->close();
-                }
-            } else {
-                $stmtN->close();
-            }
-        } else {
-            $stmtN->close();
         }
     }
 }
@@ -236,15 +199,13 @@ $btnData = [
     'age'                     => (string)(isset($row['birth_date']) ? calculate_age($row['birth_date']) : ''),
     'res_id'                  => (string)((int)($row['res_id'] ?? 0)),
     'tracking'                => (string)($row['tracking_number'] ?? ''),
-    // signatory payload
     'assigned_kag_name'       => (string)($row['assigned_kag_name'] ?? $row['assignedKagName'] ?? ''),
     'sig_emp_id'              => (string)((int)($row['signatory_employee_id'] ?? 0)),
     'sig_name'                => (string)($row['signatory_name'] ?? ''),
     'sig_pos'                 => (string)($row['signatory_position'] ?? ''),
-    // NEW: series number for all (Sched/Urgent; plus BESO fallback)
     'series_num'              => (string)$seriesNum,
-    // NEW: witness for BESO
     'assigned_witness_name'   => (string)($row['assigned_witness_name'] ?? ''),
+    'oneness_fullname'        => (string)($row['oneness_fullname'] ?? ''),
 ];
 ?>
 
@@ -311,7 +272,6 @@ $btnData = [
 </tr>
 
 <?php
-// Emit the print handlers only once (first time this file is included)
 if (!defined('PRINT_ROW_JS_EMITTED')): define('PRINT_ROW_JS_EMITTED', true); ?>
 <script>
 (function () {
@@ -338,15 +298,16 @@ if (!defined('PRINT_ROW_JS_EMITTED')): define('PRINT_ROW_JS_EMITTED', true); ?>
     const btn = e.target.closest('.js-print');
     if (!btn) return;
 
-    // Hard block in JS too (in case someone removes 'disabled' via devtools)
     if (btn.dataset.allowed !== '1') {
       e.preventDefault();
-      // Optionally show a gentle alert:
       if (btn.title) alert(btn.title);
       return;
     }
 
     const d = btn.dataset;
+
+    // ✅ INSERTED HERE
+
     const resId  = Number(d.res_id || 0);
 
     if (resId && d.tracking) logPrint(resId, d.tracking);
@@ -369,8 +330,9 @@ if (!defined('PRINT_ROW_JS_EMITTED')): define('PRINT_ROW_JS_EMITTED', true); ?>
         resId,
         d.assigned_kag_name || '',
         d.sig_emp_id || 0,
-        d.series_num || '',             // Control No.
-        d.assigned_witness_name || ''   // BESO witness
+        d.series_num || '',
+        d.assigned_witness_name || '',
+        d.oneness_fullname || ''
       );
     } catch (err) {
       console.error('Print click failed:', err);

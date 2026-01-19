@@ -1,6 +1,7 @@
 <?php
-ini_set('display_errors', 0); // Don't show PHP errors to users
-ini_set('log_errors', 1);     // Log errors instead
+// api/urgent_request.php
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 error_reporting(E_ALL);
 
 if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
@@ -12,36 +13,34 @@ if (basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'])) {
 require_once __DIR__ . '/../../include/connection.php';
 $mysqli = db_connection();
 
-require_once __DIR__ . '/../../include/encryption.php'; // fixed relative path
+require_once __DIR__ . '/../../include/encryption.php'; 
 include 'class/session_timeout.php';
 
 $user_role = $_SESSION['Role_Name'] ?? '';
 
 // -----------------------------
-// Residents for dropdown
+// 1. Fetch Residents
 // -----------------------------
 $residents = [];
-$q = "
-  SELECT
-    id,
-    TRIM(CONCAT(first_name,' ',IFNULL(middle_name,''),' ',last_name,' ',IFNULL(suffix_name,''))) AS full_name
-  FROM residents
-  WHERE resident_delete_status = 0
-  ORDER BY last_name, first_name
-";
+$q = "SELECT id,
+             TRIM(CONCAT(first_name,' ',IFNULL(middle_name,''),' ',last_name,' ',IFNULL(suffix_name,''))) AS full_name
+      FROM residents
+      WHERE resident_delete_status = 0
+      ORDER BY last_name, first_name";
 $r = $mysqli->query($q);
 while ($row = $r->fetch_assoc()) {
     $residents[] = $row;
 }
 
 // -----------------------------
-// Certificates (hide BESO for revenue)
+// 2. Fetch Certificates (Role Filtered)
 // -----------------------------
 $certificates = [];
 $certQ = "SELECT Certificates_Name FROM certificates WHERE status = 'Active' ORDER BY Certificates_Name";
 $certR = $mysqli->query($certQ);
 while ($row = $certR->fetch_assoc()) {
     $name = $row['Certificates_Name'];
+    // Hide BESO for revenue staff
     if (stripos($user_role, 'revenue') !== false && $name === 'BESO Application') continue;
     $certificates[] = $name;
 }
@@ -51,576 +50,664 @@ while ($row = $certR->fetch_assoc()) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Urgent Appointment - Admin</title>
+  <title>Urgent Appointment - Multi-Request</title>
 
-  <!-- Vendor CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/@sweetalert2/theme-bootstrap-4@5.0.16/bootstrap-4.min.css" rel="stylesheet" />
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
 
-  <!-- App CSS (same UI palette) -->
   <link rel="stylesheet" href="css/urgent/urgent.css">
+
+  <style>
+      /* Custom Styles for Queue */
+      .queue-item-remove { cursor: pointer; color: #dc3545; transition: all 0.2s; }
+      .queue-item-remove:hover { color: #a71d2a; transform: scale(1.1); }
+      .sticky-submit-footer { position: sticky; bottom: 0; background: white; z-index: 10; border-top: 1px solid #dee2e6; }
+      .staging-card { border-left: 5px solid #0d6efd; }
+      .queue-card { border-top: 5px solid #dc3545; }
+  </style>
 </head>
 <body>
+
 <main class="container py-4">
   <div class="card app-card shadow-lg rounded-4 p-3 p-md-5 mb-5">
+    
     <header class="text-center mb-4">
       <h1 class="h3 h2-md fw-bold d-flex align-items-center justify-content-center gap-2">
-        <i class="bi bi-exclamation-triangle-fill text-danger"></i>
-        On-Site Request
+        <i class="bi bi-collection-fill text-danger"></i>
+        On-Site Request (Multi-Select)
       </h1>
-      <p class="text-muted mb-0 small">Create and submit an urgent appointment for a resident.</p>
+      <p class="text-muted mb-0 small">Create multiple urgent requests for a resident in one go.</p>
     </header>
 
-    <!-- Step 1: Resident -->
     <section aria-labelledby="resident-label" class="mb-4">
       <label id="resident-label" for="residentSelect" class="form-label fw-semibold">Select Resident</label>
-      <select id="residentSelect" class="form-select form-select-lg shadow-sm rounded-3" required>
+      <select id="residentSelect" class="form-select form-select-lg shadow-sm rounded-3">
         <option value="">-- Choose Resident --</option>
         <?php foreach ($residents as $resident): ?>
           <option value="<?= (int)$resident['id'] ?>"><?= htmlspecialchars($resident['full_name']) ?></option>
         <?php endforeach; ?>
       </select>
-      <div class="form-text">Start typing to search; press Enter to pick.</div>
+      <div class="form-text">Changing the resident will clear the current request list.</div>
     </section>
 
-    <!-- Resident details -->
-    <section id="residentDetails" class="d-none" aria-live="polite">
-      <div class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-header fw-bold">Resident Details</div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-12 col-md-6">
-              <div class="detail">
-                <span class="detail-label">Name</span>
-                <span id="residentName" class="detail-value"></span>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="detail">
-                <span class="detail-label">Birth Date</span>
-                <span id="residentBirthDate" class="detail-value"></span>
-              </div>
-            </div>
-            <div class="col-6 col-md-3">
-              <div class="detail">
-                <span class="detail-label">Birth Place</span>
-                <span id="residentBirthPlace" class="detail-value"></span>
-              </div>
-            </div>
-            <div class="col-12">
-              <div class="detail">
-                <span class="detail-label">Address</span>
-                <span id="residentAddress" class="detail-value"></span>
-              </div>
-            </div>
-          </div>
+    <section id="residentDetails" class="d-none mb-4" aria-live="polite">
+      <div class="card border-0 shadow-sm rounded-4 bg-light">
+        <div class="card-body py-2">
+             <div class="row align-items-center small">
+                <div class="col-md-6">
+                    <span class="text-muted">Resident:</span> 
+                    <span id="residentName" class="fw-bold text-dark fs-6 ms-1"></span>
+                </div>
+                <div class="col-md-6 text-md-end mt-2 mt-md-0">
+                    <span class="text-muted me-1">Cedula Status:</span>
+                    <span id="cedulaStatusBadge" class="badge"></span>
+                </div>
+             </div>
         </div>
       </div>
     </section>
 
-    <!-- Form -->
-    <form id="urgentForm" novalidate>
-      <!-- Step 2: Certificate -->
-      <section id="certificateContainer" class="mb-4 d-none" aria-labelledby="cert-label">
-        <label id="cert-label" for="CertificateSelect" class="form-label fw-semibold">Certificate</label>
-        <select id="CertificateSelect" class="form-select" required>
-          <option value="">-- Choose Certificate --</option>
-          <?php foreach ($certificates as $certName): ?>
-            <option value="<?= htmlspecialchars($certName) ?>"><?= htmlspecialchars($certName) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </section>
+    <div id="mainInterface" class="d-none">
+        <div class="row g-4">
+            
+            <div class="col-lg-5">
+                <div class="card staging-card shadow-sm h-100">
+                    <div class="card-header bg-white fw-bold">
+                        <i class="bi bi-plus-circle me-1 text-primary"></i> Configure Request
+                    </div>
+                    <div class="card-body">
+                        <form id="stagingForm">
+                            <div class="mb-3">
+                                <label for="CertificateSelect" class="form-label fw-semibold">1. Select Certificate</label>
+                                <select id="CertificateSelect" class="form-select">
+                                    <option value="">-- Choose Certificate --</option>
+                                    <?php foreach ($certificates as $certName): ?>
+                                    <option value="<?= htmlspecialchars($certName) ?>"><?= htmlspecialchars($certName) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
 
-      <!-- Cedula action -->
-      <section id="cedulaActionContainer" class="mb-3 d-none">
-        <label for="cedulaActionSelect" class="form-label">Choose Cedula Action</label>
-        <select id="cedulaActionSelect" class="form-select">
-          <option value="">-- Choose Action --</option>
-          <option value="upload">Upload Existing Cedula</option>
-          <option value="request">Request New Cedula</option>
-        </select>
-      </section>
+                            <div id="dynamicFields" class="border-top pt-3 mt-3">
+                                
+                                <div id="cedulaActionContainer" class="mb-3 d-none config-field">
+                                    <label class="form-label small fw-bold">Cedula Action</label>
+                                    <select id="cedulaActionSelect" class="form-select mb-2">
+                                        <option value="">-- Choose Action --</option>
+                                        <option value="upload">Upload Existing Cedula</option>
+                                        <option value="request">Request New Cedula</option>
+                                    </select>
+                                </div>
 
-      <!-- Declared income -->
-      <section id="incomeContainer" class="mb-3 d-none">
-        <label for="incomeInput" class="form-label">Declared Income</label>
-        <input type="number" step="0.01" id="incomeInput" class="form-control" placeholder="e.g., 15000.00" inputmode="decimal" min="0">
-      </section>
+                                <div id="incomeContainer" class="mb-3 d-none config-field">
+                                    <label class="form-label small fw-bold">Declared Income</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">₱</span>
+                                        <input type="number" step="0.01" id="incomeInput" class="form-control" placeholder="0.00">
+                                    </div>
+                                </div>
 
-      <!-- Upload Cedula -->
-      <section id="uploadCedulaContainer" class="mb-3 border rounded-4 p-3 d-none">
-        <h5 class="fw-bold mb-3">Upload Existing Cedula</h5>
-        <div class="row g-3">
-          <div class="col-12 col-md-4">
-            <label for="cedulaNumber" class="form-label">Cedula Number</label>
-            <input type="text" class="form-control" id="cedulaNumber" autocomplete="off">
-          </div>
-          <div class="col-6 col-md-4">
-            <label for="dateIssued" class="form-label">Date Issued</label>
-            <input type="date" class="form-control" id="dateIssued">
-          </div>
-          <div class="col-6 col-md-4">
-            <label for="issuedAt" class="form-label">Issued At</label>
-            <input type="text" class="form-control" id="issuedAt" placeholder="City/Municipality">
-          </div>
-          <div class="col-12 col-md-4">
-            <label for="incomeUpload" class="form-label">Income</label>
-            <input type="number" class="form-control" id="incomeUpload" placeholder="e.g., 15000.00" inputmode="decimal" min="0">
-          </div>
-          <div class="col-12 col-md-8">
-            <label for="cedulaFile" class="form-label">Upload Cedula File (PDF, JPG, PNG)</label>
-            <input type="file" class="form-control" id="cedulaFile" accept=".pdf,.jpg,.jpeg,.png">
-          </div>
+                                <div id="uploadCedulaContainer" class="mb-3 p-3 bg-light rounded border d-none config-field">
+                                    <h6 class="small fw-bold mb-2">Upload Details</h6>
+                                    <input type="text" class="form-control mb-2 form-control-sm" id="cedulaNumber" placeholder="Cedula No." autocomplete="off">
+                                    <input type="date" class="form-control mb-2 form-control-sm" id="dateIssued">
+                                    <input type="text" class="form-control mb-2 form-control-sm" id="issuedAt" placeholder="Issued At (Place)">
+                                    <input type="number" class="form-control mb-2 form-control-sm" id="incomeUpload" placeholder="Income Amount">
+                                    <label class="form-label small text-muted">File (PDF/Image)</label>
+                                    <input type="file" class="form-control form-control-sm" id="cedulaFile" accept=".pdf,.jpg,.jpeg,.png">
+                                </div>
+
+                                <div id="besoFields" class="mb-3 d-none config-field">
+                                    <label class="form-label small fw-bold">Education</label>
+                                    <input type="text" id="educationAttainment" class="form-control mb-2" placeholder="Highest Educational Attainment">
+                                    <input type="text" id="course" class="form-control" placeholder="Course / Degree">
+                                </div>
+
+                                <div id="purposeContainer" class="mb-3 d-none config-field">
+                                    <label class="form-label small fw-bold">Purpose</label>
+                                    <select id="purposeSelect" class="form-select mb-2">
+                                        <option value="">-- Choose Purpose --</option>
+                                    </select>
+                                    
+                                    <!-- <div id="customPurposeContainer" class="d-none mt-2">
+                                        <input type="text" id="customPurposeInput" class="form-control" placeholder="Specify custom purpose">
+                                    </div> -->
+                                </div>
+
+                            </div>
+                            
+                            <button type="button" id="btnAddToList" class="btn btn-primary w-100 mt-2">
+                                <i class="bi bi-arrow-right-short"></i> Add to Request List
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="card queue-card shadow-sm h-100">
+                    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-list-check me-1 text-danger"></i> Request Queue</span>
+                        <span class="badge bg-secondary rounded-pill" id="queueCount">0</span>
+                    </div>
+                    
+                    <div class="card-body p-0 position-relative">
+                        <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                            <table class="table table-hover align-middle mb-0" id="queueTable">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        <th style="width: 35%">Certificate</th>
+                                        <th style="width: 45%">Details</th>
+                                        <th style="width: 20%" class="text-end">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="3" class="text-center text-muted py-5">
+                                        <i class="bi bi-basket3 display-6 d-block mb-2 text-secondary opacity-25"></i>
+                                        List is empty. Configure a request on the left.
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="card-footer sticky-submit-footer p-3">
+                         <button type="button" id="btnSubmitAll" class="btn btn-danger btn-lg w-100 fw-bold shadow-sm" disabled>
+                            <i class="bi bi-send-fill me-2"></i> Submit All Requests
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
-      </section>
+    </div>
 
-      <!-- BESO fields -->
-      <section id="besoFields" class="mb-3 d-none">
-        <div class="row g-3">
-          <div class="col-12 col-md-6">
-            <label for="educationAttainment" class="form-label">Educational Attainment</label>
-            <input type="text" id="educationAttainment" class="form-control" placeholder="e.g., College Graduate">
-          </div>
-          <div class="col-12 col-md-6">
-            <label for="course" class="form-label">Course</label>
-            <input type="text" id="course" class="form-control" placeholder="e.g., BSIT">
-          </div>
-        </div>
-      </section>
-
-      <!-- Purpose -->
-      <section id="purposeContainer" class="mb-3 d-none">
-        <label for="purposeSelect" class="form-label">Purpose</label>
-        <select id="purposeSelect" class="form-select">
-          <option value="">-- Choose Purpose --</option>
-        </select>
-      </section>
-
-      <section id="customPurposeContainer" class="mb-4 d-none">
-        <label for="customPurposeInput" class="form-label">Please specify</label>
-        <input type="text" id="customPurposeInput" class="form-control" placeholder="Enter custom purpose">
-      </section>
-
-      <!-- Submit -->
-      <div class="position-relative">
-        <button type="submit" class="btn btn-danger btn-lg w-100 sticky-submit">
-          <i class="bi bi-send-fill me-2"></i>
-          Submit Urgent Appointment
-        </button>
-      </div>
-    </form>
   </div>
 </main>
 
-<!-- Vendor JS -->
 <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.12.4/dist/sweetalert2.all.min.js"></script>
 
-<!-- Inline JS (kept your logic, matched UI behaviors) -->
 <script>
 (() => {
+  // --- DOM Elements ---
   const $resident = $('#residentSelect');
-  const $detailsWrap = $('#residentDetails');
-  const $certWrap = $('#certificateContainer');
+  const $mainInterface = $('#mainInterface');
   const $cert = $('#CertificateSelect');
-  const $purposeWrap = $('#purposeContainer');
-  const $purpose = $('#purposeSelect');
-  const $customPurposeWrap = $('#customPurposeContainer');
-  const $customPurpose = $('#customPurposeInput');
+  
+  // Staging Inputs
   const $cedulaActionWrap = $('#cedulaActionContainer');
   const $cedulaAction = $('#cedulaActionSelect');
   const $incomeWrap = $('#incomeContainer');
-  const $income = $('#incomeInput');
   const $uploadCedulaWrap = $('#uploadCedulaContainer');
   const $besoWrap = $('#besoFields');
+  const $purposeWrap = $('#purposeContainer');
+  const $purpose = $('#purposeSelect');
+  const $customPurposeWrap = $('#customPurposeContainer');
+  const $customPurposeInput = $('#customPurposeInput');
+  
+  // Queue Elements
+  const $queueTableBody = $('#queueTable tbody');
+  const $btnSubmit = $('#btnSubmitAll');
+  const $queueCount = $('#queueCount');
 
+  // --- State Variables ---
   let residentDetails = null;
+  let requestQueue = []; // Array of objects: { id, certificate, purpose, payload, displayDetails }
 
-  // Enhance selects
+  // --- Helpers ---
+  const toast = (icon, title) => Swal.fire({toast:true, position:'top-end', showConfirmButton:false, timer:2500, icon, title});
+
+  // --- Initialization ---
   $resident.select2({ placeholder: 'Search resident...', width: '100%' });
 
-  // Helpers
-  const show = ($el, on = true) => $el.toggleClass('d-none', !on);
-  const toast = (icon, title) => Swal.fire({toast:true,position:'top',showConfirmButton:false, timer:2500, icon, title});
-
-  // On resident change -> fetch details
+  // -------------------------------------------------------------
+  // 1. Resident Selection & Fetching
+  // -------------------------------------------------------------
   $resident.on('change', function () {
-    show($certWrap, false);
-    show($detailsWrap, false);
+    const id = this.value;
+    
+    // Reset State
+    requestQueue = [];
+    updateQueueTable();
+    resetStagingArea();
+    $mainInterface.addClass('d-none');
+    $('#residentDetails').addClass('d-none');
     residentDetails = null;
 
-    const id = this.value;
     if (!id) return;
 
+    Swal.showLoading();
     fetch('ajax/fetch_resident_details.php?id=' + encodeURIComponent(id))
       .then(r => r.json())
       .then(data => {
+        Swal.close();
         if (!data?.success) {
           Swal.fire('Error', 'Resident not found.', 'error');
           return;
         }
-
         residentDetails = data;
+        
+        // Populate UI Info
+        $('#residentName').text(data.full_name);
+        
+        // Cedula Badge Logic
+        const hasReleasedCedula = data.has_approved_cedula; 
+        const cedulaTxt = hasReleasedCedula ? 'Released / Active' : 'None / Not Released';
+        const badgeClass = hasReleasedCedula ? 'badge bg-success' : 'badge bg-warning text-dark border border-dark';
+        
+        $('#cedulaStatusBadge').attr('class', badgeClass).text(cedulaTxt);
 
-        $('#residentName').text(data.full_name || '');
-        $('#residentBirthDate').text(data.birth_date || '');
-        $('#residentBirthPlace').text(data.birth_place || '');
-        $('#residentAddress').text(['Zone ' + (data.res_zone||''), 'Phase ' + (data.res_street_address||'')].join(', '));
-
-        // Age-based disabling
+        // Age Restriction Filter (Under 18)
         const age = parseInt(data.age || '0', 10);
-        $cert.val('');
-        let disabledCount = 0;
-
-        $cert.find('option').each(function () {
-          const val = $(this).val();
-          if (!val) return;
-          if (age < 18 && (val === 'Barangay Clearance' || val === 'BESO Application')) {
-            $(this).prop('disabled', true).text(val + ' (Not allowed for under 18)');
-            disabledCount++;
-          } else {
-            $(this).prop('disabled', false).text(val);
-          }
+        $cert.find('option').each(function() {
+            const val = $(this).val();
+            if(age < 18 && (val === 'Barangay Clearance' || val === 'BESO Application')) {
+                $(this).prop('disabled', true).text(val + ' (18+ only)');
+            } else {
+                $(this).prop('disabled', false).text(val);
+            }
         });
 
-        if (disabledCount >= $cert.find('option').length - 1) {
-          Swal.fire({icon:'warning', title:'No Available Certificates', text:'No certificates are available for residents under 18.'});
-        }
-
-        // Heads-up if prior Cedula is soft-deleted
-        // if (data.has_soft_deleted_cedula) {
-        //   toast('warning', 'Previous Cedula is soft-deleted. Only Cedula actions are allowed.');
-        // }
-
-        show($detailsWrap, true);
-        show($certWrap, true);
+        // Show Interface
+        $mainInterface.removeClass('d-none');
+        $('#residentDetails').removeClass('d-none');
       })
-      .catch(() => Swal.fire('Error','Error fetching resident details.','error'));
+      .catch(() => Swal.fire('Error', 'Connection failed', 'error'));
   });
 
-  // Certificate change
-  $cert.on('change', function () {
-    const selected = this.value;
-    const isCedula = selected === 'Cedula';
-    const isClearance = selected === 'Barangay Clearance';
-    const isBeso = selected === 'BESO Application';
+  // -------------------------------------------------------------
+  // 2. Certificate Configuration (Left Column)
+  // -------------------------------------------------------------
+  $cert.on('change', function() {
+      const selected = this.value;
+      resetStagingInputs(); // Clear dynamic fields
 
-    // If resident has a soft-deleted Cedula, only allow Cedula actions
-    if (!isCedula && residentDetails?.has_soft_deleted_cedula) {
-      Swal.fire('Blocked', 'Resident has a soft-deleted Cedula. Please upload or request a new Cedula first.', 'warning');
-      $cert.val('Cedula').trigger('change');
-      return;
-    }
+      if (!selected) return;
 
-    show($cedulaActionWrap, isCedula);
-    show($incomeWrap, false);
-    show($uploadCedulaWrap, false);
-    show($besoWrap, isBeso);
-    show($customPurposeWrap, false);
+      const isCedula = selected === 'Cedula';
+      const isBeso = selected === 'BESO Application';
 
-    $purpose.html('<option value="">-- Choose Purpose --</option>');
-    if (isCedula) {
-      $purpose.prop('required', false);
-      show($purposeWrap, false);
-    } else {
-      $purpose.prop('required', true);
-      show($purposeWrap, true);
-    }
-
-    if (!residentDetails) return;
-
-    // BESO restrictions
-    if (isBeso) {
-      const status = (residentDetails.cedula_status || '').toLowerCase();
-      if (['pending', 'approved', 'rejected'].includes(status)) {
-        Swal.fire('Not Allowed','Resident must acquire Cedula first.','warning');
-        $(this).val('');
-        show($besoWrap, false);
-        show($purposeWrap, false);
-        return;
+      // Ongoing Case Check
+      if (selected === 'Barangay Clearance' && residentDetails.has_ongoing_case) {
+          Swal.fire('Blocked','Resident has an ongoing case. Redirecting...','warning')
+            .then(() => window.location.href = "<?= enc_revenue('case_list'); ?>");
+          $cert.val('').trigger('change');
+          return;
       }
-      if (residentDetails.has_residency_used) {
-        Swal.fire('Limit Reached','Already used Barangay Residency for BESO.','warning');
-        $(this).val('');
-        show($besoWrap, false);
-        show($purposeWrap, false);
-        return;
+
+      // Pending Duplicate Check
+      const pendingCerts = residentDetails.pending_certificates || [];
+      if (pendingCerts.includes(selected)) {
+         Swal.fire('Pending','Already has a pending request for ' + selected + '.','warning');
+         $cert.val('').trigger('change');
+         return;
       }
-      if (!residentDetails.has_residency) {
-        Swal.fire('Missing Certificate','No Barangay Residency for First Time Jobseeker.','warning');
-        $(this).val('');
-        show($besoWrap, false);
-        show($purposeWrap, false);
-        return;
+
+      // Visibility Logic
+      if (isCedula) {
+          $cedulaActionWrap.removeClass('d-none');
+      } else if (isBeso) {
+          $besoWrap.removeClass('d-none');
+          $purposeWrap.removeClass('d-none');
+          loadPurposes(selected);
+      } else {
+          // Standard Certificate
+          $purposeWrap.removeClass('d-none');
+          loadPurposes(selected);
       }
-      if (residentDetails.has_existing_beso) {
-        Swal.fire('Duplicate','BESO record already exists.','warning');
-        $(this).val('');
-        show($besoWrap, false);
-        show($purposeWrap, false);
-        return;
-      }
-    }
+  });
 
-    // Ongoing case restriction
-    if (isClearance && residentDetails.has_ongoing_case) {
-      Swal.fire('Blocked','Resident has an ongoing case. Redirecting...','warning')
-        .then(() => window.location.href = "<?= enc_revenue('case_list'); ?>");
-      return;
-    }
+  // Cedula Sub-options
+  $cedulaAction.on('change', function() {
+      const act = this.value;
+      $incomeWrap.toggleClass('d-none', act !== 'request');
+      $uploadCedulaWrap.toggleClass('d-none', act !== 'upload');
+  });
 
-    // Pending duplicate certificate
-    const pendingCerts = residentDetails.pending_certificates || [];
-    if (pendingCerts.includes(selected)) {
-      Swal.fire('Pending Certificate','Already has a pending ' + selected + '.','warning')
-        .then(() => window.location.href = "<?= enc_revenue('view_appointments'); ?>");
-      return;
-    }
+  // Purpose 'Others' handler
+  $purpose.on('change', function() {
+      $customPurposeWrap.toggleClass('d-none', this.value === 'others');
+  });
 
-    // ✅ Allow replacing an already released Cedula (show info only)
-    if (isCedula && residentDetails?.has_approved_cedula) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Replace Existing Cedula',
-        text: 'A released Cedula exists. Submitting a new Cedula will mark the old one as soft-deleted.',
-        confirmButtonText: 'OK'
-      });
-      // do not return; user may proceed
-    }
+  function resetStagingArea() {
+      $cert.val('').trigger('change');
+      resetStagingInputs();
+  }
 
-    // Block if there is already a pending Cedula request
-    if (isCedula && residentDetails.has_pending_cedula) {
-      Swal.fire('Pending','Cedula request already pending.','warning')
-        .then(() => window.location.href = "<?= enc_revenue('view_appointments'); ?>");
-      return;
-    }
+  function resetStagingInputs() {
+      $('.config-field').addClass('d-none'); 
+      $('#stagingForm').find('input, select').not('#CertificateSelect').val('');
+      $purpose.empty(); 
+      $customPurposeWrap.addClass('d-none');
+  }
 
-    if (!isCedula && !residentDetails.has_approved_cedula) {
-      Swal.fire('Required','Must acquire Cedula first.','warning');
-      $cert.val('Cedula').trigger('change');
-      return;
-    }
-
-    // Load purposes for non-cedula
-    if (!isCedula && selected) {
-      show($purposeWrap, true);
-      fetch('ajax/fetch_purposes_by_certificate.php?cert=' + encodeURIComponent(selected))
+  function loadPurposes(certName) {
+      $purpose.html('<option value="">Loading...</option>');
+      fetch('ajax/fetch_purposes_by_certificate.php?cert=' + encodeURIComponent(certName))
         .then(r => r.json())
         .then(data => {
-          const list = Array.isArray(data) ? data : [];
-          list.forEach(p => $purpose.append(`<option value="${p.purpose_name}">${p.purpose_name}</option>`));
-          // $purpose.append('<option value="others">Others</option>');
-        })
-        .catch(() => {
-          $purpose.html('<option value="">Error loading purposes</option><option value="others">Others</option>');
-        });
-    }
-  });
-
-  // Cedula action toggle
-  $cedulaAction.on('change', function () {
-    const action = this.value;
-    show($incomeWrap, action === 'request');
-    show($uploadCedulaWrap, action === 'upload');
-  });
-
-  // Purpose change (others, FTJ checks)
-  $purpose.on('change', function () {
-    const val = this.value;
-    show($customPurposeWrap, val === 'others');
-
-    const selectedCert = $cert.val();
-
-    if (selectedCert === 'Barangay Residency' && val === 'First Time Jobseeker') {
-      if (residentDetails?.has_residency) {
-        Swal.fire('Duplicate','Already has a Barangay Residency for First Time Jobseeker.','warning');
-        $(this).val('');
-        show($customPurposeWrap, false);
-        return;
-      }
-    }
-
-    if ((selectedCert === 'Barangay Clearance' || selectedCert === 'Barangay Indigency') && val === 'First Time Jobseeker') {
-      if (!residentDetails?.has_existing_beso) {
-        Swal.fire('Missing BESO','You must apply for BESO first before requesting this free certificate.','warning');
-        $(this).val('');
-        show($customPurposeWrap, false);
-        return;
-      }
-      if (
-        (selectedCert === 'Barangay Clearance' && residentDetails?.has_clearance_used) ||
-        (selectedCert === 'Barangay Indigency' && residentDetails?.has_indigency_used)
-      ) {
-        Swal.fire('Limit Reached','Already used free ' + selectedCert + ' for First Time Jobseeker.','warning');
-        $(this).val('');
-        show($customPurposeWrap, false);
-        return;
-      }
-
-      const payload = {
-        res_id: $resident.val(),
-        field: (selectedCert === 'Barangay Clearance') ? 'used_for_clearance' : 'used_for_indigency'
-      };
-
-      fetch('ajax/mark_beso_used.php', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      })
-      .then(r => r.json())
-      .then(d => { if (!d?.success) console.warn('Failed to update BESO status.'); })
-      .catch(err => console.error('Error marking BESO usage:', err));
-    }
-  });
-
-  // Submit
-  $('#urgentForm').on('submit', function (e) {
-    e.preventDefault();
-
-    const resId = $resident.val();
-    const certificate = $cert.val();
-    const isCedula = certificate === 'Cedula';
-    const isBESO = certificate === 'BESO Application';
-
-    if (!residentDetails) { Swal.fire('Missing','Please select a resident.','warning'); return; }
-
-    const selectedPurpose = $purpose.val();
-    const customPurpose = ($customPurpose.val() || '').trim();
-    const finalPurpose = (selectedPurpose === 'others') ? customPurpose : selectedPurpose;
-
-    if (!isCedula && !finalPurpose) { Swal.fire('Missing','Please provide a valid purpose.','warning'); return; }
-
-    // Cedula branch
-    if (isCedula) {
-      const action = $cedulaAction.val();
-      if (!action) { Swal.fire('Required','Please choose an action for Cedula.','warning'); return; }
-
-      if (action === 'request') {
-        const income = parseFloat($income.val()) || 0;
-        if (!income) { Swal.fire('Missing','Please enter declared income.','warning'); return; }
-
-        const payload = { userId: resId, urgent: true, certificate, purpose: 'Cedula Application', income };
-
-        Swal.fire({title:'Submit Cedula Request?',text:'Are you sure you want to proceed?',icon:'question',showCancelButton:true,confirmButtonText:'Yes, submit'})
-          .then((r) => {
-            if (!r.isConfirmed) return;
-            Swal.showLoading();
-            fetch('class/save_schedule.php', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) })
-              .then(resp => resp.text())
-              .then(raw => {
-                try {
-                  const data = JSON.parse(raw);
-                  if (data.success) {
-                    Swal.fire({icon:'success',title:'Submitted!',text:'Cedula request submitted successfully.'})
-                      .then(() => window.location.reload());
-                  } else {
-                    Swal.fire({icon:'error',title:'Failed',text:data.message || 'Something went wrong while saving.'});
-                  }
-                } catch { Swal.fire({icon:'error',title:'Invalid Response',text:'Server returned invalid data.',footer:`<pre>${raw}</pre>`}); }
-              })
-              .catch(() => Swal.fire({icon:'error',title:'Network Error',text:'Could not connect to the server. Please try again.'}));
-          });
-        return;
-      }
-
-      if (action === 'upload') {
-        const cedulaNumber = $('#cedulaNumber').val().trim();
-        const dateIssued = $('#dateIssued').val();
-        const issuedAt = $('#issuedAt').val().trim();
-        const incomeUpload = parseFloat($('#incomeUpload').val()) || 0;
-        const cedulaFile = $('#cedulaFile')[0].files[0];
-
-        if (!cedulaNumber || !dateIssued || !issuedAt || !incomeUpload || !cedulaFile) {
-          Swal.fire('Missing','Please fill in all Cedula upload fields.','warning'); return;
-        }
-
-        const formData = new FormData();
-        formData.append('userId', resId);
-        formData.append('certificate', certificate);
-        formData.append('urgent', true);
-        formData.append('action', 'upload');
-        formData.append('cedulaNumber', cedulaNumber);
-        formData.append('dateIssued', dateIssued);
-        formData.append('issuedAt', issuedAt);
-        formData.append('income', incomeUpload);
-        formData.append('cedulaFile', cedulaFile);
-
-        fetch('class/save_urgent_cedula.php', { method:'POST', body: formData })
-          .then(r => r.json())
-          .then(d => {
-            if (d.success) Swal.fire('Success','Cedula uploaded successfully.','success').then(() => window.location.reload());
-            else Swal.fire('Error', d.message || 'Failed to upload Cedula.','error');
-          })
-          .catch(() => Swal.fire('Error','Upload failed.','error'));
-        return;
-      }
-    }
-
-    // BESO branch
-    if (isBESO) {
-      const attainment = $('#educationAttainment').val().trim();
-      const course = $('#course').val().trim();
-      if (!attainment || !course) { Swal.fire('Missing','Please fill in both education attainment and course.','warning'); return; }
-
-      const besoPayload = { userId: resId, certificate, urgent: true, education_attainment: attainment, course, purpose: finalPurpose };
-
-      fetch('class/save_schedule.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(besoPayload) })
-        .then(r => r.text())
-        .then(raw => {
-          let data;
-          try { data = JSON.parse(raw); } catch { Swal.fire('Error','Invalid server response.','error'); return; }
-          if (!data.success) { Swal.fire('Urgent Request Failed', data.message || 'Could not save urgent request.','error'); return; }
-
-          Swal.fire({title:'Submit BESO Record?', text:'Do you want to finalize and save the BESO application?', icon:'question', showCancelButton:true, confirmButtonText:'Yes, submit'})
-            .then((res) => {
-              if (!res.isConfirmed) return;
-              fetch('class/save_beso.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(besoPayload) })
-                .then(r => r.json())
-                .then(bd => {
-                  if (bd.success) Swal.fire({icon:'success',title:'Submitted!',text:'BESO application successfully recorded.'}).then(() => window.location.reload());
-                  else Swal.fire({icon:'error',title:'Failed',text: bd.message || 'Failed to save BESO data.'});
-                })
-                .catch(() => Swal.fire({icon:'error',title:'Error',text:'An unexpected error occurred while saving the BESO record.'}));
-            });
-        })
-        .catch(() => Swal.fire('Error','An unexpected error.','error'));
-      return;
-    }
-
-    // Other certificates
-    const payload = { userId: resId, urgent: true, certificate, purpose: finalPurpose };
-
-    Swal.fire({title:'Submit Urgent Request?',text:'Are you sure you want to submit this request?',icon:'question',showCancelButton:true,confirmButtonText:'Yes, submit'})
-      .then((res) => {
-        if (!res.isConfirmed) return;
-        Swal.showLoading();
-        fetch('class/save_schedule.php', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
-          .then(resp => resp.text())
-          .then(raw => {
-            try {
-              const data = JSON.parse(raw);
-              if (data.success) {
-                Swal.fire({icon:'success',title:'Request Submitted',text:'Your urgent request was submitted successfully!'})
-                  .then(() => window.location.reload());
-              } else {
-                Swal.fire({icon:'error',title:'Submission Failed',text:data.message || 'Something went wrong during submission.'});
-              }
-            } catch (e) {
-              Swal.fire({icon:'error',title:'Invalid Server Response',text:'Could not parse the response. Please contact the admin.',footer:`<pre>${raw}</pre>`});
+            let html = '<option value="">-- Choose Purpose --</option>';
+            if(Array.isArray(data)) {
+                data.forEach(p => html += `<option value="${p.purpose_name}">${p.purpose_name}</option>`);
             }
-          })
-          .catch(() => Swal.fire({icon:'error',title:'Request Error',text:'Failed to send the request. Please check your connection.'}));
+            $purpose.html(html);
+        })
+        .catch(() => $purpose.html('<option value="others">Others</option>'));
+  }
+
+  // -------------------------------------------------------------
+  // 3. Add to Queue Logic (WITH FORWARD VALIDATION)
+  // -------------------------------------------------------------
+  $('#btnAddToList').on('click', function() {
+      const certName = $cert.val();
+      if(!certName) { toast('warning', 'Please select a certificate.'); return; }
+
+      const pSel = $purpose.val();
+      const pCust = $customPurposeInput.val();
+      const purpose = (pSel === 'others' ? pCust : pSel);
+
+      // --- A. Duplicate Check ---
+      if(requestQueue.some(item => item.certificate === certName)) {
+          Swal.fire('Duplicate', `${certName} is already in your request list.`, 'info');
+          return;
+      }
+
+      // --- B. "Cedula First" Validation ---
+      if (certName !== 'Cedula') {
+          const hasDbCedula = residentDetails.has_approved_cedula;
+          const hasQueueCedula = requestQueue.some(item => item.certificate === 'Cedula');
+
+          if (!hasDbCedula && !hasQueueCedula) {
+              Swal.fire({
+                  icon: 'warning',
+                  title: 'Cedula Required',
+                  html: `Resident does not have a released Cedula.<br><br>
+                         Please <b>add a Cedula request</b> to the list first before adding ${certName}.`,
+                  confirmButtonText: 'Understood'
+              });
+              return;
+          }
+      }
+
+      // --- C. BESO Logic ---
+      if (certName === 'BESO Application') {
+          if (residentDetails.has_existing_beso) {
+               Swal.fire('Restricted', 'Resident already has an existing BESO record.', 'error');
+               return;
+          }
+      }
+
+      // --- D. FTJ Clearance Logic (Forward Check) ---
+      if (certName === 'Barangay Clearance' && purpose === 'First Time Jobseeker') {
+          // Check Prerequisite: Must have "Barangay Residency" (FTJ)
+          const hasResidencyInDB = residentDetails.has_residency; // Assumes DB flag
+          const hasResidencyInQueue = requestQueue.some(item => 
+              item.certificate === 'Barangay Residency' && item.payload.purpose === 'First Time Jobseeker'
+          );
+
+          if (!hasResidencyInDB && !hasResidencyInQueue) {
+              Swal.fire({
+                  icon: 'warning',
+                  title: 'Requirement Missing',
+                  html: `For First Time Jobseeker Clearance, the resident must have a <b>Barangay Residency</b> (FTJ).<br><br>Please add "Barangay Residency" with purpose "First Time Jobseeker" to the list first.`,
+                  confirmButtonText: 'Okay'
+              });
+              return;
+          }
+
+          // Check Limit
+          if (residentDetails.has_clearance_used) {
+              Swal.fire({icon: 'warning', title: 'Limit Reached', text: 'Resident already used FTJ privilege for Clearance.'});
+              return;
+          }
+      }
+
+      // --- E. Data Gathering ---
+      let payload = { userId: $resident.val(), certificate: certName, urgent: true };
+      let displayDetails = "";
+
+      if (certName === 'Cedula') {
+          const action = $cedulaAction.val();
+          if(!action) { toast('warning', 'Select Cedula Action'); return; }
+          
+          if(action === 'request') {
+              const inc = parseFloat($('#incomeInput').val());
+              if(!inc && inc !== 0) { toast('warning', 'Enter valid Income'); return; }
+              payload.action = 'request';
+              payload.income = inc;
+              payload.purpose = 'Cedula Application';
+              displayDetails = `Request New (Inc: ₱${inc.toLocaleString()})`;
+          } else {
+              const cNo = $('#cedulaNumber').val();
+              const dIss = $('#dateIssued').val();
+              const issAt = $('#issuedAt').val();
+              const cFile = $('#cedulaFile')[0].files[0];
+              if(!cNo || !dIss || !issAt || !cFile) { toast('warning', 'Fill all upload fields & file'); return; }
+              payload.action = 'upload';
+              payload.cedulaNumber = cNo;
+              payload.dateIssued = dIss;
+              payload.issuedAt = issAt;
+              payload.income = parseFloat($('#incomeUpload').val()) || 0;
+              payload.file = cFile; 
+              displayDetails = `Upload Existing (No: ${cNo})`;
+          }
+      } 
+      else {
+          if(!purpose) { toast('warning', 'Select/Enter a purpose'); return; }
+          payload.purpose = purpose;
+          displayDetails = `Purpose: ${purpose}`;
+
+          if(certName === 'BESO Application') {
+              const educ = $('#educationAttainment').val();
+              const cour = $('#course').val();
+              if(!educ || !cour) { toast('warning', 'Education details required for BESO'); return; }
+              payload.education_attainment = educ;
+              payload.course = cour;
+          }
+      }
+
+      // --- F. Push to Queue ---
+      const uniqueId = Date.now() + Math.random();
+      requestQueue.push({
+          id: uniqueId,
+          certificate: certName,
+          payload: payload,
+          details: displayDetails
       });
+
+      updateQueueTable();
+      resetStagingArea();
+      toast('success', 'Added to list');
   });
 
-  // Minor UX
-  $cert.on('select2:open', () => {
-    document.querySelector('#certificateContainer')?.scrollIntoView({behavior:'smooth', block:'center'});
+  // -------------------------------------------------------------
+  // 4. Queue Management UI
+  // -------------------------------------------------------------
+  function updateQueueTable() {
+      $queueTableBody.empty();
+      
+      if(requestQueue.length === 0) {
+          $queueTableBody.html(`
+            <tr><td colspan="3" class="text-center text-muted py-5">
+                <i class="bi bi-basket3 display-6 d-block mb-2 text-secondary opacity-25"></i>
+                List is empty. Configure a request on the left.
+            </td></tr>`);
+          $btnSubmit.prop('disabled', true);
+          $queueCount.text('0');
+          return;
+      }
+
+      requestQueue.forEach(item => {
+         const row = `
+            <tr>
+                <td><span class="fw-bold text-primary">${item.certificate}</span></td>
+                <td><small class="text-muted">${item.details}</small></td>
+                <td class="text-end">
+                    <i class="bi bi-trash3-fill queue-item-remove fs-5" 
+                       onclick="removeItem(${item.id})" title="Remove"></i>
+                </td>
+            </tr>
+         `;
+         $queueTableBody.append(row);
+      });
+      
+      $btnSubmit.prop('disabled', false);
+      $queueCount.text(requestQueue.length);
+  }
+
+  // -------------------------------------------------------------
+  // 5. REMOVE ITEM LOGIC (WITH REVERSE VALIDATION)
+  // -------------------------------------------------------------
+  window.removeItem = function(id) {
+      const itemToRemove = requestQueue.find(i => i.id === id);
+      if(!itemToRemove) return;
+
+      // --- CHECK 1: CEDULA DEPENDENCY ---
+      // If we are trying to remove a Cedula...
+      if(itemToRemove.certificate === 'Cedula') {
+           // Check if there are ANY other items in the queue (since most need Cedula)
+           const othersExist = requestQueue.some(i => i.certificate !== 'Cedula');
+           
+           // If user has NO released Cedula in DB, and has other items in queue -> Block Delete
+           if(!residentDetails.has_approved_cedula && othersExist) {
+               Swal.fire({
+                   title: 'Cannot Remove Cedula',
+                   text: 'Other items in your list require a Cedula. Please remove them first.',
+                   icon: 'warning'
+               });
+               return; 
+           }
+      }
+
+      // --- CHECK 2: FTJ RESIDENCY DEPENDENCY (THE FIX) ---
+      // If we are trying to remove a Barangay Residency (FTJ)...
+      if (itemToRemove.certificate === 'Barangay Residency' && itemToRemove.payload.purpose === 'First Time Jobseeker') {
+           
+           // Check if a dependent Clearance (FTJ) exists in the queue
+           const hasDependentClearance = requestQueue.some(i => 
+               i.certificate === 'Barangay Clearance' && i.payload.purpose === 'First Time Jobseeker'
+           );
+
+           // If user has NO Residency in DB, and has a Clearance in queue -> Block Delete
+           if (!residentDetails.has_residency && hasDependentClearance) {
+               Swal.fire({
+                   title: 'Cannot Remove Residency',
+                   html: 'The <b>Barangay Clearance (First Time Jobseeker)</b> in your list depends on this Residency.<br><br>Please remove the Clearance request first.',
+                   icon: 'warning'
+               });
+               return;
+           }
+      }
+      
+      requestQueue = requestQueue.filter(item => item.id !== id);
+      updateQueueTable();
+  };
+
+  // -------------------------------------------------------------
+  // 6. Batch Submission (The Engine)
+  // -------------------------------------------------------------
+  $btnSubmit.on('click', async function() {
+      if(requestQueue.length === 0) return;
+
+      const confirmed = await Swal.fire({
+          title: 'Submit All Requests?',
+          text: `You are about to submit ${requestQueue.length} request(s).`,
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: 'Yes, Submit All',
+          confirmButtonColor: '#d63384'
+      });
+
+      if (!confirmed.isConfirmed) return;
+
+      Swal.fire({
+          title: 'Processing...',
+          html: 'Please wait while we save your requests.<br><b>Do not close this window.</b>',
+          allowOutsideClick: false,
+          didOpen: () => { Swal.showLoading(); }
+      });
+
+      let successCount = 0;
+      let failCount = 0;
+
+      // SORTING: Cedula First -> Residency Second -> Others
+      requestQueue.sort((a, b) => {
+          if (a.certificate === 'Cedula') return -1;
+          if (b.certificate === 'Cedula') return 1;
+          if (a.certificate === 'Barangay Residency') return -1;
+          return 1;
+      });
+
+      for (const item of requestQueue) {
+          try {
+              let result;
+              
+              if (item.certificate === 'Cedula' && item.payload.action === 'upload') {
+                  const formData = new FormData();
+                  for (const key in item.payload) {
+                      formData.append(key, item.payload[key]);
+                  }
+                  const resp = await fetch('class/save_urgent_cedula.php', { method: 'POST', body: formData });
+                  result = await resp.json();
+              } 
+              else {
+                  const resp = await fetch('class/save_schedule.php', { 
+                      method: 'POST', 
+                      headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify(item.payload)
+                  });
+                  result = await resp.json();
+
+                  if (result.success && item.certificate === 'BESO Application') {
+                       await fetch('class/save_beso.php', { 
+                          method: 'POST', 
+                          headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify(item.payload)
+                      });
+                  }
+
+                  if (result.success && (item.certificate === 'Barangay Clearance' || item.certificate === 'Barangay Indigency')) {
+                       if (item.payload.purpose === 'First Time Jobseeker') {
+                            const field = (item.certificate === 'Barangay Clearance') ? 'used_for_clearance' : 'used_for_indigency';
+                            fetch('ajax/mark_beso_used.php', {
+                                method: 'POST',
+                                headers: {'Content-Type':'application/json'},
+                                body: JSON.stringify({ res_id: item.payload.userId, field: field })
+                            });
+                       }
+                  }
+              }
+
+              if (result.success) {
+                  successCount++;
+              } else {
+                  failCount++;
+                  console.error('Failed Item:', item.certificate, result);
+              }
+
+          } catch (err) {
+              failCount++;
+              console.error('Network/Parse Error:', err);
+          }
+      }
+
+      Swal.close();
+
+      if (failCount === 0) {
+          Swal.fire({
+              icon: 'success', title: 'All Done!', text: 'All requests submitted successfully.'
+          }).then(() => window.location.reload());
+      } else {
+          Swal.fire({
+              icon: 'warning', title: 'Partial Completion', 
+              text: `Submitted: ${successCount} \nFailed: ${failCount}. \nCheck logs.`
+          }).then(() => window.location.reload());
+      }
   });
+
 })();
 </script>
 </body>

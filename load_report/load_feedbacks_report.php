@@ -76,9 +76,9 @@ function normalize_signature_data_uri(?string $data, ?string $mimeHint='image/pn
 }
 function fetch_signatory_separate(mysqli $db, string $pos): array {
   $stmt1 = $db->prepare("SELECT bi.official_id, bi.esignature, bi.esignature_mime
-                         FROM barangay_information bi
-                         WHERE LOWER(bi.`position`)=LOWER(?) AND bi.`status`='active'
-                         ORDER BY bi.id DESC LIMIT 1");
+                          FROM barangay_information bi
+                          WHERE LOWER(bi.`position`)=LOWER(?) AND bi.`status`='active'
+                          ORDER BY bi.id DESC LIMIT 1");
   if (!$stmt1) return ['name'=>null,'sig'=>null];
   $stmt1->bind_param('s', $pos);
   if (!$stmt1->execute()) { $stmt1->close(); return ['name'=>null,'sig'=>null]; }
@@ -228,8 +228,6 @@ ob_start();
   @media print { .d-print-none { display:none!important; } }
 </style>
 
-<!-- Filters (hidden in print) -->
-
 <div class="table-responsive">
   <table class="table table-bordered table-striped table-hover">
     <thead class="table-primary">
@@ -266,34 +264,41 @@ if ($print) {
   $yrUi = htmlspecialchars((string)$yearFilter);
   echo '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Feedback Report</title>
   <style>
+    /* 1. Define page size and margins */
     @page { size: A4 landscape; margin: 12mm; }
-    *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+    
+    /* 2. Standard resets */
+    *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; width: 100%; }
     body { font-family: Segoe UI, Arial, sans-serif; color:#0f172a; }
-    @media print{ html, body { width:297mm; height:210mm; }
 
-    }
+    /* 3. Layout Styles */
     .header{ display:grid; grid-template-columns:auto 1fr auto; align-items:center; margin-bottom:10px; }
     .seals{ display:flex; gap:12px; }
     .seal{ width:52px; height:52px; border-radius:50%; overflow:hidden; border:1px solid #e2e8f0; background:#fff; }
     .seal img{ width:100%; height:100%; object-fit:cover; }
     .title{text-align:center;}
     .title h1{ margin:0; font-size:20px; font-weight:800; }
-    .year{ font-size:14px; }
-    .box{ border:1.5px solid #cfd8e3; padding:10px; page-break-inside:auto; }
-    tr, img { break-inside: avoid; page-break-inside: avoid; }
+    .year{ font-size:14px; text-align: right; }
+    
+    /* 4. Table/Content Styles */
+    .box{ border:1.5px solid #cfd8e3; padding:10px; }
     .box table{ width:100%; border-collapse:collapse; margin-top:6px; }
     .box th, .box td{ border:1px solid #cbd5e1; padding:8px 10px; font-size:13.5px; text-align:left; }
     .box thead th{ background:#0d6efd; color:#fff; text-align:center; font-weight:700; }
     .box tbody tr:nth-child(even) td{ background:#f8fafc; }
+    
+    /* Prevent page breaks inside rows/images */
+    tr, img, .box, .footer { break-inside: avoid; page-break-inside: avoid; }
+
+    /* 5. Footer/Signatories */
     .footer{
-      display:grid; grid-template-columns:1fr 1fr 1fr; text-align:center; margin-top:20px;
-      break-inside: avoid; page-break-inside: avoid; clear: both;
+      display:grid; grid-template-columns:1fr 1fr 1fr; text-align:center; margin-top:30px;
     }
-    .footer *{ break-inside: avoid; page-break-inside: avoid; }
-    .sig .lbl{ font-size:12px; margin-bottom:10px; font-weight:600; }
-    .sig .name{ font-weight:700; font-size:14px; margin-bottom:2px; }
+    .sig .lbl{ font-size:12px; margin-bottom:25px; font-weight:600; }
+    .sig .name{ font-weight:700; font-size:14px; margin-bottom:2px; text-transform: uppercase; }
     .sig .pos{ font-size:12px; color:#475569; }
-    .sigimg{ max-height:56px; width:auto; margin-bottom:4px; display:block; margin-left:auto; margin-right:auto; }
+    .sigimg{ max-height:50px; width:auto; display:block; margin: 0 auto -10px auto; position: relative; top: 10px; }
   </style></head><body>';
 
   // Header
