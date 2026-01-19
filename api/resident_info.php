@@ -179,244 +179,209 @@ function sendCredentialsIfPresent(?string $to, string $password): bool {
    ====================================================================== */
 
 /* --------------------------------------------------------------------------
+  // ... inside resident_info.php ...
+
+/* --------------------------------------------------------------------------
    EXPORT HANDLER (Download Skipped Rows)
    -------------------------------------------------------------------------- */
-   if (isset($_GET['export_errors']) && $_GET['export_errors'] == '1') {
-    if (session_status() === PHP_SESSION_NONE) session_start();
-    
-    if (!empty($_SESSION['resident_import_errors'])) {
-        while (ob_get_level()) { ob_end_clean(); } // Clean buffer
+if (isset($_GET['export_errors']) && $_GET['export_errors'] == '1') {
+  if (session_status() === PHP_SESSION_NONE) session_start();
+  
+  if (!empty($_SESSION['resident_import_errors'])) {
+      // Clear any previous output to ensure clean CSV
+      while (ob_get_level()) { ob_end_clean(); } 
 
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="skipped_residents_report.csv"');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-        
-        $output = fopen('php://output', 'w');
-        fputs($output, "\xEF\xBB\xBF"); // BOM
-        
-        foreach ($_SESSION['resident_import_errors'] as $row) {
-            fputcsv($output, $row);
-        }
-        
-        fclose($output);
-        unset($_SESSION['resident_import_errors']);
-        exit();
-    }
-}
-
-/* ======================================================================
-   AJAX HANDLERS (Batch Import Logic)
-   ====================================================================== */
-
-// 1. AJAX: Parse Excel File & Return Count (Preview)
-if (isset($_POST['action']) && $_POST['action'] === 'parse_excel_preview') {
-    ob_clean();
-    header('Content-Type: application/json');
-
-    try {
-        if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-            throw new Exception('CSRF token mismatch.');
-        }
-
-        if (!isset($_FILES['excel_file']['tmp_name']) || empty($_FILES['excel_file']['tmp_name'])) {
-            throw new Exception('No file uploaded.');
-        }
-
-        $spreadsheet = IOFactory::load($_FILES['excel_file']['tmp_name']);
-        $sheet = $spreadsheet->getActiveSheet();
-        $rows = $sheet->toArray();
-
-        // Remove header row
-        array_shift($rows);
-
-        $validRows = [];
-        foreach ($rows as $r) {
-            // Check if row has at least some data
-            if (!empty($r[0]) || !empty($r[1])) {
-                $validRows[] = $r;
-            }
-        }
-
-        // Store rows in session
-        $_SESSION['batch_import_data'] = $validRows;
-
-        // --- NEW: Initialize Error Log in Session ---
-        $_SESSION['resident_import_errors'] = [];
-        $_SESSION['resident_import_errors'][] = ['ROW', 'REASON', 'LAST NAME', 'FIRST NAME', 'BIRTHDATE', 'ZONE']; // Header
-        
-        echo json_encode([
-            'status' => 'success', 
-            'total_rows' => count($validRows)
-        ]);
-    } catch (Throwable $e) {
-        echo json_encode(['status' => 'error', 'message' => 'Parse Error: ' . $e->getMessage()]);
-    }
-    exit;
+      header('Content-Type: text/csv; charset=utf-8');
+      header('Content-Disposition: attachment; filename="skipped_residents_report.csv"');
+      header('Pragma: no-cache');
+      header('Expires: 0');
+      
+      $output = fopen('php://output', 'w');
+      fputs($output, "\xEF\xBB\xBF"); // Add BOM for Excel compatibility
+      
+      // The array in $_SESSION already contains the Header row + Data rows
+      foreach ($_SESSION['resident_import_errors'] as $row) {
+          fputcsv($output, $row);
+      }
+      
+      fclose($output);
+      // Clear errors after download so it doesn't persist
+      unset($_SESSION['resident_import_errors']); 
+      exit();
+  }
 }
 
 // 2. AJAX: Process Single Row (Called in loop by JS)
+// 2. AJAX: Process Single Row
 if (isset($_POST['action']) && $_POST['action'] === 'process_single_row') {
-    ob_clean();
-    header('Content-Type: application/json');
+  while (ob_get_level()) { ob_end_clean(); }
+  header('Content-Type: application/json');
 
-    try {
-        if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-            throw new Exception('CSRF token mismatch.');
-        }
+  try {
+      if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+          throw new Exception('CSRF token mismatch.');
+      }
 
-        $index = isset($_POST['index']) ? (int)$_POST['index'] : -1;
-        
-        if ($index < 0 || !isset($_SESSION['batch_import_data']) || !isset($_SESSION['batch_import_data'][$index])) {
-            throw new Exception('Invalid row index or session expired.');
-        }
+      $index = isset($_POST['index']) ? (int)$_POST['index'] : -1;
+      
+      if ($index < 0 || !isset($_SESSION['batch_import_data']) || !isset($_SESSION['batch_import_data'][$index])) {
+          throw new Exception('Invalid row index or session expired.');
+      }
 
-        $row = $_SESSION['batch_import_data'][$index];
+      $row = $_SESSION['batch_import_data'][$index];
 
-        // --- Mapping logic ---
-        $last_name    = sanitize_input($row[0] ?? '');
-        $first_name   = sanitize_input($row[1] ?? '');
-        $middle_name  = sanitize_input($row[2] ?? '');
-        $suffix_name  = sanitize_input($row[3] ?? '');
-        $res_zone     = sanitize_input($row[4] ?? '');
-        
-        // Date Logic
-        $birth_raw = $row[5] ?? null;
-        $birth_date = null;
-        if (!empty($birth_raw)) {
-            if (is_numeric($birth_raw)) {
-                $birth_date = date('Y-m-d', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($birth_raw));
-            } else {
-                $ts = strtotime((string)$birth_raw);
-                if ($ts) $birth_date = date('Y-m-d', $ts);
-            }
-        }
+      if (!function_exists('clean_utf8')) {
+          function clean_utf8($d) {
+              $s = trim((string)$d);
+              return mb_convert_encoding($s, 'UTF-8', 'UTF-8');
+          }
+      }
 
-        $gender       = sanitize_input($row[6] ?? '');
-        $civil_status = sanitize_input($row[7] ?? 'Single');
-        $occupation   = sanitize_input($row[8] ?? 'N/A');
-        $email        = strtolower(sanitize_input($row[9] ?? ''));
+      // --- MAPPING ---
+      $last_name    = clean_utf8($row[0] ?? '');
+      $first_name   = clean_utf8($row[1] ?? '');
+      $middle_name  = clean_utf8($row[2] ?? '');
+      $suffix_name  = clean_utf8($row[3] ?? '');
+      $res_zone     = clean_utf8($row[4] ?? ''); // Address
+      $birth_raw    = $row[5] ?? null;
 
-        // --- 1. CHECK INCOMPLETE DATA (The New Rule) ---
-        $missing = [];
-        if ($last_name === '') $missing[] = 'Last Name';
-        if ($first_name === '') $missing[] = 'First Name';
-        if ($res_zone === '') $missing[] = 'Zone';
-        if ($birth_date === null) $missing[] = 'Birthdate';
-        if ($gender === '') $missing[] = 'Gender';
+      // Date Logic (Allow NULL if empty)
+      $birth_date = null;
+      if (!empty($birth_raw)) {
+          try {
+              if (is_numeric($birth_raw)) {
+                  $birth_date = date('Y-m-d', \PhpOffice\PhpSpreadsheet\Shared\Date::excelToTimestamp($birth_raw));
+              } else {
+                  $ts = strtotime((string)$birth_raw);
+                  if ($ts) $birth_date = date('Y-m-d', $ts);
+              }
+          } catch (Throwable $e) { $birth_date = null; }
+      }
 
-        if (!empty($missing)) {
-            $reason = 'Incomplete: Missing ' . implode(', ', $missing);
-            $_SESSION['resident_import_errors'][] = [($index + 2), $reason, $last_name, $first_name, $birth_raw, $res_zone];
-            echo json_encode(['status' => 'skipped', 'message' => $reason]);
-            exit;
-        }
+      // Defaults
+      $gender = 'N/A'; $civil_status = 'Single'; $occupation = 'N/A'; $email = '';
 
-        // --- 2. Check Duplication: Email (Active only) ---
-        if ($email !== '') {
-            $du = $mysqli->prepare("SELECT id FROM residents WHERE email = ? AND resident_delete_status = 0 LIMIT 1");
-            $du->bind_param('s', $email);
-            $du->execute();
-            if ($du->get_result()->num_rows > 0) { 
-                $_SESSION['resident_import_errors'][] = [($index + 2), 'Duplicate Email', $last_name, $first_name, $birth_date, $res_zone];
-                echo json_encode(['status' => 'skipped', 'message' => 'Email already exists.']); 
-                exit; 
-            }
-            $du->close();
-        }
+      // --- 1. STRICT REQUIREMENT: LAST & FIRST NAME ONLY ---
+      $missing = [];
+      if ($last_name === '') $missing[] = 'Last Name';
+      if ($first_name === '') $missing[] = 'First Name';
+      
+      if (!empty($missing)) {
+          $reason = 'Incomplete: Missing ' . implode(', ', $missing);
+          // PUSH TO LOG: Must match header order
+          $_SESSION['resident_import_errors'][] = [($index + 2), $reason, $last_name, $first_name, $middle_name, $res_zone, $birth_raw];
+          echo json_encode(['status' => 'skipped', 'message' => $reason]);
+          exit;
+      }
 
-        // --- 3. Check Duplication: Name (Active only) ---
-        $chkName = $mysqli->prepare("SELECT id FROM residents WHERE first_name = ? AND last_name = ? AND resident_delete_status = 0 LIMIT 1");
-        $chkName->bind_param("ss", $first_name, $last_name);
-        $chkName->execute();
-        if ($chkName->get_result()->num_rows > 0) {
-             $_SESSION['resident_import_errors'][] = [($index + 2), 'Duplicate Name', $last_name, $first_name, $birth_date, $res_zone];
-             echo json_encode(['status' => 'skipped', 'message' => 'Resident name already exists.']);
-             exit;
-        }
-        $chkName->close();
+      // --- 2. MIDDLE NAME CHECK ---
+      if (!empty($middle_name)) {
+          if (mb_strlen($middle_name) <= 1 || mb_substr($middle_name, -1) === '.') {
+              $reason = 'Invalid Data: Middle name must be complete (not an initial).';
+              $_SESSION['resident_import_errors'][] = [($index + 2), $reason, $last_name, $first_name, $middle_name, $res_zone, $birth_raw];
+              echo json_encode(['status' => 'skipped', 'message' => $reason]);
+              exit;
+          }
+      }
 
-        // Defaults
-        $employee_id            = $_SESSION['employee_id'] ?? 0;
-        $zone_leader_id         = 0;
-        $raw_password           = generatePassword();
-        $password               = password_hash($raw_password, PASSWORD_DEFAULT);
-        $birth_place            = "N/A";
-        $residency_start        = date('Y-m-d');
-        $res_province           = 57;
-        $res_city               = 1229;
-        $res_barangay           = 32600;
-        $full_address           = $res_zone; 
-        $contact_number         = "0000000000";
-        $citizenship            = "N/A";
-        $religion               = "N/A";
-        $age                    = date_diff(date_create($birth_date), date_create('today'))->y;
-        $resident_delete_status = 0;
-        
-        // Username Generation
-        $base_username = slugify_lower($first_name . $last_name);
-        $username      = $base_username; 
+      // --- 3. DUPLICATE CHECK (Strict: First + Last + Middle) ---
+      // This ensures "Same First, Same Last, Different Middle" is ALLOWED.
+      // It only blocks if ALL THREE are exactly the same.
+      $chkName = $mysqli->prepare("
+          SELECT id FROM residents 
+          WHERE first_name = ? 
+            AND last_name = ? 
+            AND middle_name = ? 
+            AND resident_delete_status = 0 
+          LIMIT 1
+      ");
+      $chkName->bind_param("sss", $first_name, $last_name, $middle_name);
+      $chkName->execute();
+      
+      if ($chkName->get_result()->num_rows > 0) {
+           // DUPLICATE FOUND
+           $reason = 'Duplicate: Resident with this First, Last, and Middle name already exists.';
+           $_SESSION['resident_import_errors'][] = [($index + 2), $reason, $last_name, $first_name, $middle_name, $res_zone, $birth_raw];
+           echo json_encode(['status' => 'skipped', 'message' => $reason]);
+           exit;
+      }
+      $chkName->close();
 
-        // DB Insert
-        $insert_stmt = $mysqli->prepare(
-            "INSERT INTO residents (
-                employee_id, zone_leader_id, username, password, temp_password,
-                first_name, middle_name, last_name, suffix_name,
-                gender, civil_status, birth_date, residency_start, birth_place, age, contact_number, email,
-                res_province, res_city_municipality, res_barangay, res_zone, res_street_address, citizenship,
-                religion, occupation, resident_delete_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-        );
+      // --- INSERT ---
+      $employee_id = $_SESSION['employee_id'] ?? 0;
+      $zone_leader_id = 0;
+      $raw_password = generatePassword();
+      $password = password_hash($raw_password, PASSWORD_DEFAULT);
+      $residency_start = date('Y-m-d');
+      $res_province = 57; $res_city = 1229; $res_barangay = 32600;
+      $full_address = $res_zone; 
+      $contact_number = "0000000000"; $citizenship = "N/A"; $religion = "N/A"; $birth_place = "N/A";
+      
+      $age = 0;
+      if ($birth_date) {
+          $age = date_diff(date_create($birth_date), date_create('today'))->y;
+      }
+      
+      $resident_delete_status = 0;
+      $base_username = slugify_lower($first_name . $last_name);
+      $username = $base_username; 
 
-        $insert_stmt->bind_param(
-            "iissssssssssssissiiisssssi",
-            $employee_id, $zone_leader_id, $username, $password, $raw_password,
-            $first_name, $middle_name, $last_name, $suffix_name,
-            $gender, $civil_status, $birth_date, $residency_start, $birth_place, $age,
-            $contact_number, $email, $res_province, $res_city, $res_barangay,
-            $res_zone, $full_address, $citizenship, $religion, $occupation, $resident_delete_status
-        );
+      $insert_stmt = $mysqli->prepare(
+          "INSERT INTO residents (
+              employee_id, zone_leader_id, username, password, temp_password,
+              first_name, middle_name, last_name, suffix_name,
+              gender, civil_status, birth_date, residency_start, birth_place, age, contact_number, email,
+              res_province, res_city_municipality, res_barangay, res_zone, res_street_address, citizenship,
+              religion, occupation, resident_delete_status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      );
 
-        if (!$insert_stmt->execute()) {
-             throw new Exception('DB Insert Error: ' . $insert_stmt->error);
-        }
-        
-        $new_resident_id = $mysqli->insert_id;
-        $insert_stmt->close();
+      $insert_stmt->bind_param(
+          "iissssssssssssissiiisssssi",
+          $employee_id, $zone_leader_id, $username, $password, $raw_password,
+          $first_name, $middle_name, $last_name, $suffix_name,
+          $gender, $civil_status, $birth_date, $residency_start, $birth_place, $age,
+          $contact_number, $email, $res_province, $res_city, $res_barangay,
+          $res_zone, $full_address, $citizenship, $religion, $occupation, $resident_delete_status
+      );
 
-        // Handle Username Duplicates
-        $check_dupe = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
-        $check_dupe->bind_param("si", $base_username, $new_resident_id);
-        $check_dupe->execute();
-        if ($check_dupe->get_result()->num_rows > 0) {
-            $final_username = $base_username . $new_resident_id;
-            $upd = $mysqli->prepare("UPDATE residents SET username = ? WHERE id = ?");
-            $upd->bind_param("si", $final_username, $new_resident_id);
-            $upd->execute();
-            $upd->close();
-        }
-        $check_dupe->close();
+      if (!$insert_stmt->execute()) {
+           throw new Exception('DB Insert Error: ' . $insert_stmt->error);
+      }
+      
+      $new_resident_id = $mysqli->insert_id;
+      $insert_stmt->close();
 
-        // Logs
-        global $trigs;
-        if(isset($trigs)) $trigs->isResidentBatchAdded(2, 1);
+      // Handle Username Duplicates
+      $check_dupe = $mysqli->prepare("SELECT id FROM residents WHERE username = ? AND id != ? AND resident_delete_status = 0 LIMIT 1");
+      $check_dupe->bind_param("si", $base_username, $new_resident_id);
+      $check_dupe->execute();
+      if ($check_dupe->get_result()->num_rows > 0) {
+          $final_username = $base_username . $new_resident_id;
+          $upd = $mysqli->prepare("UPDATE residents SET username = ? WHERE id = ?");
+          $upd->bind_param("si", $final_username, $new_resident_id);
+          $upd->execute();
+          $upd->close();
+      }
+      $check_dupe->close();
 
-        // Email
-        if ($email) {
-            sendCredentialsIfPresent($email, $raw_password);
-        }
+      global $trigs;
+      if(isset($trigs)) $trigs->isResidentBatchAdded(2, 1);
 
-        echo json_encode(['status' => 'success']);
+      echo json_encode(['status' => 'success']);
 
-    } catch (Throwable $e) {
-        // Log "Critical Errors" (Database failures) to the CSV as well
-        if (session_status() === PHP_SESSION_NONE) session_start();
-        $rData = $_SESSION['batch_import_data'][$index] ?? [];
-        $_SESSION['resident_import_errors'][] = [($index + 2), 'System Error: ' . $e->getMessage(), $rData[0]??'', $rData[1]??'', '',''];
-        
-        echo json_encode(['status' => 'skipped', 'message' => 'Processing Error: ' . $e->getMessage()]);
-    }
-    exit;
+  } catch (Throwable $e) {
+      if (session_status() === PHP_SESSION_NONE) session_start();
+      $rData = $_SESSION['batch_import_data'][$index] ?? [];
+      $_SESSION['resident_import_errors'][] = [
+          ($index + 2), 
+          'System Error: ' . $e->getMessage(), 
+          $rData[0]??'', $rData[1]??'', $rData[2]??'', $rData[4]??'', $rData[5]??''
+      ];
+      
+      echo json_encode(['status' => 'skipped', 'message' => 'Processing Error: ' . $e->getMessage()]);
+  }
+  exit;
 }
 
 // 4. Flush Buffer for HTML page load
@@ -1837,7 +1802,6 @@ async function startBatchUpload() {
         return;
     }
 
-    // 1. Show Modal
     const modalEl = document.getElementById('batchProgressModal');
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
@@ -1848,74 +1812,60 @@ async function startBatchUpload() {
     const errDiv  = document.getElementById('uploadErrors');
     const errList = document.getElementById('errorList');
     
-    // Reset UI
     pText.innerText = "Analyzing file...";
     pBar.style.width = "0%";
     pBar.innerText = "0%";
     errDiv.style.display = 'none';
     errList.innerHTML = '';
     
-    // 2. Upload File for Preview (Get Count)
+    // 1. UPLOAD & PREVIEW
     const formData = new FormData();
     formData.append('excel_file', fileInput.files[0]);
     formData.append('csrf_token', window.CSRF_TOKEN);
     formData.append('action', 'parse_excel_preview'); 
 
     try {
-        // POINT TO CURRENT FILE (resident_info.php)
-        // Ensure this path is correct relative to your browser URL
         const response = await fetch('Modules/staff_modules/resident_info.php', { method: 'POST', body: formData });
-        
         const data = await response.json();
 
-        if (data.status !== 'success') {
-            throw new Error(data.message || 'Failed to parse file.');
-        }
+        if (data.status !== 'success') throw new Error(data.message || 'Failed to parse file.');
 
         const totalRows = data.total_rows;
-        if (totalRows === 0) {
-            throw new Error('File appears to be empty or has no valid data.');
-        }
+        if (totalRows === 0) throw new Error('File appears to be empty or has no valid data.');
 
-        // 3. Start Loop
-        let successCount = 0;
-        let skipCount = 0;
+        let processedTotal = 0;
+        let skippedTotal = 0;
+        
+        // --- 2. FAST BATCH LOOP (Chunks of 50) ---
+        const BATCH_SIZE = 50; 
 
-        for (let i = 0; i < totalRows; i++) {
-            pText.innerText = `Processing ${i + 1} of ${totalRows}`;
-            pDetail.innerText = `Importing row ${i + 1}...`;
+        for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+            pText.innerText = `Processing ${Math.min(i + BATCH_SIZE, totalRows)} of ${totalRows}`;
+            pDetail.innerText = `Batching records...`;
             
-            const pct = Math.round(((i) / totalRows) * 100);
+            const pct = Math.round((i / totalRows) * 100);
             pBar.style.width = `${pct}%`;
-            pBar.innerText = `${i}/${totalRows}`; 
+            pBar.innerText = `${pct}%`;
 
-            const rowData = new FormData();
-            rowData.append('action', 'process_single_row');
-            rowData.append('index', i);
-            rowData.append('csrf_token', window.CSRF_TOKEN);
+            const batchData = new FormData();
+            batchData.append('action', 'process_batch_rows'); // CALLING NEW PHP ACTION
+            batchData.append('start_index', i);
+            batchData.append('batch_size', BATCH_SIZE);
+            batchData.append('csrf_token', window.CSRF_TOKEN);
 
-            const rowRes = await fetch('Modules/staff_modules/resident_info.php', { method: 'POST', body: rowData });
-            const rowResult = await rowRes.json();
+            const res = await fetch('Modules/staff_modules/resident_info.php', { method: 'POST', body: batchData });
+            const batchResult = await res.json();
 
-            if (rowResult.status === 'success') {
-                successCount++;
-            } else if (rowResult.status === 'skipped') {
-                skipCount++;
-                // Optional: Show live errors in the modal text area
-                /*
-                errDiv.style.display = 'block';
-                const li = document.createElement('li');
-                li.innerText = `Row ${i+2}: ${rowResult.message}`;
-                errList.appendChild(li);
-                */
+            if (batchResult.status === 'success') {
+                processedTotal += batchResult.processed;
+                skippedTotal   += batchResult.skipped;
             } else {
-                skipCount++;
+                console.error("Batch Error:", batchResult.message);
             }
         }
 
-        // 4. Finish
         pBar.style.width = "100%";
-        pBar.innerText = "Done!";
+        pBar.innerText = "100%";
         pText.innerText = "Import Complete";
         
         const downloadURL = 'Modules/staff_modules/resident_info.php?export_errors=1';
@@ -1923,14 +1873,14 @@ async function startBatchUpload() {
         setTimeout(() => {
             modal.hide();
             
-            if (skipCount > 0) {
+            if (skippedTotal > 0) {
                  Swal.fire({
                     icon: 'warning',
                     title: 'Batch Import Finished',
-                    html: `Successfully imported: <b>${successCount}</b><br>Skipped (Incomplete/Duplicates): <b>${skipCount}</b><br><br>Download the report to see details.`,
+                    html: `Imported: <b>${processedTotal}</b><br>Skipped: <b>${skippedTotal}</b><br><br>Download report to view errors.`,
                     showDenyButton: true,
                     confirmButtonText: 'Okay',
-                    denyButtonText: 'Download Skipped Report',
+                    denyButtonText: 'Download Report',
                     confirmButtonColor: '#3085d6',
                     denyButtonColor: '#d33'
                 }).then((result) => {
@@ -1945,54 +1895,18 @@ async function startBatchUpload() {
                 Swal.fire({
                     icon: 'success',
                     title: 'Batch Import Successful',
-                    html: `Successfully imported: <b>${successCount}</b><br>No errors found.`,
+                    html: `Successfully imported: <b>${processedTotal}</b> records.`,
                     confirmButtonText: 'Great!'
-                }).then(() => {
-                    location.reload(); 
-                });
+                }).then(() => { location.reload(); });
             }
 
-        }, 1000);
+        }, 500);
 
     } catch (error) {
         modal.hide();
         console.error(error);
-        Swal.fire('Import Failed', error.message + " (Check console for details)", 'error');
+        Swal.fire('Import Failed', error.message, 'error');
     }
-}
-</script>
-<script>
-function toggleRestriction(residentId){
-  Swal.fire({
-    title: 'Unrestrict resident?',
-    text: 'This will lift the restriction and remove the offending appointments.',
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonText: 'Unrestrict'
-  }).then(({isConfirmed}) => {
-    if(!isConfirmed) return;
-    fetch('api/restrictions/unrestrict.php', {
-      method: 'POST',
-      headers: {'Content-Type':'application/x-www-form-urlencoded'},
-      body: 'resident_id=' + encodeURIComponent(residentId) +
-            '&csrf_token=' + encodeURIComponent(window.CSRF_TOKEN)
-    })
-    .then(r => r.json())
-    .then(d => {
-      if(d?.success){
-        const del = d.deleted || {};
-        const msg =
-          `Restriction lifted. ` +
-          `Deleted — schedules: ${del.schedules||0}, cedula: ${del.cedula||0}, ` +
-          `urgent req: ${del.urgent_request||0}, urgent cedula: ${del.urgent_cedula_request||0}.`;
-        Swal.fire({icon:'success', title:'Unrestricted', text: msg, timer:1800, showConfirmButton:false})
-          .then(()=>location.reload());
-      }else{
-        Swal.fire({icon:'error', title:'Failed', text: d?.error || 'Could not unrestrict.'});
-      }
-    })
-    .catch(err => Swal.fire({icon:'error', title:'Error', text:String(err)}));
-  });
 }
 </script>
 
