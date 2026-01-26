@@ -108,7 +108,7 @@ if (!function_exists('enc_lupon')) {
         return "index_Admin.php?page=$p";
     }
 }
-$resbaseUrl = enc_lupon('case_list');
+$resbaseUrl = enc_admin('case_list');
 
 /* ==========================================================================
    5. IMPORT HANDLER (AJAX + LOGIC)
@@ -785,7 +785,7 @@ $result = $mysqli->query($case_query);
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-warning">Save Update</button>
+                    <button type="submit" name="update_appearance" class="btn btn-warning">Save Update</button>
                 </div>
             </form>
         </div>

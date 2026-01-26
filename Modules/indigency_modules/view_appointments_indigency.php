@@ -447,9 +447,9 @@ $mysqli->query("INSERT INTO archived_urgent_request SELECT * FROM urgent_request
 $mysqli->query("DELETE FROM urgent_request WHERE status='Released' AND selected_date<CURDATE()");
 
 $mysqli->query("UPDATE schedules SET appointment_delete_status = 1 WHERE selected_date < CURDATE() AND status IN ('Released','Rejected')");
-$mysqli->query("UPDATE cedula SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Released','Rejected')");
+$mysqli->query("UPDATE cedula SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Pending','Approved', 'ApprovedCaptain','Rejected')");
 $mysqli->query("UPDATE urgent_request SET urgent_delete_status = 1 WHERE selected_date < CURDATE() AND status IN ('Released','Rejected')");
-$mysqli->query("UPDATE urgent_cedula_request SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Released','Rejected')");
+$mysqli->query("UPDATE urgent_cedula_request SET cedula_delete_status = 1 WHERE appointment_date < CURDATE() AND cedula_status IN ('Pending','Approved', 'ApprovedCaptain','Rejected')");
 
 /* ---------------- UNION (ALL) + shared WHERE for list & count ---------------- */
 $unionSql = "
@@ -2151,7 +2151,7 @@ ${renderSignatorySection(isCaptainSignatory, assignedKagName)}
     </body>
   </html>`;
 }
- else if (certificate === "Certification Of Oneness") {
+ else if (certificate.trim().toLowerCase() === "certification of oneness") {
   // console.log("oneness_fullname inside printAppointment:", oneness_fullname);
 
   // 1) Format date strings similar to other certs (optional)
