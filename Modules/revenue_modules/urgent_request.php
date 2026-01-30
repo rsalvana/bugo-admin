@@ -60,7 +60,6 @@ while ($row = $certR->fetch_assoc()) {
   <link rel="stylesheet" href="css/urgent/urgent.css">
 
   <style>
-      /* Custom Styles for Queue */
       .queue-item-remove { cursor: pointer; color: #dc3545; transition: all 0.2s; }
       .queue-item-remove:hover { color: #a71d2a; transform: scale(1.1); }
       .sticky-submit-footer { position: sticky; bottom: 0; background: white; z-index: 10; border-top: 1px solid #dee2e6; }
@@ -169,10 +168,6 @@ while ($row = $certR->fetch_assoc()) {
                                     <select id="purposeSelect" class="form-select mb-2">
                                         <option value="">-- Choose Purpose --</option>
                                     </select>
-                                    
-                                    <!-- <div id="customPurposeContainer" class="d-none mt-2">
-                                        <input type="text" id="customPurposeInput" class="form-control" placeholder="Specify custom purpose">
-                                    </div> -->
                                 </div>
 
                             </div>
@@ -237,7 +232,6 @@ while ($row = $certR->fetch_assoc()) {
   const $mainInterface = $('#mainInterface');
   const $cert = $('#CertificateSelect');
   
-  // Staging Inputs
   const $cedulaActionWrap = $('#cedulaActionContainer');
   const $cedulaAction = $('#cedulaActionSelect');
   const $incomeWrap = $('#incomeContainer');
@@ -245,31 +239,24 @@ while ($row = $certR->fetch_assoc()) {
   const $besoWrap = $('#besoFields');
   const $purposeWrap = $('#purposeContainer');
   const $purpose = $('#purposeSelect');
-  const $customPurposeWrap = $('#customPurposeContainer');
-  const $customPurposeInput = $('#customPurposeInput');
   
-  // Queue Elements
   const $queueTableBody = $('#queueTable tbody');
   const $btnSubmit = $('#btnSubmitAll');
   const $queueCount = $('#queueCount');
 
-  // --- State Variables ---
   let residentDetails = null;
-  let requestQueue = []; // Array of objects: { id, certificate, purpose, payload, displayDetails }
+  let requestQueue = []; 
 
-  // --- Helpers ---
   const toast = (icon, title) => Swal.fire({toast:true, position:'top-end', showConfirmButton:false, timer:2500, icon, title});
 
-  // --- Initialization ---
   $resident.select2({ placeholder: 'Search resident...', width: '100%' });
 
   // -------------------------------------------------------------
-  // 1. Resident Selection & Fetching
+  // 1. Resident Selection
   // -------------------------------------------------------------
   $resident.on('change', function () {
     const id = this.value;
     
-    // Reset State
     requestQueue = [];
     updateQueueTable();
     resetStagingArea();
@@ -290,17 +277,26 @@ while ($row = $certR->fetch_assoc()) {
         }
         residentDetails = data;
         
-        // Populate UI Info
         $('#residentName').text(data.full_name);
         
-        // Cedula Badge Logic
-        const hasReleasedCedula = data.has_approved_cedula; 
-        const cedulaTxt = hasReleasedCedula ? 'Released / Active' : 'None / Not Released';
-        const badgeClass = hasReleasedCedula ? 'badge bg-success' : 'badge bg-warning text-dark border border-dark';
+        // Updated Badge Logic for All Statuses
+        const status = data.cedula_status; 
+        let cedulaTxt = 'None / Not Released';
+        let badgeClass = 'badge bg-warning text-dark border border-dark';
+
+        if (status === 'released') {
+            cedulaTxt = 'Released / Active';
+            badgeClass = 'badge bg-success';
+        } else if (status === 'pending') {
+            cedulaTxt = 'Pending Approval';
+            badgeClass = 'badge bg-info text-dark';
+        } else if (status === 'approved' || status === 'approvedcaptain') {
+            cedulaTxt = 'Approved / For Release';
+            badgeClass = 'badge bg-primary';
+        }
         
         $('#cedulaStatusBadge').attr('class', badgeClass).text(cedulaTxt);
 
-        // Age Restriction Filter (Under 18)
         const age = parseInt(data.age || '0', 10);
         $cert.find('option').each(function() {
             const val = $(this).val();
@@ -311,7 +307,6 @@ while ($row = $certR->fetch_assoc()) {
             }
         });
 
-        // Show Interface
         $mainInterface.removeClass('d-none');
         $('#residentDetails').removeClass('d-none');
       })
@@ -319,34 +314,24 @@ while ($row = $certR->fetch_assoc()) {
   });
 
   // -------------------------------------------------------------
-  // 2. Certificate Configuration (Left Column)
+  // 2. Certificate Logic
   // -------------------------------------------------------------
   $cert.on('change', function() {
       const selected = this.value;
-      resetStagingInputs(); // Clear dynamic fields
+      resetStagingInputs(); 
 
       if (!selected) return;
 
       const isCedula = selected === 'Cedula';
       const isBeso = selected === 'BESO Application';
 
-      // Ongoing Case Check
+      // Check Ongoing Case for Clearance
       if (selected === 'Barangay Clearance' && residentDetails.has_ongoing_case) {
-          Swal.fire('Blocked','Resident has an ongoing case. Redirecting...','warning')
-            .then(() => window.location.href = "<?= enc_revenue('case_list'); ?>");
+          Swal.fire('Blocked','Resident has an ongoing case.','warning');
           $cert.val('').trigger('change');
           return;
       }
 
-      // Pending Duplicate Check
-      const pendingCerts = residentDetails.pending_certificates || [];
-      if (pendingCerts.includes(selected)) {
-         Swal.fire('Pending','Already has a pending request for ' + selected + '.','warning');
-         $cert.val('').trigger('change');
-         return;
-      }
-
-      // Visibility Logic
       if (isCedula) {
           $cedulaActionWrap.removeClass('d-none');
       } else if (isBeso) {
@@ -354,22 +339,15 @@ while ($row = $certR->fetch_assoc()) {
           $purposeWrap.removeClass('d-none');
           loadPurposes(selected);
       } else {
-          // Standard Certificate
           $purposeWrap.removeClass('d-none');
           loadPurposes(selected);
       }
   });
 
-  // Cedula Sub-options
   $cedulaAction.on('change', function() {
       const act = this.value;
       $incomeWrap.toggleClass('d-none', act !== 'request');
       $uploadCedulaWrap.toggleClass('d-none', act !== 'upload');
-  });
-
-  // Purpose 'Others' handler
-  $purpose.on('change', function() {
-      $customPurposeWrap.toggleClass('d-none', this.value === 'others');
   });
 
   function resetStagingArea() {
@@ -381,7 +359,6 @@ while ($row = $certR->fetch_assoc()) {
       $('.config-field').addClass('d-none'); 
       $('#stagingForm').find('input, select').not('#CertificateSelect').val('');
       $purpose.empty(); 
-      $customPurposeWrap.addClass('d-none');
   }
 
   function loadPurposes(certName) {
@@ -399,23 +376,38 @@ while ($row = $certR->fetch_assoc()) {
   }
 
   // -------------------------------------------------------------
-  // 3. Add to Queue Logic (WITH FORWARD VALIDATION)
+  // 3. ADD TO QUEUE (Updated Validation for Blocking)
   // -------------------------------------------------------------
   $('#btnAddToList').on('click', function() {
       const certName = $cert.val();
       if(!certName) { toast('warning', 'Please select a certificate.'); return; }
 
       const pSel = $purpose.val();
-      const pCust = $customPurposeInput.val();
-      const purpose = (pSel === 'others' ? pCust : pSel);
+      const purpose = pSel;
 
-      // --- A. Duplicate Check ---
+      // ✅ BLOCK DUPLICATES BASED ON DB (Pending, Approved, ApprovedCaptain)
+      if (residentDetails.pending_certificates.includes(certName)) {
+          Swal.fire('Blocked', `Resident already has a pending or approved request for ${certName}.`, 'warning');
+          return;
+      }
+
+      // ✅ BLOCK CEDULA SPECIFICALLY
+      if (certName === 'Cedula' && residentDetails.has_pending_cedula) {
+          Swal.fire({
+              icon: 'warning',
+              title: 'Duplicate Blocked',
+              html: `Resident already has a <b>${residentDetails.cedula_status.toUpperCase()}</b> Cedula request.`,
+          });
+          return;
+      }
+
+      // Local Queue Duplicate Check
       if(requestQueue.some(item => item.certificate === certName)) {
           Swal.fire('Duplicate', `${certName} is already in your request list.`, 'info');
           return;
       }
 
-      // --- B. "Cedula First" Validation ---
+      // Cedula Dependency Check
       if (certName !== 'Cedula') {
           const hasDbCedula = residentDetails.has_approved_cedula;
           const hasQueueCedula = requestQueue.some(item => item.certificate === 'Cedula');
@@ -424,48 +416,14 @@ while ($row = $certR->fetch_assoc()) {
               Swal.fire({
                   icon: 'warning',
                   title: 'Cedula Required',
-                  html: `Resident does not have a released Cedula.<br><br>
-                         Please <b>add a Cedula request</b> to the list first before adding ${certName}.`,
+                  html: `Resident does not have a released Cedula.<br><br>Please <b>add a Cedula request</b> first.`,
                   confirmButtonText: 'Understood'
               });
               return;
           }
       }
 
-      // --- C. BESO Logic ---
-      if (certName === 'BESO Application') {
-          if (residentDetails.has_existing_beso) {
-               Swal.fire('Restricted', 'Resident already has an existing BESO record.', 'error');
-               return;
-          }
-      }
-
-      // --- D. FTJ Clearance Logic (Forward Check) ---
-      if (certName === 'Barangay Clearance' && purpose === 'First Time Jobseeker') {
-          // Check Prerequisite: Must have "Barangay Residency" (FTJ)
-          const hasResidencyInDB = residentDetails.has_residency; // Assumes DB flag
-          const hasResidencyInQueue = requestQueue.some(item => 
-              item.certificate === 'Barangay Residency' && item.payload.purpose === 'First Time Jobseeker'
-          );
-
-          if (!hasResidencyInDB && !hasResidencyInQueue) {
-              Swal.fire({
-                  icon: 'warning',
-                  title: 'Requirement Missing',
-                  html: `For First Time Jobseeker Clearance, the resident must have a <b>Barangay Residency</b> (FTJ).<br><br>Please add "Barangay Residency" with purpose "First Time Jobseeker" to the list first.`,
-                  confirmButtonText: 'Okay'
-              });
-              return;
-          }
-
-          // Check Limit
-          if (residentDetails.has_clearance_used) {
-              Swal.fire({icon: 'warning', title: 'Limit Reached', text: 'Resident already used FTJ privilege for Clearance.'});
-              return;
-          }
-      }
-
-      // --- E. Data Gathering ---
+      // Payload Construction
       let payload = { userId: $resident.val(), certificate: certName, urgent: true };
       let displayDetails = "";
 
@@ -496,21 +454,20 @@ while ($row = $certR->fetch_assoc()) {
           }
       } 
       else {
-          if(!purpose) { toast('warning', 'Select/Enter a purpose'); return; }
+          if(!purpose) { toast('warning', 'Select a purpose'); return; }
           payload.purpose = purpose;
           displayDetails = `Purpose: ${purpose}`;
 
           if(certName === 'BESO Application') {
               const educ = $('#educationAttainment').val();
               const cour = $('#course').val();
-              if(!educ || !cour) { toast('warning', 'Education details required for BESO'); return; }
+              if(!educ || !cour) { toast('warning', 'Education details required'); return; }
               payload.education_attainment = educ;
               payload.course = cour;
           }
       }
 
-      // --- F. Push to Queue ---
-      const uniqueId = Date.now() + Math.random();
+      const uniqueId = Date.now() + Math.random(); 
       requestQueue.push({
           id: uniqueId,
           certificate: certName,
@@ -523,12 +480,8 @@ while ($row = $certR->fetch_assoc()) {
       toast('success', 'Added to list');
   });
 
-  // -------------------------------------------------------------
-  // 4. Queue Management UI
-  // -------------------------------------------------------------
   function updateQueueTable() {
       $queueTableBody.empty();
-      
       if(requestQueue.length === 0) {
           $queueTableBody.html(`
             <tr><td colspan="3" class="text-center text-muted py-5">
@@ -539,9 +492,8 @@ while ($row = $certR->fetch_assoc()) {
           $queueCount.text('0');
           return;
       }
-
       requestQueue.forEach(item => {
-         const row = `
+         $queueTableBody.append(`
             <tr>
                 <td><span class="fw-bold text-primary">${item.certificate}</span></td>
                 <td><small class="text-muted">${item.details}</small></td>
@@ -549,163 +501,80 @@ while ($row = $certR->fetch_assoc()) {
                     <i class="bi bi-trash3-fill queue-item-remove fs-5" 
                        onclick="removeItem(${item.id})" title="Remove"></i>
                 </td>
-            </tr>
-         `;
-         $queueTableBody.append(row);
+            </tr>`);
       });
-      
       $btnSubmit.prop('disabled', false);
       $queueCount.text(requestQueue.length);
   }
 
-  // -------------------------------------------------------------
-  // 5. REMOVE ITEM LOGIC (WITH REVERSE VALIDATION)
-  // -------------------------------------------------------------
   window.removeItem = function(id) {
       const itemToRemove = requestQueue.find(i => i.id === id);
       if(!itemToRemove) return;
 
-      // --- CHECK 1: CEDULA DEPENDENCY ---
-      // If we are trying to remove a Cedula...
       if(itemToRemove.certificate === 'Cedula') {
-           // Check if there are ANY other items in the queue (since most need Cedula)
            const othersExist = requestQueue.some(i => i.certificate !== 'Cedula');
-           
-           // If user has NO released Cedula in DB, and has other items in queue -> Block Delete
            if(!residentDetails.has_approved_cedula && othersExist) {
                Swal.fire({
                    title: 'Cannot Remove Cedula',
-                   text: 'Other items in your list require a Cedula. Please remove them first.',
+                   text: 'Other items in your list depend on this Cedula request.',
                    icon: 'warning'
                });
                return; 
            }
       }
-
-      // --- CHECK 2: FTJ RESIDENCY DEPENDENCY (THE FIX) ---
-      // If we are trying to remove a Barangay Residency (FTJ)...
-      if (itemToRemove.certificate === 'Barangay Residency' && itemToRemove.payload.purpose === 'First Time Jobseeker') {
-           
-           // Check if a dependent Clearance (FTJ) exists in the queue
-           const hasDependentClearance = requestQueue.some(i => 
-               i.certificate === 'Barangay Clearance' && i.payload.purpose === 'First Time Jobseeker'
-           );
-
-           // If user has NO Residency in DB, and has a Clearance in queue -> Block Delete
-           if (!residentDetails.has_residency && hasDependentClearance) {
-               Swal.fire({
-                   title: 'Cannot Remove Residency',
-                   html: 'The <b>Barangay Clearance (First Time Jobseeker)</b> in your list depends on this Residency.<br><br>Please remove the Clearance request first.',
-                   icon: 'warning'
-               });
-               return;
-           }
-      }
-      
       requestQueue = requestQueue.filter(item => item.id !== id);
       updateQueueTable();
   };
 
-  // -------------------------------------------------------------
-  // 6. Batch Submission (The Engine)
-  // -------------------------------------------------------------
   $btnSubmit.on('click', async function() {
       if(requestQueue.length === 0) return;
-
       const confirmed = await Swal.fire({
           title: 'Submit All Requests?',
           text: `You are about to submit ${requestQueue.length} request(s).`,
           icon: 'question',
           showCancelButton: true,
-          confirmButtonText: 'Yes, Submit All',
-          confirmButtonColor: '#d63384'
+          confirmButtonText: 'Yes, Submit All'
       });
-
       if (!confirmed.isConfirmed) return;
 
-      Swal.fire({
-          title: 'Processing...',
-          html: 'Please wait while we save your requests.<br><b>Do not close this window.</b>',
-          allowOutsideClick: false,
-          didOpen: () => { Swal.showLoading(); }
-      });
+      Swal.fire({ title: 'Processing...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
 
       let successCount = 0;
       let failCount = 0;
 
-      // SORTING: Cedula First -> Residency Second -> Others
+      // Sorting for submission: Cedula first
       requestQueue.sort((a, b) => {
           if (a.certificate === 'Cedula') return -1;
           if (b.certificate === 'Cedula') return 1;
-          if (a.certificate === 'Barangay Residency') return -1;
-          return 1;
+          return 0;
       });
 
       for (const item of requestQueue) {
           try {
               let result;
-              
               if (item.certificate === 'Cedula' && item.payload.action === 'upload') {
                   const formData = new FormData();
-                  for (const key in item.payload) {
-                      formData.append(key, item.payload[key]);
-                  }
+                  for (const key in item.payload) { formData.append(key, item.payload[key]); }
                   const resp = await fetch('class/save_urgent_cedula.php', { method: 'POST', body: formData });
                   result = await resp.json();
-              } 
-              else {
+              } else {
                   const resp = await fetch('class/save_schedule.php', { 
                       method: 'POST', 
                       headers: {'Content-Type': 'application/json'},
                       body: JSON.stringify(item.payload)
                   });
                   result = await resp.json();
-
-                  if (result.success && item.certificate === 'BESO Application') {
-                       await fetch('class/save_beso.php', { 
-                          method: 'POST', 
-                          headers: {'Content-Type': 'application/json'},
-                          body: JSON.stringify(item.payload)
-                      });
-                  }
-
-                  if (result.success && (item.certificate === 'Barangay Clearance' || item.certificate === 'Barangay Indigency')) {
-                       if (item.payload.purpose === 'First Time Jobseeker') {
-                            const field = (item.certificate === 'Barangay Clearance') ? 'used_for_clearance' : 'used_for_indigency';
-                            fetch('ajax/mark_beso_used.php', {
-                                method: 'POST',
-                                headers: {'Content-Type':'application/json'},
-                                body: JSON.stringify({ res_id: item.payload.userId, field: field })
-                            });
-                       }
-                  }
               }
-
-              if (result.success) {
-                  successCount++;
-              } else {
-                  failCount++;
-                  console.error('Failed Item:', item.certificate, result);
-              }
-
-          } catch (err) {
-              failCount++;
-              console.error('Network/Parse Error:', err);
-          }
+              if (result.success) successCount++; else failCount++;
+          } catch (err) { failCount++; }
       }
 
       Swal.close();
-
-      if (failCount === 0) {
-          Swal.fire({
-              icon: 'success', title: 'All Done!', text: 'All requests submitted successfully.'
-          }).then(() => window.location.reload());
-      } else {
-          Swal.fire({
-              icon: 'warning', title: 'Partial Completion', 
-              text: `Submitted: ${successCount} \nFailed: ${failCount}. \nCheck logs.`
-          }).then(() => window.location.reload());
-      }
+      Swal.fire({
+          icon: failCount === 0 ? 'success' : 'warning',
+          title: failCount === 0 ? 'All Done!' : 'Partial Completion',
+          text: `Submitted: ${successCount} \nFailed: ${failCount}.`
+      }).then(() => window.location.reload());
   });
 
 })();

@@ -94,7 +94,7 @@ if (!empty($_SESSION['flash'])) {
     $color = $_SESSION['flash']['type'] === 'success' ? 'success' : 'danger';
     $flashHtml = '<div class="alert alert-' . $color . ' alert-dismissible fade show" role="alert">'
                . htmlspecialchars($_SESSION['flash']['msg'])
-               . '<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>'
+               . '<button type="button" class="btn-close" data-bs-alert="Close" aria-label="Close"></button>'
                . '</div>';
     unset($_SESSION['flash']);
 }
@@ -317,35 +317,20 @@ if (
             $hasErrors = false;
         }
 
-        // =========================================================
-        // URL for Download: Points to Index + Param
-        // =========================================================
-       // ... inside the import logic ...
-
-        // =========================================================
-        // URL for Download: Points to Index + Param
-        // =========================================================
-        
-        // 1. Determine redirect URL (unchanged)
+        // 1. Determine redirect URL
         $redirectURL = isset($redirects['beso'])
             ? $redirects['beso']
             : (isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : 'index_Admin.php?page=beso');
         
         // 2. DYNAMIC DOWNLOAD FIX
-        // basename($_SERVER['PHP_SELF']) will return "index_Admin.php" if you are Admin
-        // or "index_Beso.php" (or whatever your user file is) if you are a User.
-       // 2. DYNAMIC DOWNLOAD FIX
-       $currentPage = basename($_SERVER['PHP_SELF']);
+        $currentPage = basename($_SERVER['PHP_SELF']);
         
-       // Check if the encrypt function exists (It exists in index_Admin.php)
-       // If yes, we encrypt 'beso'. If no (User side?), we keep it plain.
-       $pageParam = 'beso';
-       if (function_exists('encrypt')) {
-           $pageParam = urlencode(encrypt('beso'));
-       }
+        $pageParam = 'beso';
+        if (function_exists('encrypt')) {
+            $pageParam = urlencode(encrypt('beso'));
+        }
 
-       $downloadURL = $currentPage . '?page=' . $pageParam . '&export_errors=1';
-        // -------------------
+        $downloadURL = $currentPage . '?page=' . $pageParam . '&export_errors=1';
 
         echo "<script src='https://cdn.jsdelivr.net/npm/sweetalert2@11'></script>
         <script>
@@ -363,10 +348,10 @@ if (
               denyButtonColor: '#d33'
             }).then((result) => {
               if (result.isDenied) {
-                 window.location.href = '{$downloadURL}';
-                 setTimeout(() => { window.location.href = " . json_encode($redirectURL) . "; }, 2000);
+                  window.location.href = '{$downloadURL}';
+                  setTimeout(() => { window.location.href = " . json_encode($redirectURL) . "; }, 2000);
               } else {
-                 window.location.href = " . json_encode($redirectURL) . ";
+                  window.location.href = " . json_encode($redirectURL) . ";
               }
             });";
         } else {
@@ -403,6 +388,13 @@ if (
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <link rel="stylesheet" href="css/beso/beso.css">
 
+<style>
+    .form-select-fix {
+        min-width: 120px !important;
+        width: auto !important;
+    }
+</style>
+
 <div class="container my-5">
   <div class="d-flex justify-content-between align-items-center">
     <form method="GET" action="index_Admin.php" class="mb-3">
@@ -412,20 +404,29 @@ if (
           <label class="form-label">Resident Name</label>
           <input type="text" name="search" class="form-control" placeholder="Search by name" value="<?= htmlspecialchars($_GET['search'] ?? '') ?>">
         </div>
-        <div class="col-md-1">
+        <div class="col-md-2">
           <label class="form-label">Month</label>
-          <select name="month" class="form-select">
+          <select name="month" class="form-select form-select-fix">
             <option value="">All</option>
-            <?php for ($m=1;$m<=12;$m++): $selected=(isset($_GET['month'])&&$_GET['month']==$m)?'selected':''; ?>
+            <?php 
+            $urlMonth = isset($_GET['month']) ? $_GET['month'] : '';
+            for ($m=1;$m<=12;$m++): 
+                $selected = ($urlMonth == $m) ? 'selected' : ''; 
+            ?>
               <option value="<?= $m ?>" <?= $selected ?>><?= date('F', mktime(0,0,0,$m,1)) ?></option>
             <?php endfor; ?>
           </select>
         </div>
-        <div class="col-md-1">
+        <div class="col-md-2">
           <label class="form-label">Year</label>
-          <select name="year" class="form-select">
+          <select name="year" class="form-select form-select-fix">
             <option value="">All</option>
-            <?php $currentYear=date('Y'); for ($y=$currentYear; $y>=2020; $y--): $selected=(isset($_GET['year'])&&$_GET['year']==$y)?'selected':''; ?>
+            <?php 
+            $urlYear = isset($_GET['year']) ? $_GET['year'] : '';
+            $currentYear=date('Y'); 
+            for ($y=$currentYear; $y>=2020; $y--): 
+                $selected = ($urlYear == $y) ? 'selected' : ''; 
+            ?>
               <option value="<?= $y ?>" <?= $selected ?>><?= $y ?></option>
             <?php endfor; ?>
           </select>
@@ -435,9 +436,10 @@ if (
           <select name="course" class="form-select">
             <option value="">All</option>
             <?php
+            $urlCourse = isset($_GET['course']) ? $_GET['course'] : '';
             $courses = $mysqli->query("SELECT DISTINCT course FROM beso WHERE course IS NOT NULL AND course != ''");
             while ($c = $courses->fetch_assoc()):
-              $selected = (isset($_GET['course']) && $_GET['course'] == $c['course']) ? 'selected' : '';
+              $selected = ($urlCourse == $c['course']) ? 'selected' : '';
             ?>
               <option value="<?= htmlspecialchars($c['course']) ?>" <?= $selected ?>><?= htmlspecialchars($c['course']) ?></option>
             <?php endwhile; ?>
@@ -487,7 +489,6 @@ if (
                 if ($suffix !== '') $fullNameRaw .= " $suffix";
                 $fullName = htmlspecialchars($fullNameRaw, ENT_QUOTES);
 
-                // Use resolved (BESO → residents fallback)
                 $contact = htmlspecialchars($row['contactNum_resolved'] ?? '', ENT_QUOTES);
                 $age     = htmlspecialchars($row['age_resolved'] ?? '', ENT_QUOTES);
                 $series  = htmlspecialchars($row['seriesNum'] ?? '', ENT_QUOTES);

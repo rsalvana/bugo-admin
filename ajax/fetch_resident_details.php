@@ -6,6 +6,7 @@ session_start();
 
 $role = $_SESSION['Role_Name'] ?? '';
 
+// Access control based on user role
 if ($role !== 'Revenue Staff' && $role !== 'Admin' && $role !== 'BESO' && $role !== 'indigency') {
     http_response_code(403);
     require_once __DIR__ . '/../security/403.html';
@@ -14,6 +15,7 @@ if ($role !== 'Revenue Staff' && $role !== 'Admin' && $role !== 'BESO' && $role 
 
 $id = $_GET['id'] ?? 0;
 
+// Fetch basic resident profile
 $stmt = $mysqli->prepare("
     SELECT 
         first_name, middle_name, last_name, suffix_name, 
@@ -26,12 +28,12 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($row = $result->fetch_assoc()) {
-    // ✅ Calculate age
+    // ✅ Calculate age for clearance restrictions
     $birthDate = new DateTime($row['birth_date']);
     $today = new DateTime();
     $age = $today->diff($birthDate)->y;
 
-    // ✅ Approved Cedula Check (ignore soft-deleted)
+    // ✅ Approved Cedula Check: Exactly 'Released' (ignore soft-deleted)
     $stmt1 = $mysqli->prepare("SELECT COUNT(*) FROM cedula WHERE res_id = ? AND cedula_status = 'Released' AND cedula_delete_status = 0");
     $stmt1->bind_param("i", $id);
     $stmt1->execute();
@@ -48,15 +50,26 @@ if ($row = $result->fetch_assoc()) {
 
     $hasApprovedCedula = ($count1 + $count2) > 0;
 
-    // ✅ Pending Cedula Check (already ignoring soft-deleted)
-    $stmt3 = $mysqli->prepare("SELECT COUNT(*) FROM cedula WHERE res_id = ? AND cedula_status = 'Pending' AND cedula_delete_status = 0");
+    // ✅ Blocking Cedula Check: Includes Pending, Approved, and ApprovedCaptain
+    // This prevents new urgent requests if a record is anywhere in the approval pipeline.
+    $stmt3 = $mysqli->prepare("
+        SELECT COUNT(*) FROM cedula 
+        WHERE res_id = ? 
+        AND cedula_status IN ('Pending', 'Approved', 'ApprovedCaptain') 
+        AND cedula_delete_status = 0
+    ");
     $stmt3->bind_param("i", $id);
     $stmt3->execute();
     $stmt3->bind_result($count3);
     $stmt3->fetch();
     $stmt3->close();
 
-    $stmt4 = $mysqli->prepare("SELECT COUNT(*) FROM urgent_cedula_request WHERE res_id = ? AND cedula_status = 'Pending' AND cedula_delete_status = 0");
+    $stmt4 = $mysqli->prepare("
+        SELECT COUNT(*) FROM urgent_cedula_request 
+        WHERE res_id = ? 
+        AND cedula_status IN ('Pending', 'Approved', 'ApprovedCaptain') 
+        AND cedula_delete_status = 0
+    ");
     $stmt4->bind_param("i", $id);
     $stmt4->execute();
     $stmt4->bind_result($count4);
@@ -80,26 +93,31 @@ if ($row = $result->fetch_assoc()) {
 
     $hasOngoingCase = $caseCount > 0;
 
-    // ✅ Pending Appointment Count (for legacy use)
-    $stmt6 = $mysqli->prepare("SELECT COUNT(*) FROM schedules WHERE res_id = ? AND status = 'Pending' AND appointment_delete_status = 0");
-    $stmt6->bind_param("i", $id);
-    $stmt6->execute();
-    $stmt6->bind_result($schedCount);
-    $stmt6->fetch();
-    $stmt6->close();
+    // ✅ Global Pending/Active Certificate Check
+    // This looks for ANY status that isn't finished/released to block duplicates
+    $pendingCertificates = [];
 
-    $stmt7 = $mysqli->prepare("SELECT COUNT(*) FROM urgent_request WHERE res_id = ? AND status = 'Pending' AND urgent_delete_status = 0");
-    $stmt7->bind_param("i", $id);
-    $stmt7->execute();
-    $stmt7->bind_result($urgentCount);
-    $stmt7->fetch();
-    $stmt7->close();
+    $stmt11 = $mysqli->prepare("SELECT certificate FROM schedules WHERE res_id = ? AND status IN ('Pending', 'Approved', 'ApprovedCaptain') AND appointment_delete_status = 0");
+    $stmt11->bind_param("i", $id);
+    $stmt11->execute();
+    $stmt11->bind_result($cert1);
+    while ($stmt11->fetch()) {
+        $pendingCertificates[] = $cert1;
+    }
+    $stmt11->close();
 
-    $hasPendingAppointment = ($schedCount + $urgentCount) > 0;
+    $stmt12 = $mysqli->prepare("SELECT certificate FROM urgent_request WHERE res_id = ? AND status IN ('Pending', 'Approved', 'ApprovedCaptain') AND urgent_delete_status = 0");
+    $stmt12->bind_param("i", $id);
+    $stmt12->execute();
+    $stmt12->bind_result($cert2);
+    while ($stmt12->fetch()) {
+        $pendingCertificates[] = $cert2;
+    }
+    $stmt12->close();
 
-    // ✅ Existing BESO (match by full name in `beso`)
+    // ✅ Existing BESO Check: Match by full name
     $fullName = trim($row['first_name'].' '.($row['middle_name'] ?? '').' '.$row['last_name'].' '.($row['suffix_name'] ?? ''));
-    $fullName = preg_replace('/\s+/', ' ', $fullName); // collapse extra spaces
+    $fullName = preg_replace('/\s+/', ' ', $fullName);
 
     $stmt8 = $mysqli->prepare("
       SELECT COUNT(*)
@@ -122,36 +140,35 @@ if ($row = $result->fetch_assoc()) {
 
     $hasExistingBeso = $besoCount > 0;
 
-// ✅ Used Residency
-$stmt9 = $mysqli->prepare("
-    SELECT COUNT(*) FROM (
-        SELECT res_id FROM schedules
-         WHERE res_id = ? AND certificate = 'Barangay Residency'
-           AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
-        UNION ALL
-        SELECT res_id FROM urgent_request
-         WHERE res_id = ? AND certificate = 'Barangay Residency'
-           AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
-        UNION ALL
-        SELECT res_id FROM archived_schedules
-         WHERE res_id = ? AND certificate = 'Barangay Residency'
-           AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
-        UNION ALL
-        SELECT res_id FROM archived_urgent_request
-         WHERE res_id = ? AND certificate = 'Barangay Residency'
-           AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
-    ) AS combined
-");
-$stmt9->bind_param("iiii", $id, $id, $id, $id);
-$stmt9->execute();
-$stmt9->bind_result($residencyUsedCount);
-$stmt9->fetch();
-$stmt9->close();
+    // ✅ Used Residency for BESO Check
+    $stmt9 = $mysqli->prepare("
+        SELECT COUNT(*) FROM (
+            SELECT res_id FROM schedules
+             WHERE res_id = ? AND certificate = 'Barangay Residency'
+               AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
+            UNION ALL
+            SELECT res_id FROM urgent_request
+             WHERE res_id = ? AND certificate = 'Barangay Residency'
+               AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
+            UNION ALL
+            SELECT res_id FROM archived_schedules
+             WHERE res_id = ? AND certificate = 'Barangay Residency'
+               AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
+            UNION ALL
+            SELECT res_id FROM archived_urgent_request
+             WHERE res_id = ? AND certificate = 'Barangay Residency'
+               AND purpose = 'First Time Jobseeker' AND barangay_residency_used_for_beso = 1
+        ) AS combined
+    ");
+    $stmt9->bind_param("iiii", $id, $id, $id, $id);
+    $stmt9->execute();
+    $stmt9->bind_result($residencyUsedCount);
+    $stmt9->fetch();
+    $stmt9->close();
 
-$hasResidencyUsed = $residencyUsedCount > 0;
+    $hasResidencyUsed = $residencyUsedCount > 0;
 
-
-    // ✅ Has ANY Residency
+    // ✅ Check if Resident has ANY Residency (FTJ)
     $stmt10 = $mysqli->prepare("
         SELECT COUNT(*) FROM (
             SELECT res_id FROM schedules WHERE res_id = ? AND certificate = 'Barangay Residency' AND purpose = 'First Time Jobseeker'
@@ -171,7 +188,7 @@ $hasResidencyUsed = $residencyUsedCount > 0;
 
     $hasResidency = $residencyTotal > 0;
 
-    // ✅ Used for Clearance or Indigency
+    // ✅ Used for Clearance or Indigency Check
     $stmt13 = $mysqli->prepare("
         SELECT 
             MAX(used_for_clearance) AS clearance_used, 
@@ -195,7 +212,7 @@ $hasResidencyUsed = $residencyUsedCount > 0;
     $hasClearanceUsed = intval($clearanceUsed) > 0;
     $hasIndigencyUsed = intval($indigencyUsed) > 0;
 
-    // ✅ Soft-deleted Cedula Check (any soft-deleted rows present?)
+    // ✅ Soft-deleted Cedula Check
     $stmtSoft = $mysqli->prepare("
       SELECT SUM(cnt) FROM (
         SELECT COUNT(*) AS cnt FROM cedula WHERE res_id = ? AND cedula_delete_status = 1
@@ -211,7 +228,7 @@ $hasResidencyUsed = $residencyUsedCount > 0;
 
     $hasSoftDeletedCedula = (int)$softCnt > 0;
 
-    // ✅ Latest Cedula Status (only non-deleted)
+    // ✅ Fetch Latest Cedula Status for UI Badge
     $cedula_status = null;
     $cedulaQuery = $mysqli->prepare("
         SELECT cedula_status 
@@ -230,28 +247,7 @@ $hasResidencyUsed = $residencyUsedCount > 0;
     }
     $cedulaQuery->close();
 
-    // ✅ Collect pending certificates (new)
-    $pendingCertificates = [];
-
-    $stmt11 = $mysqli->prepare("SELECT certificate FROM schedules WHERE res_id = ? AND status = 'Pending' AND appointment_delete_status = 0");
-    $stmt11->bind_param("i", $id);
-    $stmt11->execute();
-    $stmt11->bind_result($cert1);
-    while ($stmt11->fetch()) {
-        $pendingCertificates[] = $cert1;
-    }
-    $stmt11->close();
-
-    $stmt12 = $mysqli->prepare("SELECT certificate FROM urgent_request WHERE res_id = ? AND status = 'Pending' AND urgent_delete_status = 0");
-    $stmt12->bind_param("i", $id);
-    $stmt12->execute();
-    $stmt12->bind_result($cert2);
-    while ($stmt12->fetch()) {
-        $pendingCertificates[] = $cert2;
-    }
-    $stmt12->close();
-
-    // ✅ Output JSON
+    // ✅ JSON Output
     echo json_encode([
         'success' => true,
         'full_name' => trim($row['first_name'] . ' ' . $row['middle_name'] . ' ' . $row['last_name'] . ' ' . $row['suffix_name']),
@@ -262,7 +258,6 @@ $hasResidencyUsed = $residencyUsedCount > 0;
         'has_approved_cedula' => $hasApprovedCedula,
         'has_pending_cedula' => $hasPendingCedula,
         'has_ongoing_case' => $hasOngoingCase,
-        'has_pending_appointment' => $hasPendingAppointment, // legacy
         'has_existing_beso' => $hasExistingBeso,
         'has_residency_used' => $hasResidencyUsed,
         'has_residency' => $hasResidency,
@@ -276,3 +271,4 @@ $hasResidencyUsed = $residencyUsedCount > 0;
 } else {
     echo json_encode(['success' => false]);
 }
+?>

@@ -13,7 +13,7 @@ include 'class/session_timeout.php';
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="addOfficialModalLabel">
-          <i class="fa-solid fa-user-plus me-2"></i>Add Official
+          <i class="fa-solid fa-user-plus me-2"></i>Add Employee
         </h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>

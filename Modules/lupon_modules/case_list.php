@@ -1,5 +1,5 @@
 <?php
-// 1. Start Output Buffering (Crucial for file downloads)
+// 1. Start Output Buffering (Crucial for file downloads/redirects)
 ob_start();
 
 // 2. Error Reporting
@@ -11,7 +11,7 @@ error_reporting(E_ALL);
 if (session_status() === PHP_SESSION_NONE) session_start();
 
 /* --------------------------------------------------------------------------
-   3. SMART FILE LOCATOR (Prevents 500 Errors)
+   3. SMART FILE LOCATOR
    -------------------------------------------------------------------------- */
 // A. Locate connection.php
 $connPath = '';
@@ -64,7 +64,7 @@ if (isset($_GET['export_errors']) && $_GET['export_errors'] == '1') {
         
         fclose($output);
         unset($_SESSION['lupon_import_errors']);
-        exit(); // Stop execution immediately
+        exit();
     }
 }
 
@@ -97,6 +97,14 @@ function normalize_time_or_fail(string $input): string {
 
 include 'class/session_timeout.php';
 require_once 'logs/logs_trig.php';
+
+// Helper for Router (Admin uses encryption)
+if (!function_exists('enc_lupon')) {
+    function enc_lupon($page) {
+        $p = $_GET['page'] ?? (function_exists('encrypt') ? urlencode(encrypt($page)) : $page);
+        return "index_Admin.php?page=$p";
+    }
+}
 $resbaseUrl = enc_lupon('case_list');
 
 /* ==========================================================================
@@ -216,8 +224,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'import_cases') {
         $sqlPart = "INSERT INTO case_participants (case_number, role, first_name, middle_name, last_name, suffix_name) VALUES (?, ?, ?, ?, ?, ?)";
         $stmtPart = $mysqli->prepare($sqlPart);
 
-        // ... (Previous code remains the same) ...
-
         $getCell = fn($col, $r) => ($col) ? $sheet->getCell($col . $r) : null;
 
         for ($r = 2; $r <= $highestRow; $r++) {
@@ -232,13 +238,9 @@ if (isset($_POST['action']) && $_POST['action'] === 'import_cases') {
             $status      = trim((string)($getCell($cStat, $r)?->getValue() ?? 'Ongoing'));
             if ($status === '') $status = 'Ongoing';
 
-            // Skip completely empty rows
             if ($case_number === '' && $compRaw === '') continue; 
 
-            // ==========================================================
-            // NEW RULE: INCOMPLETE COLUMNS CHECK
-            // ==========================================================
-            // If any essential field is empty or failed date/time parsing
+            // INCOMPLETE COLUMNS CHECK
             if (
                 $case_number === '' || 
                 $compRaw === '' || 
@@ -248,7 +250,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'import_cases') {
                 $timeFiled === null || 
                 $dateHearing === null
             ) {
-                // Determine exactly what is missing for the report
                 $missingFields = [];
                 if ($case_number === '') $missingFields[] = 'Case #';
                 if ($compRaw === '')     $missingFields[] = 'Complainant';
@@ -259,16 +260,10 @@ if (isset($_POST['action']) && $_POST['action'] === 'import_cases') {
                 if ($dateHearing === null)$missingFields[] = 'Hearing Date';
 
                 $reason = 'Incomplete: Missing ' . implode(', ', $missingFields);
-
-                // Add to Error Log (This automatically goes to the download file)
                 $errorLog[] = [$r, $reason, $case_number, $dateFiled ?? 'Invalid/Empty', $compRaw, $respRaw];
                 $skippedCount++;
-                continue; // Skip to the next row immediately
+                continue;
             }
-
-            // ==========================================================
-            // EXISTING CHECKS (Run after we know data is complete)
-            // ==========================================================
 
             // Duplicate Check 
             $dupCheck->bind_param('ss', $case_number, $dateFiled);
@@ -291,7 +286,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'import_cases') {
             // Insert
             $mysqli->begin_transaction();
             try {
-                // Fix for bind_param (pass variables by reference)
                 $stmtCases->bind_param('sisssssssssssss', 
                     $case_number, $employee_id, $cf, $cm, $cl, $cs, 
                     $rf, $rm, $rl, $rs, $nature, $dateFiled, $timeFiled, $dateHearing, $status
@@ -316,8 +310,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'import_cases') {
             }
         }
 
-        // ... (Rest of code remains the same) ...
-
         if (count($errorLog) > 1) {
             $_SESSION['lupon_import_errors'] = $errorLog;
             $hasErrors = true;
@@ -325,8 +317,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'import_cases') {
             $hasErrors = false;
         }
 
-        // --- DIRECT DOWNLOAD LINK FIX ---
-        // Pointing directly to this file bypasses the index.php HTML headers
         $downloadURL = 'Modules/lupon_modules/case_list.php?export_errors=1'; 
 
         // SweetAlert Response
@@ -391,25 +381,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_action_only'])
     $stmt->close(); exit;
 }
 
-/* ================================
-   UPDATE APPEARANCE + REMARKS
-   ================================ */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_appearance'])) {
     $case_number = $_POST['case_number'];
-    $status      = $_POST['attendance_status'];
-    $remarks     = $_POST['appearance_remarks'] ?? '';
-    $stmt = $mysqli->prepare("UPDATE case_participants SET action_taken = ?, remarks = ? WHERE case_number = ?");
-    $stmt->bind_param("sss", $status, $remarks, $case_number);
-    if ($stmt->execute()) {
-        if (class_exists('Trigger')) {
-            $trigger = new Trigger();
-            $trigger->isStatusUpdate(5, $case_number, $status, $remarks); 
+    $attendances = $_POST['attendance'] ?? []; // Array of participant_id => [status, remarks]
+
+    $mysqli->begin_transaction();
+    try {
+        $sql = "UPDATE case_participants SET action_taken = ?, remarks = ? WHERE participant_id = ? AND case_number = ?";
+        $stmt = $mysqli->prepare($sql);
+
+        foreach ($attendances as $p_id => $data) {
+            $status = $data['status'] ?? 'Non-Appearance';
+            $remark = $data['remarks'] ?? '';
+            $stmt->bind_param("ssis", $status, $remark, $p_id, $case_number);
+            $stmt->execute();
         }
-        echo "<script>Swal.fire({icon: 'success', title: 'Attendance Updated', text: 'Case status and remarks updated successfully.', confirmButtonColor: '#3085d6'}).then(()=>{ window.location = '$resbaseUrl'; });</script>";
-    } else {
-        echo "<script>Swal.fire({icon:'error', title:'Error!', html:`" . addslashes($stmt->error) . "`});</script>";
+
+        $mysqli->commit();
+        // Return back to base URL (defined in your project as index_Admin.php?page=...)
+        echo "<script>alert('Individual Attendance Updated!'); window.location.href = window.location.href;</script>";
+    } catch (Exception $e) {
+        $mysqli->rollback();
+        echo "<script>alert('Error: " . addslashes($e->getMessage()) . "');</script>";
     }
-    $stmt->close(); exit;
+    exit;
 }
 
 /* ================================
@@ -670,7 +665,12 @@ $result = $mysqli->query($case_query);
                 </td>
                 <td>
                     <button class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#editCaseModal" onclick='populateEditModal(<?= json_encode($row) ?>)'><i class="bi bi-pencil-square"></i></button>
-                    <button class="btn btn-info btn-sm" data-bs-toggle="modal" data-bs-target="#appearanceModal" onclick="document.getElementById('appearance_case_number').value = '<?= $row['case_number'] ?>'"><i class="bi bi-person-check"></i></button>
+                    <button class="btn btn-info btn-sm" 
+                            data-bs-toggle="modal" 
+                            data-bs-target="#appearanceModal" 
+                            onclick="loadParticipants('<?= $row['case_number'] ?>')">
+                        <i class="bi bi-person-check"></i>
+                    </button>
                 </td>
             </tr>
             <?php endwhile; ?>
@@ -709,34 +709,35 @@ $result = $mysqli->query($case_query);
 </div>
 
 <div class="modal fade" id="appearanceModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form action="" method="POST">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title" id="appearanceModalLabel"><i class="bi bi-journal-check"></i> Update Appearance</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <div class="modal-dialog modal-lg">
+        <form action="" method="POST" class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="bi bi-person-check"></i> Individual Attendance</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="case_number" id="appearance_case_number">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Participant Name</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="participant_list_container">
+                            <tr><td colspan="4" class="text-center">Loading...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="modal-body">
-                    <input type="hidden" name="case_number" id="appearance_case_number">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Select Attendance Status</label>
-                        <select name="attendance_status" class="form-select" required>
-                            <option value="" disabled selected>-- Select Status --</option>
-                            <option value="Appearance">Appearance (Present)</option>
-                            <option value="Non-Appearance">Non-Appearance (Absent)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Remarks (Optional)</label>
-                        <textarea name="appearance_remarks" class="form-control" rows="3" placeholder="Enter notes regarding the hearing..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="submit" class="btn btn-warning">Save Update</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="submit" name="update_appearance" class="btn btn-warning">Save All Updates</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -818,6 +819,43 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+function loadParticipants(caseNumber) {
+    document.getElementById('appearance_case_number').value = caseNumber;
+    const container = document.getElementById('participant_list_container');
+    container.innerHTML = '<tr><td colspan="4" class="text-center">Loading...</td></tr>';
+
+    // Point to the subfolder where the PHP file lives
+    fetch(`Modules/lupon_modules/get_participants.php?case_number=${caseNumber}`)
+        .then(response => response.json())
+        .then(data => {
+            container.innerHTML = '';
+            if (data.length === 0) {
+                container.innerHTML = '<tr><td colspan="4" class="text-center">No participants found.</td></tr>';
+                return;
+            }
+            data.forEach(p => {
+                container.innerHTML += `
+                <tr>
+                    <td><strong>${p.first_name} ${p.last_name}</strong></td>
+                    <td><span class="badge bg-secondary">${p.role}</span></td>
+                    <td>
+                        <select name="attendance[${p.participant_id}][status]" class="form-select form-select-sm">
+                            <option value="Appearance" ${p.action_taken === 'Appearance' ? 'selected' : ''}>Present</option>
+                            <option value="Non-Appearance" ${p.action_taken === 'Non-Appearance' ? 'selected' : ''}>Absent</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" name="attendance[${p.participant_id}][remarks]" class="form-control form-control-sm" value="${p.remarks || ''}">
+                    </td>
+                </tr>`;
+            });
+        })
+        .catch(err => {
+            console.error(err);
+            container.innerHTML = '<tr><td colspan="4" class="text-danger text-center">Error loading data.</td></tr>';
+        });
+}
 </script>
 
 <script>
